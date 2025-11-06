@@ -5,6 +5,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
@@ -23,6 +24,14 @@ function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
+  const [showDetails, setShowDetails] = useState(false)
+
+  // 스와이프 관련
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const [swipeStartX, setSwipeStartX] = useState(0)
+  const [swipeStartY, setSwipeStartY] = useState(0)
+  const [isSwiping, setIsSwiping] = useState(false)
+  const [isPointerDown, setIsPointerDown] = useState(false)
 
   const {
     attributes,
@@ -31,7 +40,9 @@ function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: todo.id })
+  } = useSortable({
+    id: todo.id,
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -63,51 +74,152 @@ function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
     }
   }
 
+  // 마우스/터치 시작
+  const handleStart = (e) => {
+    if (isEditing || isDragging) return
+
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY
+    setSwipeStartX(clientX)
+    setSwipeStartY(clientY)
+    setIsSwiping(false)
+    setIsPointerDown(true)
+  }
+
+  // 마우스/터치 이동
+  const handleMove = (e) => {
+    if (isEditing || isDragging || !isPointerDown) return
+
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY
+    const diffX = swipeStartX - clientX
+    const diffY = Math.abs(swipeStartY - clientY)
+
+    // 스와이프 감지 (수평 움직임이 확실할 때만)
+    if (!isSwiping) {
+      const totalDist = Math.abs(diffX) + diffY
+      if (totalDist > 10) {
+        // 수평 이동이 전체 이동의 80% 이상이면 스와이프
+        if (Math.abs(diffX) > totalDist * 0.8) {
+          setIsSwiping(true)
+          // 터치 이벤트 전파 막기
+          if (e.type.includes('touch')) {
+            e.preventDefault()
+          }
+        } else if (diffY > Math.abs(diffX)) {
+          // 수직 이동이 더 크면 포인터 해제 (드래그 모드로 전환)
+          setIsPointerDown(false)
+          return
+        }
+      }
+    }
+
+    // 스와이프 중일 때만 처리
+    if (isSwiping) {
+      if (e.type.includes('touch')) {
+        e.preventDefault()
+      }
+
+      if (diffX > 0 && diffX <= 100) {
+        // 왼쪽으로 스와이프 (삭제 버튼 열기)
+        setSwipeOffset(diffX)
+      } else if (diffX < 0 && swipeOffset > 0) {
+        // 오른쪽으로 스와이프 (삭제 버튼 닫기)
+        const newOffset = swipeOffset + diffX
+        setSwipeOffset(Math.max(0, newOffset))
+        setSwipeStartX(clientX)
+      }
+    }
+  }
+
+  // 마우스/터치 종료
+  const handleEnd = () => {
+    setIsPointerDown(false)
+
+    if (isSwiping) {
+      setIsSwiping(false)
+      // 40px 이상 열렸으면 80px로 고정, 아니면 닫기
+      setSwipeOffset(swipeOffset > 40 ? 80 : 0)
+    }
+  }
+
+  // 삭제 버튼 클릭
+  const handleDeleteClick = () => {
+    onDelete(todo.id)
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''}`}
+      className="todo-item-wrapper"
     >
-      <div className="drag-handle" {...attributes} {...listeners}>
-        ☰
+      <div className="swipe-background">
+        <button
+          onClick={handleDeleteClick}
+          className="swipe-delete-button"
+          title="삭제"
+        >
+          삭제
+        </button>
       </div>
-      <input
-        type="checkbox"
-        checked={todo.completed}
-        onChange={() => onToggle(todo.id)}
-        className="todo-checkbox"
-      />
       <div
-        className="todo-content"
-        onClick={() => !isEditing && isLongText && setIsExpanded(!isExpanded)}
-        onDoubleClick={handleDoubleClick}
-        style={{ cursor: isEditing ? 'text' : (isLongText ? 'pointer' : 'default') }}
+        {...attributes}
+        {...listeners}
+        className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
+        style={{
+          transform: `translateX(-${swipeOffset}px)`,
+          transition: isSwiping || isDragging ? 'none' : 'transform 0.3s ease'
+        }}
+        onMouseDown={handleStart}
+        onMouseMove={handleMove}
+        onMouseUp={handleEnd}
+        onMouseLeave={handleEnd}
+        onTouchStart={handleStart}
+        onTouchMove={handleMove}
+        onTouchEnd={handleEnd}
+        onContextMenu={(e) => e.preventDefault()}
       >
-        {isEditing ? (
-          <input
-            type="text"
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onBlur={handleEditSubmit}
-            onKeyDown={handleKeyDown}
-            className="todo-edit-input"
-            autoFocus
-          />
-        ) : (
-          <span className={`todo-text ${isExpanded ? 'expanded' : ''}`}>
-            {todo.text}
-          </span>
-        )}
+        <input
+          type="checkbox"
+          checked={todo.completed}
+          onChange={() => onToggle(todo.id)}
+          className="todo-checkbox"
+        />
+        <div
+          className="todo-content"
+          onClick={() => !isEditing && isLongText && setIsExpanded(!isExpanded)}
+          onDoubleClick={handleDoubleClick}
+          style={{ cursor: isEditing ? 'text' : (isLongText ? 'pointer' : 'default') }}
+        >
+          {isEditing ? (
+            <input
+              type="text"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onBlur={handleEditSubmit}
+              onKeyDown={handleKeyDown}
+              className="todo-edit-input"
+              autoFocus
+            />
+          ) : (
+            <span className={`todo-text ${isExpanded ? 'expanded' : ''}`}>
+              {todo.text}
+            </span>
+          )}
+        </div>
+        <button
+          className="details-toggle-button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowDetails(!showDetails)
+          }}
+          title={showDetails ? "세부정보 숨기기" : "세부정보 보기"}
+        >
+          ⋯
+        </button>
+        <span className={`todo-date ${showDetails ? 'show' : ''}`}>{formatDate(todo.created_at)}</span>
       </div>
-      <button
-        onClick={() => onDelete(todo.id)}
-        className="delete-button"
-        title="삭제"
-      >
-        ×
-      </button>
-      <span className="todo-date">{formatDate(todo.created_at)}</span>
     </div>
   )
 }
@@ -161,22 +273,24 @@ function App() {
       // 새 항목은 맨 위에 추가 (order_index = 1)
       const newOrderIndex = 1
 
-      // 기존 항목들의 order_index를 1씩 증가
-      if (todos.length > 0) {
-        const { error: updateError } = await supabase
-          .from('todos')
-          .update({ order_index: supabase.raw('order_index + 1') })
-          .gte('order_index', 1)
-
-        if (updateError) throw updateError
-      }
-
+      // 먼저 새 항목을 추가
       const { data, error } = await supabase
         .from('todos')
         .insert([{ text: inputValue, completed: false, order_index: newOrderIndex }])
         .select()
 
       if (error) throw error
+
+      // 기존 항목들의 order_index를 1씩 증가
+      if (todos.length > 0) {
+        const updatePromises = todos.map((todo) =>
+          supabase
+            .from('todos')
+            .update({ order_index: todo.order_index + 1 })
+            .eq('id', todo.id)
+        )
+        await Promise.all(updatePromises)
+      }
 
       // 로컬 상태 업데이트
       setTodos([data[0], ...todos.map(t => ({ ...t, order_index: t.order_index + 1 }))])
@@ -243,14 +357,54 @@ function App() {
 
   // 드래그 앤 드롭 센서 설정
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 500,
+        tolerance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 500,
+        tolerance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
 
+  // 드래그 시작 핸들러
+  const handleDragStart = () => {
+    // 드래그 중 페이지 스크롤 완전 차단
+    const scrollY = window.scrollY
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    document.body.style.overflow = 'hidden'
+  }
+
+  // 드래그 취소 핸들러
+  const handleDragCancel = () => {
+    // 페이지 스크롤 복원
+    const scrollY = document.body.style.top
+    document.body.style.position = ''
+    document.body.style.top = ''
+    document.body.style.width = ''
+    document.body.style.overflow = ''
+    window.scrollTo(0, parseInt(scrollY || '0') * -1)
+  }
+
   // 드래그 종료 핸들러
   const handleDragEnd = async (event) => {
+    // 페이지 스크롤 복원
+    const scrollY = document.body.style.top
+    document.body.style.position = ''
+    document.body.style.top = ''
+    document.body.style.width = ''
+    document.body.style.overflow = ''
+    window.scrollTo(0, parseInt(scrollY || '0') * -1)
+
     const { active, over } = event
 
     if (!over || active.id === over.id) {
@@ -306,7 +460,9 @@ function App() {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
         >
           <div className="todo-list">
             {loading ? (
