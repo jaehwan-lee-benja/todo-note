@@ -20,11 +20,12 @@ import { CSS } from '@dnd-kit/utilities'
 import './App.css'
 
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, isFocused, onFocus, onAddSubTodo, subtodos, level = 0 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
   const [showDetails, setShowDetails] = useState(false)
+  const [showSubtodos, setShowSubtodos] = useState(true)
 
   // 스와이프 관련
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -152,34 +153,39 @@ function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
     <div
       ref={setNodeRef}
       style={style}
-      className="todo-item-wrapper"
+      className={`todo-item-container ${isFocused ? 'focused' : ''}`}
     >
-      <div className="swipe-background">
-        <button
-          onClick={handleDeleteClick}
-          className="swipe-delete-button"
-          title="삭제"
+      <span className="todo-number" onClick={() => onFocus(todo.id)}>
+        {isFocused && <span className="focus-icon">🔥</span>}
+        {index + 1}
+      </span>
+      <div className="todo-item-wrapper">
+        <div className="swipe-background">
+          <button
+            onClick={handleDeleteClick}
+            className="swipe-delete-button"
+            title="삭제"
+          >
+            삭제
+          </button>
+        </div>
+        <div
+          {...attributes}
+          {...listeners}
+          className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
+          style={{
+            transform: `translateX(-${swipeOffset}px)`,
+            transition: isSwiping || isDragging ? 'none' : 'transform 0.3s ease'
+          }}
+          onMouseDown={handleStart}
+          onMouseMove={handleMove}
+          onMouseUp={handleEnd}
+          onMouseLeave={handleEnd}
+          onTouchStart={handleStart}
+          onTouchMove={handleMove}
+          onTouchEnd={handleEnd}
+          onContextMenu={(e) => e.preventDefault()}
         >
-          삭제
-        </button>
-      </div>
-      <div
-        {...attributes}
-        {...listeners}
-        className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
-        style={{
-          transform: `translateX(-${swipeOffset}px)`,
-          transition: isSwiping || isDragging ? 'none' : 'transform 0.3s ease'
-        }}
-        onMouseDown={handleStart}
-        onMouseMove={handleMove}
-        onMouseUp={handleEnd}
-        onMouseLeave={handleEnd}
-        onTouchStart={handleStart}
-        onTouchMove={handleMove}
-        onTouchEnd={handleEnd}
-        onContextMenu={(e) => e.preventDefault()}
-      >
         <input
           type="checkbox"
           checked={todo.completed}
@@ -212,13 +218,52 @@ function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
           className="details-toggle-button"
           onClick={(e) => {
             e.stopPropagation()
-            setShowDetails(!showDetails)
+            if (subtodos && subtodos.length > 0) {
+              setShowSubtodos(!showSubtodos)
+              setShowDetails(!showDetails)
+            } else {
+              setShowDetails(!showDetails)
+            }
           }}
-          title={showDetails ? "세부정보 숨기기" : "세부정보 보기"}
+          title={subtodos && subtodos.length > 0
+            ? (showSubtodos ? "세부정보 및 하위 할 일 숨기기" : "세부정보 및 하위 할 일 보기")
+            : (showDetails ? "세부정보 숨기기" : "세부정보 보기")}
         >
-          {showDetails ? '▲' : '▼'}
+          {(subtodos && subtodos.length > 0)
+            ? (showSubtodos ? '▲' : '▼')
+            : (showDetails ? '▲' : '▼')}
         </button>
         <span className={`todo-date ${showDetails ? 'show' : ''}`}>{formatDate(todo.created_at)}</span>
+        {subtodos && subtodos.length > 0 && showSubtodos && (
+          <div className="subtodos-in-item">
+            {subtodos.map((subtodo, subIndex) => (
+              <SortableTodoItem
+                key={subtodo.id}
+                todo={subtodo}
+                index={subIndex}
+                onToggle={onToggle}
+                onDelete={onDelete}
+                onEdit={onEdit}
+                formatDate={formatDate}
+                isFocused={isFocused}
+                onFocus={onFocus}
+                onAddSubTodo={onAddSubTodo}
+                subtodos={[]}
+                level={level + 1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+      {!todo.parent_id && (
+        <button
+          className="add-subtodo-button"
+          onClick={() => onAddSubTodo(todo.id)}
+          title="하위 할 일 추가"
+        >
+          +
+        </button>
+      )}
       </div>
     </div>
   )
@@ -235,6 +280,7 @@ function App() {
   const [showUndoToast, setShowUndoToast] = useState(false)
   const [showTrashModal, setShowTrashModal] = useState(false)
   const [trashedItems, setTrashedItems] = useState([])
+  const [focusedTodoId, setFocusedTodoId] = useState(null)
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -281,6 +327,85 @@ function App() {
     newDate.setDate(newDate.getDate() + 1)
     setSelectedDate(newDate)
   }
+
+  // 전날 미완료 항목을 다음 날로 이동
+  const moveIncompleteTodosToNextDay = async (fromDate, toDate) => {
+    try {
+      const fromDateStr = formatDateForDB(fromDate)
+      const toDateStr = formatDateForDB(toDate)
+
+      // 전날의 미완료 항목 가져오기
+      const { data: incompleteTodos, error: fetchError } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('date', fromDateStr)
+        .eq('deleted', false)
+        .eq('completed', false)
+        .order('order_index', { ascending: true })
+
+      if (fetchError) throw fetchError
+
+      if (incompleteTodos && incompleteTodos.length > 0) {
+        // 다음 날의 기존 항목 가져오기
+        const { data: nextDayTodos, error: nextDayError } = await supabase
+          .from('todos')
+          .select('*')
+          .eq('date', toDateStr)
+          .eq('deleted', false)
+          .order('order_index', { ascending: true })
+
+        if (nextDayError) throw nextDayError
+
+        const nextDayCount = nextDayTodos ? nextDayTodos.length : 0
+
+        // 다음 날 기존 항목이 있으면 그 뒤에 추가
+        const startIndex = nextDayCount + 1
+
+        // 미완료 항목을 다음 날로 이동 (날짜와 order_index 업데이트)
+        const updatePromises = incompleteTodos.map((todo, index) =>
+          supabase
+            .from('todos')
+            .update({
+              date: toDateStr,
+              order_index: startIndex + index
+            })
+            .eq('id', todo.id)
+        )
+
+        await Promise.all(updatePromises)
+      }
+    } catch (error) {
+      console.error('미완료 항목 이동 오류:', error.message)
+    }
+  }
+
+  // 자정에 날짜 자동 업데이트
+  useEffect(() => {
+    const checkMidnight = async () => {
+      const now = new Date()
+      const midnight = new Date(now)
+      midnight.setHours(24, 0, 0, 0)
+      const timeUntilMidnight = midnight.getTime() - now.getTime()
+
+      const timer = setTimeout(async () => {
+        const yesterday = new Date(now)
+        const tomorrow = new Date(now)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+
+        // 전날 미완료 항목을 다음 날로 이동
+        await moveIncompleteTodosToNextDay(yesterday, tomorrow)
+
+        // 날짜 업데이트
+        setSelectedDate(new Date())
+        checkMidnight() // 다음 자정을 위해 재귀 호출
+      }, timeUntilMidnight)
+
+      return timer
+    }
+
+    const timer = checkMidnight()
+    return () => clearTimeout(timer)
+  }, [])
 
   // 선택된 날짜가 변경될 때마다 할 일 목록 가져오기
   useEffect(() => {
@@ -410,10 +535,10 @@ function App() {
     try {
       setIsAdding(true)
 
-      // 새 항목은 맨 위에 추가 (order_index = 1)
-      const newOrderIndex = 1
+      // 새 항목은 맨 아래에 추가
+      const newOrderIndex = todos.length > 0 ? Math.max(...todos.map(t => t.order_index)) + 1 : 1
 
-      // 먼저 새 항목을 추가
+      // 새 항목을 추가
       const dateStr = formatDateForDB(selectedDate)
       const { data, error } = await supabase
         .from('todos')
@@ -422,19 +547,8 @@ function App() {
 
       if (error) throw error
 
-      // 기존 항목들의 order_index를 1씩 증가
-      if (todos.length > 0) {
-        const updatePromises = todos.map((todo) =>
-          supabase
-            .from('todos')
-            .update({ order_index: todo.order_index + 1 })
-            .eq('id', todo.id)
-        )
-        await Promise.all(updatePromises)
-      }
-
       // 로컬 상태 업데이트
-      setTodos([data[0], ...todos.map(t => ({ ...t, order_index: t.order_index + 1 }))])
+      setTodos([...todos, data[0]])
       setInputValue('')
     } catch (error) {
       console.error('할 일 추가 오류:', error.message)
@@ -567,6 +681,40 @@ function App() {
     setShowTrashModal(false)
   }
 
+  const handleFocusTodo = (id) => {
+    setFocusedTodoId(focusedTodoId === id ? null : id)
+  }
+
+  const handleAddSubTodo = async (parentId) => {
+    const subTodoText = prompt('하위 할 일을 입력하세요:')
+    if (!subTodoText || subTodoText.trim() === '') return
+
+    try {
+      // 해당 부모의 서브 투두 개수 확인
+      const parentSubtodos = todos.filter(t => t.parent_id === parentId)
+      const newOrderIndex = parentSubtodos.length + 1
+
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: subTodoText.trim(),
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          parent_id: parentId
+        }])
+        .select()
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos([...todos, data[0]])
+    } catch (error) {
+      console.error('하위 할 일 추가 오류:', error.message)
+    }
+  }
+
   const handleEditTodo = async (id, newText) => {
     try {
       const { error } = await supabase
@@ -696,19 +844,28 @@ function App() {
               <p className="empty-message">아직 할 일이 없습니다. 새로운 할 일을 추가해보세요!</p>
             ) : (
               <SortableContext
-                items={todos.map(todo => todo.id)}
+                items={todos.filter(t => !t.parent_id).map(todo => todo.id)}
                 strategy={verticalListSortingStrategy}
               >
-                {todos.map(todo => (
-                  <SortableTodoItem
-                    key={todo.id}
-                    todo={todo}
-                    onToggle={handleToggleTodo}
-                    onDelete={handleDeleteTodo}
-                    onEdit={handleEditTodo}
-                    formatDate={formatDate}
-                  />
-                ))}
+                {todos.filter(t => !t.parent_id).map((todo, index) => {
+                  const subtodos = todos.filter(t => t.parent_id === todo.id)
+                  return (
+                    <SortableTodoItem
+                      key={todo.id}
+                      todo={todo}
+                      index={index}
+                      onToggle={handleToggleTodo}
+                      onDelete={handleDeleteTodo}
+                      onEdit={handleEditTodo}
+                      formatDate={formatDate}
+                      isFocused={focusedTodoId === todo.id}
+                      onFocus={handleFocusTodo}
+                      onAddSubTodo={handleAddSubTodo}
+                      subtodos={subtodos}
+                      level={0}
+                    />
+                  )
+                })}
               </SortableContext>
             )}
           </div>
