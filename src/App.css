@@ -7,6 +7,14 @@
   overscroll-behavior: none;
 }
 
+.app.dragging-active {
+  overflow: hidden;
+  touch-action: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
 .container {
   width: 100%;
   max-width: 500px;
@@ -111,7 +119,6 @@ h1 {
 .todo-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
   margin-bottom: 1.25rem;
   min-height: 200px;
 }
@@ -125,8 +132,10 @@ h1 {
 
 .todo-item-wrapper {
   position: relative;
-  overflow: hidden;
   border-radius: 12px;
+  margin-bottom: 0.5rem;
+  isolation: isolate;
+  overflow: hidden;
 }
 
 .swipe-background {
@@ -139,6 +148,7 @@ h1 {
   align-items: stretch;
   justify-content: flex-end;
   padding: 1px;
+  border-radius: 12px;
 }
 
 .todo-item {
@@ -147,7 +157,7 @@ h1 {
   grid-template-columns: auto minmax(200px, 1fr) auto;
   align-items: center;
   gap: 1rem;
-  padding: 1rem;
+  padding: 1rem 1rem;
   background: #1a1a1a;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -156,8 +166,13 @@ h1 {
   box-sizing: border-box;
   cursor: default;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   touch-action: pan-y;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  will-change: transform;
+  backface-visibility: hidden;
+  min-height: 60px;
 }
 
 .todo-item:hover {
@@ -166,15 +181,15 @@ h1 {
 }
 
 .todo-item.completed {
-  opacity: 0.5;
+  opacity: 1;
 }
 
 .todo-item.drag-mode {
   cursor: grab;
   background: #2f2f2f;
   border-color: #646cff;
-  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.3);
-  touch-action: none;
+  box-shadow: 0 8px 24px rgba(100, 108, 255, 0.4);
+  touch-action: none !important;
 }
 
 .todo-item.drag-mode:active {
@@ -184,11 +199,13 @@ h1 {
 /* 모바일에서 todo-item 레이아웃 변경 */
 @media (max-width: 768px) {
   .todo-item {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    align-items: center;
     gap: 0.75rem;
-    padding: 1rem;
+    padding: 1rem 1rem;
+    min-height: 60px;
   }
 
   .todo-item:hover {
@@ -204,7 +221,6 @@ h1 {
   flex-shrink: 0;
   align-self: center;
   margin: 0;
-  vertical-align: middle;
 }
 
 @media (max-width: 768px) {
@@ -213,7 +229,9 @@ h1 {
     height: 22px;
     min-width: 22px;
     min-height: 22px;
-    order: 1;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
   }
 }
 
@@ -227,7 +245,7 @@ h1 {
 
 .todo-text {
   width: 100%;
-  padding: 0.25rem 0.5rem;
+  padding: 0 0.5rem;
   font-size: 1rem;
   line-height: 1.5;
   display: -webkit-box;
@@ -238,6 +256,9 @@ h1 {
   word-break: break-word;
   transition: all 0.3s ease;
   box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .todo-text.expanded {
@@ -249,12 +270,13 @@ h1 {
   .todo-content {
     flex: 1;
     min-width: 0;
-    order: 3;
-    width: 100%;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
   }
 
   .todo-text {
-    padding: 0.25rem 0;
+    padding: 0;
     font-size: 1rem;
     line-height: 1.5;
   }
@@ -285,28 +307,25 @@ h1 {
 
 .details-toggle-button {
   display: none;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.4);
-  border-radius: 6px;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 0.5rem;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
   align-self: center;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .details-toggle-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.6);
 }
 
 .details-toggle-button:active {
-  transform: scale(0.95);
+  transform: scale(0.9);
 }
 
 .todo-item.completed .todo-text {
@@ -349,28 +368,27 @@ h1 {
     display: flex;
     align-items: center;
     justify-content: center;
-    order: 2;
-    margin-left: auto;
-    font-size: 1.2rem;
+    grid-column: 3;
+    grid-row: 1;
+    font-size: 1rem;
     line-height: 1;
+    align-self: center;
   }
 
   .todo-date {
     font-size: 0.8rem;
     margin-left: 0;
-    order: 4;
-    width: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
     padding-left: 0;
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: all 0.3s ease;
+    display: none;
   }
 
   .todo-date.show {
+    display: block;
     opacity: 0.8;
-    max-height: 50px;
-    margin-top: 0.5rem;
+    margin-top: 0;
+    padding-top: 0.5rem;
   }
 }
 
@@ -400,7 +418,7 @@ h1 {
   .todo-item.drag-mode {
     background: rgba(100, 108, 255, 0.08);
     border-color: #646cff;
-    box-shadow: 0 4px 12px rgba(100, 108, 255, 0.3);
+    box-shadow: 0 8px 24px rgba(100, 108, 255, 0.4);
   }
 
   .todo-stats {
@@ -408,21 +426,16 @@ h1 {
   }
 
   .details-toggle-button {
-    background: rgba(0, 0, 0, 0.03);
-    border-color: rgba(0, 0, 0, 0.1);
-    color: rgba(0, 0, 0, 0.4);
+    color: rgba(0, 0, 0, 0.3);
   }
 
   .details-toggle-button:hover {
-    background: rgba(0, 0, 0, 0.08);
-    border-color: rgba(0, 0, 0, 0.2);
     color: rgba(0, 0, 0, 0.6);
   }
 }
 
 @media (max-width: 768px) {
   .todo-list {
-    gap: 0.5rem;
     margin-bottom: 1rem;
     min-height: 150px;
   }

@@ -216,7 +216,7 @@ function SortableTodoItem({ todo, onToggle, onDelete, onEdit, formatDate }) {
           }}
           title={showDetails ? "세부정보 숨기기" : "세부정보 보기"}
         >
-          ⋯
+          {showDetails ? '▲' : '▼'}
         </button>
         <span className={`todo-date ${showDetails ? 'show' : ''}`}>{formatDate(todo.created_at)}</span>
       </div>
@@ -228,6 +228,8 @@ function App() {
   const [todos, setTodos] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(true)
+  const [isDraggingAny, setIsDraggingAny] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
 
   // 날짜를 YY.MM.DD(요일) HH:MM 형식으로 포맷팅
   const formatDate = (dateString) => {
@@ -247,7 +249,72 @@ function App() {
   // 컴포넌트 마운트 시 할 일 목록 가져오기
   useEffect(() => {
     fetchTodos()
+
+    // Supabase Realtime 구독
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'todos'
+        },
+        (payload) => {
+          console.log('Realtime 변경 감지:', payload)
+
+          if (payload.eventType === 'INSERT') {
+            // 새 항목 추가
+            setTodos(currentTodos => {
+              // 중복 체크
+              if (currentTodos.some(t => t.id === payload.new.id)) {
+                return currentTodos
+              }
+              // order_index에 따라 정렬된 위치에 삽입
+              const newTodos = [...currentTodos, payload.new]
+              return newTodos.sort((a, b) => a.order_index - b.order_index)
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            // 항목 업데이트
+            setTodos(currentTodos =>
+              currentTodos.map(todo =>
+                todo.id === payload.new.id ? payload.new : todo
+              ).sort((a, b) => a.order_index - b.order_index)
+            )
+          } else if (payload.eventType === 'DELETE') {
+            // 항목 삭제
+            setTodos(currentTodos =>
+              currentTodos.filter(todo => todo.id !== payload.old.id)
+            )
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime 구독 상태:', status)
+      })
+
+    // 컴포넌트 언마운트 시 구독 해제
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
+
+  // 드래그 중 스크롤 차단
+  useEffect(() => {
+    if (isDraggingAny) {
+      const preventScroll = (e) => {
+        e.preventDefault()
+      }
+
+      document.addEventListener('touchmove', preventScroll, { passive: false })
+      document.addEventListener('touchstart', preventScroll, { passive: false })
+
+      return () => {
+        document.removeEventListener('touchmove', preventScroll)
+        document.removeEventListener('touchstart', preventScroll)
+      }
+    }
+  }, [isDraggingAny])
 
   const fetchTodos = async () => {
     try {
@@ -267,9 +334,11 @@ function App() {
   }
 
   const handleAddTodo = async () => {
-    if (inputValue.trim() === '') return
+    if (inputValue.trim() === '' || isAdding) return
 
     try {
+      setIsAdding(true)
+
       // 새 항목은 맨 위에 추가 (order_index = 1)
       const newOrderIndex = 1
 
@@ -297,6 +366,8 @@ function App() {
       setInputValue('')
     } catch (error) {
       console.error('할 일 추가 오류:', error.message)
+    } finally {
+      setIsAdding(false)
     }
   }
 
@@ -351,6 +422,7 @@ function App() {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
+      e.preventDefault()
       handleAddTodo()
     }
   }
@@ -376,34 +448,17 @@ function App() {
 
   // 드래그 시작 핸들러
   const handleDragStart = () => {
-    // 드래그 중 페이지 스크롤 완전 차단
-    const scrollY = window.scrollY
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${scrollY}px`
-    document.body.style.width = '100%'
-    document.body.style.overflow = 'hidden'
+    setIsDraggingAny(true)
   }
 
   // 드래그 취소 핸들러
   const handleDragCancel = () => {
-    // 페이지 스크롤 복원
-    const scrollY = document.body.style.top
-    document.body.style.position = ''
-    document.body.style.top = ''
-    document.body.style.width = ''
-    document.body.style.overflow = ''
-    window.scrollTo(0, parseInt(scrollY || '0') * -1)
+    setIsDraggingAny(false)
   }
 
   // 드래그 종료 핸들러
   const handleDragEnd = async (event) => {
-    // 페이지 스크롤 복원
-    const scrollY = document.body.style.top
-    document.body.style.position = ''
-    document.body.style.top = ''
-    document.body.style.width = ''
-    document.body.style.overflow = ''
-    window.scrollTo(0, parseInt(scrollY || '0') * -1)
+    setIsDraggingAny(false)
 
     const { active, over } = event
 
@@ -439,9 +494,9 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
       <div className="container">
-        <h1>📝 할 일 노트</h1>
+        <h1>✅ 할 일 노트</h1>
 
         <div className="input-section">
           <input
@@ -451,8 +506,9 @@ function App() {
             onKeyDown={handleKeyDown}
             placeholder="새로운 할 일을 입력하세요..."
             className="todo-input"
+            disabled={isAdding}
           />
-          <button onClick={handleAddTodo} className="add-button">
+          <button onClick={handleAddTodo} className="add-button" disabled={isAdding}>
             추가
           </button>
         </div>
