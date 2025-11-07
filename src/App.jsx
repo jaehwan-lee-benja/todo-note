@@ -26,6 +26,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [editText, setEditText] = useState(todo.text)
   const [showDetails, setShowDetails] = useState(false)
   const [showSubtodos, setShowSubtodos] = useState(true)
+  const [isAddingSubTodo, setIsAddingSubTodo] = useState(false)
+  const [subTodoText, setSubTodoText] = useState('')
 
   // 스와이프 관련
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -214,6 +216,19 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             </span>
           )}
         </div>
+        {!todo.parent_id && (
+          <button
+            className="add-subtodo-button-inline"
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsAddingSubTodo(!isAddingSubTodo)
+              setShowSubtodos(true)
+            }}
+            title="하위 할 일 추가"
+          >
+            +
+          </button>
+        )}
         <button
           className="details-toggle-button"
           onClick={(e) => {
@@ -233,8 +248,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             ? (showSubtodos ? '▲' : '▼')
             : (showDetails ? '▲' : '▼')}
         </button>
-        <span className={`todo-date ${showDetails ? 'show' : ''}`}>{formatDate(todo.created_at)}</span>
-        {subtodos && subtodos.length > 0 && showSubtodos && (
+        <span className={`todo-date ${(subtodos && subtodos.length > 0) ? (showSubtodos ? 'show' : '') : (showDetails ? 'show' : '')}`}>{formatDate(todo.created_at)}</span>
+        {(subtodos && subtodos.length > 0 && showSubtodos) || (isAddingSubTodo && !todo.parent_id) ? (
           <div className="subtodos-in-item">
             {subtodos.map((subtodo, subIndex) => (
               <SortableTodoItem
@@ -252,18 +267,49 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 level={level + 1}
               />
             ))}
+            {isAddingSubTodo && !todo.parent_id && (
+              <div className="subtodo-input-section">
+                <input
+                  type="text"
+                  value={subTodoText}
+                  onChange={(e) => setSubTodoText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && subTodoText.trim()) {
+                      onAddSubTodo(todo.id, subTodoText.trim())
+                      setSubTodoText('')
+                      setIsAddingSubTodo(false)
+                    }
+                  }}
+                  placeholder="하위 할 일 입력..."
+                  className="subtodo-input"
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    if (subTodoText.trim()) {
+                      onAddSubTodo(todo.id, subTodoText.trim())
+                      setSubTodoText('')
+                      setIsAddingSubTodo(false)
+                    }
+                  }}
+                  className="subtodo-add-button"
+                >
+                  추가
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAddingSubTodo(false)
+                    setSubTodoText('')
+                  }}
+                  className="subtodo-cancel-button"
+                >
+                  취소
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
-      {!todo.parent_id && (
-        <button
-          className="add-subtodo-button"
-          onClick={() => onAddSubTodo(todo.id)}
-          title="하위 할 일 추가"
-        >
-          +
-        </button>
-      )}
       </div>
     </div>
   )
@@ -685,8 +731,7 @@ function App() {
     setFocusedTodoId(focusedTodoId === id ? null : id)
   }
 
-  const handleAddSubTodo = async (parentId) => {
-    const subTodoText = prompt('하위 할 일을 입력하세요:')
+  const handleAddSubTodo = async (parentId, subTodoText) => {
     if (!subTodoText || subTodoText.trim() === '') return
 
     try {
