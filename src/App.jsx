@@ -302,16 +302,29 @@ function App() {
   // 드래그 중 스크롤 차단
   useEffect(() => {
     if (isDraggingAny) {
-      const preventScroll = (e) => {
-        e.preventDefault()
+      // 현재 스크롤 위치 저장
+      const scrollY = window.scrollY
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+
+      // body에 overflow hidden 적용 (스크롤바 너비 보상)
+      document.body.style.overflow = 'hidden'
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${scrollY}px`
+      document.body.style.left = '0'
+      document.body.style.right = '0'
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`
       }
 
-      document.addEventListener('touchmove', preventScroll, { passive: false })
-      document.addEventListener('touchstart', preventScroll, { passive: false })
-
       return () => {
-        document.removeEventListener('touchmove', preventScroll)
-        document.removeEventListener('touchstart', preventScroll)
+        // 스크롤 복원
+        document.body.style.overflow = ''
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.left = ''
+        document.body.style.right = ''
+        document.body.style.paddingRight = ''
+        window.scrollTo(0, scrollY)
       }
     }
   }, [isDraggingAny])
@@ -431,13 +444,13 @@ function App() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 500,
+        delay: 300,
         tolerance: 5,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 500,
+        delay: 300,
         tolerance: 5,
       },
     }),
