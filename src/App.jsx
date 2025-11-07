@@ -230,8 +230,31 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [isDraggingAny, setIsDraggingAny] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [deletedTodo, setDeletedTodo] = useState(null)
+  const [showUndoToast, setShowUndoToast] = useState(false)
+  const [showTrashModal, setShowTrashModal] = useState(false)
+  const [trashedItems, setTrashedItems] = useState([])
 
-  // 날짜를 YY.MM.DD(요일) HH:MM 형식으로 포맷팅
+  // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
+  const formatDateForDB = (date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // 날짜를 YY.MM.DD(요일) 형식으로 포맷팅 (네비게이션용)
+  const formatDateOnly = (date) => {
+    const year = String(date.getFullYear()).slice(2)
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토']
+    const weekday = weekdays[date.getDay()]
+    return `${year}.${month}.${day}(${weekday})`
+  }
+
+  // 날짜를 YY.MM.DD(요일) HH:MM 형식으로 포맷팅 (생성시간 표시용)
   const formatDate = (dateString) => {
     const date = new Date(dateString)
     const year = String(date.getFullYear()).slice(2) // 마지막 두 자리만
@@ -246,11 +269,25 @@ function App() {
     return `${year}.${month}.${day}(${weekday}) ${hours}:${minutes}`
   }
 
-  // 컴포넌트 마운트 시 할 일 목록 가져오기
+  // 날짜 변경 핸들러
+  const handlePrevDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() - 1)
+    setSelectedDate(newDate)
+  }
+
+  const handleNextDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() + 1)
+    setSelectedDate(newDate)
+  }
+
+  // 선택된 날짜가 변경될 때마다 할 일 목록 가져오기
   useEffect(() => {
     fetchTodos()
 
     // Supabase Realtime 구독
+    const dateStr = formatDateForDB(selectedDate)
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -258,7 +295,8 @@ function App() {
         {
           event: '*',
           schema: 'public',
-          table: 'todos'
+          table: 'todos',
+          filter: `date=eq.${dateStr}`
         },
         (payload) => {
           console.log('Realtime 변경 감지:', payload)
@@ -293,11 +331,11 @@ function App() {
         console.log('Realtime 구독 상태:', status)
       })
 
-    // 컴포넌트 언마운트 시 구독 해제
+    // 컴포넌트 언마운트 또는 날짜 변경 시 구독 해제
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [selectedDate])
 
   // 드래그 중 스크롤 차단
   useEffect(() => {
@@ -332,9 +370,12 @@ function App() {
   const fetchTodos = async () => {
     try {
       setLoading(true)
+      const dateStr = formatDateForDB(selectedDate)
       const { data, error } = await supabase
         .from('todos')
         .select('*')
+        .eq('date', dateStr)
+        .eq('deleted', false)
         .order('order_index', { ascending: true })
 
       if (error) throw error
@@ -343,6 +384,23 @@ function App() {
       console.error('할 일 가져오기 오류:', error.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchTrash = async () => {
+    try {
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('deleted_date', dateStr)
+        .eq('deleted', true)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setTrashedItems(data || [])
+    } catch (error) {
+      console.error('휴지통 가져오기 오류:', error.message)
     }
   }
 
@@ -356,9 +414,10 @@ function App() {
       const newOrderIndex = 1
 
       // 먼저 새 항목을 추가
+      const dateStr = formatDateForDB(selectedDate)
       const { data, error } = await supabase
         .from('todos')
-        .insert([{ text: inputValue, completed: false, order_index: newOrderIndex }])
+        .insert([{ text: inputValue, completed: false, order_index: newOrderIndex, date: dateStr }])
         .select()
 
       if (error) throw error
@@ -405,16 +464,107 @@ function App() {
 
   const handleDeleteTodo = async (id) => {
     try {
+      // 삭제할 todo 찾기
+      const todoToDelete = todos.find(todo => todo.id === id)
+      if (!todoToDelete) return
+
+      // 삭제된 todo 저장
+      setDeletedTodo(todoToDelete)
+
+      // Soft delete: deleted=true, deleted_date=오늘
+      const dateStr = formatDateForDB(selectedDate)
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted: true, deleted_date: dateStr })
+        .eq('id', id)
+
+      if (error) throw error
+
+      // UI에서 제거
+      setTodos(todos.filter(todo => todo.id !== id))
+
+      // 토스트 표시
+      setShowUndoToast(true)
+
+      // 5초 후 토스트 자동 숨김
+      setTimeout(() => {
+        setShowUndoToast(false)
+        setDeletedTodo(null)
+      }, 5000)
+    } catch (error) {
+      console.error('할 일 삭제 오류:', error.message)
+    }
+  }
+
+  const handleUndoDelete = async () => {
+    if (!deletedTodo) return
+
+    try {
+      // Soft delete 취소: deleted=false, deleted_date=null
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted: false, deleted_date: null })
+        .eq('id', deletedTodo.id)
+
+      if (error) throw error
+
+      // UI에 다시 추가
+      setTodos(currentTodos => {
+        const restoredTodo = { ...deletedTodo, deleted: false, deleted_date: null }
+        const newTodos = [...currentTodos, restoredTodo]
+        return newTodos.sort((a, b) => a.order_index - b.order_index)
+      })
+
+      // 토스트 숨김
+      setShowUndoToast(false)
+      setDeletedTodo(null)
+    } catch (error) {
+      console.error('삭제 취소 오류:', error.message)
+    }
+  }
+
+  const handleRestoreFromTrash = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted: false, deleted_date: null })
+        .eq('id', id)
+
+      if (error) throw error
+
+      // 휴지통에서 제거
+      setTrashedItems(trashedItems.filter(item => item.id !== id))
+
+      // 일반 리스트 새로고침
+      fetchTodos()
+    } catch (error) {
+      console.error('복원 오류:', error.message)
+    }
+  }
+
+  const handlePermanentDelete = async (id) => {
+    try {
       const { error } = await supabase
         .from('todos')
         .delete()
         .eq('id', id)
 
       if (error) throw error
-      setTodos(todos.filter(todo => todo.id !== id))
+
+      // 휴지통에서 제거
+      setTrashedItems(trashedItems.filter(item => item.id !== id))
     } catch (error) {
-      console.error('할 일 삭제 오류:', error.message)
+      console.error('영구 삭제 오류:', error.message)
     }
+  }
+
+  const handleOpenTrash = () => {
+    setShowTrashModal(true)
+    fetchTrash()
+  }
+
+  const handleCloseTrash = () => {
+    setShowTrashModal(false)
   }
 
   const handleEditTodo = async (id, newText) => {
@@ -526,6 +676,12 @@ function App() {
           </button>
         </div>
 
+        <div className="date-navigation">
+          <button onClick={handlePrevDay} className="date-nav-button">←</button>
+          <span className="date-display">{formatDateOnly(selectedDate)}</span>
+          <button onClick={handleNextDay} className="date-nav-button">→</button>
+        </div>
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -561,6 +717,62 @@ function App() {
         <div className="todo-stats">
           <p>전체: {todos.length}개 | 완료: {todos.filter(t => t.completed).length}개</p>
         </div>
+
+        <button onClick={handleOpenTrash} className="trash-button-fixed" title="휴지통">
+          🗑️
+        </button>
+
+        {showUndoToast && (
+          <div className="undo-toast">
+            <span>삭제되었습니다</span>
+            <button onClick={handleUndoDelete} className="undo-button">
+              취소
+            </button>
+          </div>
+        )}
+
+        {showTrashModal && (
+          <div className="modal-overlay" onClick={handleCloseTrash}>
+            <div className="modal-content trash-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>🗑️ 휴지통 - {formatDateOnly(selectedDate)}</h2>
+                <button onClick={handleCloseTrash} className="modal-close-button">✕</button>
+              </div>
+              <div className="trash-list">
+                {trashedItems.length === 0 ? (
+                  <p className="empty-message">휴지통이 비어있습니다.</p>
+                ) : (
+                  trashedItems.map(item => (
+                    <div key={item.id} className="trash-item">
+                      <div className="trash-item-content">
+                        <span className={`trash-text ${item.completed ? 'completed' : ''}`}>
+                          {item.text}
+                        </span>
+                        <span className="trash-date">{formatDate(item.created_at)}</span>
+                      </div>
+                      <div className="trash-actions">
+                        <button
+                          onClick={() => handleRestoreFromTrash(item.id)}
+                          className="restore-button"
+                          title="복원"
+                        >
+                          복원
+                        </button>
+                        <button
+                          onClick={() => handlePermanentDelete(item.id)}
+                          className="permanent-delete-button"
+                          title="영구 삭제"
+                        >
+                          영구 삭제
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
