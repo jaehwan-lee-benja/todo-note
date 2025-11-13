@@ -78,7 +78,7 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   top: 0;
   z-index: 100;
   background: #242424;
-  padding: 1rem 0 0 0;
+  padding: 2rem 0 0 0;
   margin: 0;
 }
 
@@ -154,8 +154,8 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   left: 1rem;
   width: 48px;
   height: 48px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: none;
+  border: none;
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.8);
   font-size: 1.5rem;
@@ -168,8 +168,6 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
 }
 
 .hamburger-menu:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: #646cff;
   color: #646cff;
 }
 
@@ -285,7 +283,7 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
 
 h1 {
   text-align: center;
-  margin: 0 0 1rem 0;
+  margin: 0 0 1.5rem 0;
   font-size: 2rem;
   color: #646cff;
   font-weight: 600;
@@ -301,7 +299,7 @@ h1 {
 .input-section {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   margin-left: calc(28px + 0.75rem);
 }
 
@@ -310,8 +308,8 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -379,13 +377,15 @@ h1 {
 
 .todo-input {
   flex: 1;
-  padding: 0.875rem 1rem;
+  padding: 0.5rem 1rem;
   font-size: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
   color: inherit;
   transition: all 0.2s ease;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 
 .todo-input:focus {
@@ -395,7 +395,7 @@ h1 {
 }
 
 .add-button {
-  padding: 0.875rem 1.5rem;
+  padding: 0.5rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
   background: rgba(100, 108, 255, 0.7);
@@ -405,6 +405,7 @@ h1 {
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 44px;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
@@ -415,13 +416,13 @@ h1 {
   }
 
   .todo-input {
-    padding: 0.875rem 1rem;
+    padding: 0.5rem 1rem;
     font-size: 1rem;
     min-height: 44px;
   }
 
   .add-button {
-    padding: 0.875rem 1.25rem;
+    padding: 0.5rem 1.25rem;
     font-size: 1rem;
     white-space: nowrap;
   }
