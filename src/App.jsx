@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities'
 import './App.css'
 
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, isFocused, onFocus, onAddSubTodo, subtodos, level = 0 }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -28,6 +28,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [showSubtodos, setShowSubtodos] = useState(true)
   const [isAddingSubTodo, setIsAddingSubTodo] = useState(false)
   const [subTodoText, setSubTodoText] = useState('')
+  const [showRoutineSetup, setShowRoutineSetup] = useState(false)
+  const [routineDays, setRoutineDays] = useState([])
 
   // 스와이프 관련
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -151,6 +153,30 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
     onDelete(todo.id)
   }
 
+  // 루틴 요일 토글
+  const handleToggleRoutineDay = (dayKey) => {
+    setRoutineDays(prev =>
+      prev.includes(dayKey)
+        ? prev.filter(d => d !== dayKey)
+        : [...prev, dayKey]
+    )
+  }
+
+  // 루틴 생성 확인
+  const handleCreateRoutine = () => {
+    if (routineDays.length > 0 && onCreateRoutine) {
+      onCreateRoutine(todo.text, routineDays)
+      setRoutineDays([])
+      setShowRoutineSetup(false)
+    }
+  }
+
+  // 루틴 설정 취소
+  const handleCancelRoutineSetup = () => {
+    setRoutineDays([])
+    setShowRoutineSetup(false)
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -249,6 +275,61 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             : (showDetails ? '▲' : '▼')}
         </button>
         <span className={`todo-date ${(subtodos && subtodos.length > 0) ? (showSubtodos ? 'show' : '') : (showDetails ? 'show' : '')}`}>{formatDate(todo.created_at)}</span>
+        {!todo.parent_id && ((subtodos && subtodos.length > 0 && showSubtodos) || showDetails) && (
+          <div className="todo-actions-inline">
+            {!showRoutineSetup ? (
+              <button
+                className="routine-setup-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowRoutineSetup(true)
+                }}
+                title="이 작업을 루틴으로 설정"
+              >
+                🔄 루틴으로 설정
+              </button>
+            ) : (
+              <div className="routine-setup-inline" onClick={(e) => e.stopPropagation()}>
+                <div className="routine-setup-title">반복할 요일 선택:</div>
+                <div className="day-selector-inline">
+                  {DAYS.map(day => (
+                    <button
+                      key={day.key}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleToggleRoutineDay(day.key)
+                      }}
+                      className={`day-button-inline ${routineDays.includes(day.key) ? 'selected' : ''}`}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="routine-setup-actions">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCreateRoutine()
+                    }}
+                    className="routine-confirm-button"
+                    disabled={routineDays.length === 0}
+                  >
+                    확인
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCancelRoutineSetup()
+                    }}
+                    className="routine-cancel-button"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         {(subtodos && subtodos.length > 0 && showSubtodos) || (isAddingSubTodo && !todo.parent_id) ? (
           <div className="subtodos-in-item">
             {subtodos.map((subtodo, subIndex) => (
@@ -315,6 +396,23 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   )
 }
 
+// 요일 정보
+const DAYS = [
+  { key: 'mon', label: '월' },
+  { key: 'tue', label: '화' },
+  { key: 'wed', label: '수' },
+  { key: 'thu', label: '목' },
+  { key: 'fri', label: '금' },
+  { key: 'sat', label: '토' },
+  { key: 'sun', label: '일' },
+]
+
+// 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
+const getDayKey = (dayNumber) => {
+  const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+  return keys[dayNumber]
+}
+
 function App() {
   const [todos, setTodos] = useState([])
   const [inputValue, setInputValue] = useState('')
@@ -327,6 +425,11 @@ function App() {
   const [showTrashModal, setShowTrashModal] = useState(false)
   const [trashedItems, setTrashedItems] = useState([])
   const [focusedTodoId, setFocusedTodoId] = useState(null)
+  const [showRoutineModal, setShowRoutineModal] = useState(false)
+  const [routines, setRoutines] = useState([])
+  const [routineInput, setRoutineInput] = useState('')
+  const [selectedDays, setSelectedDays] = useState([])
+  const [isAddingRoutine, setIsAddingRoutine] = useState(false)
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -425,7 +528,154 @@ function App() {
     }
   }
 
-  // 자정에 날짜 자동 업데이트
+  // 루틴 목록 가져오기
+  const fetchRoutines = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('routines')
+        .select('*')
+        .eq('deleted', false)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setRoutines(data || [])
+    } catch (error) {
+      console.error('루틴 가져오기 오류:', error.message)
+    }
+  }
+
+  // 루틴 추가
+  const handleAddRoutine = async () => {
+    if (routineInput.trim() === '' || selectedDays.length === 0 || isAddingRoutine) return
+
+    try {
+      setIsAddingRoutine(true)
+
+      const { data, error } = await supabase
+        .from('routines')
+        .insert([{ text: routineInput, days: selectedDays }])
+        .select()
+
+      if (error) throw error
+
+      setRoutines([data[0], ...routines])
+      setRoutineInput('')
+      setSelectedDays([])
+    } catch (error) {
+      console.error('루틴 추가 오류:', error.message)
+    } finally {
+      setIsAddingRoutine(false)
+    }
+  }
+
+  // 투두에서 루틴 생성
+  const handleCreateRoutineFromTodo = async (text, days) => {
+    try {
+      const { data, error } = await supabase
+        .from('routines')
+        .insert([{ text, days }])
+        .select()
+
+      if (error) throw error
+
+      console.log(`루틴 생성 완료: ${text}`)
+
+      if (showRoutineModal) {
+        setRoutines([data[0], ...routines])
+      }
+    } catch (error) {
+      console.error('루틴 생성 오류:', error.message)
+    }
+  }
+
+  // 루틴 삭제
+  const handleDeleteRoutine = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('routines')
+        .update({ deleted: true })
+        .eq('id', id)
+
+      if (error) throw error
+
+      setRoutines(routines.filter(routine => routine.id !== id))
+    } catch (error) {
+      console.error('루틴 삭제 오류:', error.message)
+    }
+  }
+
+  // 오늘 요일의 루틴 작업 자동 생성
+  const createRoutineTodos = async () => {
+    try {
+      const today = new Date()
+      const todayStr = formatDateForDB(today)
+      const todayDayKey = getDayKey(today.getDay())
+
+      const { data: todayRoutines, error: routineError } = await supabase
+        .from('routines')
+        .select('*')
+        .eq('deleted', false)
+
+      if (routineError) throw routineError
+
+      const matchingRoutines = todayRoutines.filter(routine => {
+        const days = routine.days || []
+        return days.includes(todayDayKey)
+      })
+
+      if (matchingRoutines.length === 0) return
+
+      for (const routine of matchingRoutines) {
+        const { data: existingTodos, error: checkError } = await supabase
+          .from('todos')
+          .select('id')
+          .eq('routine_id', routine.id)
+          .eq('date', todayStr)
+          .eq('deleted', false)
+
+        if (checkError) throw checkError
+
+        if (!existingTodos || existingTodos.length === 0) {
+          const { error: insertError } = await supabase
+            .from('todos')
+            .insert([{
+              text: routine.text,
+              completed: false,
+              date: todayStr,
+              order_index: 1000,
+              routine_id: routine.id
+            }])
+
+          if (insertError) throw insertError
+          console.log(`루틴 작업 생성: ${routine.text}`)
+        }
+      }
+    } catch (error) {
+      console.error('루틴 작업 생성 오류:', error.message)
+    }
+  }
+
+  // 루틴 모달 열기/닫기
+  const handleOpenRoutine = () => {
+    setShowRoutineModal(true)
+    fetchRoutines()
+  }
+
+  const handleCloseRoutine = () => {
+    setShowRoutineModal(false)
+    setRoutineInput('')
+    setSelectedDays([])
+  }
+
+  const handleToggleDay = (dayKey) => {
+    setSelectedDays(prev =>
+      prev.includes(dayKey)
+        ? prev.filter(d => d !== dayKey)
+        : [...prev, dayKey]
+    )
+  }
+
+  // 자정에 날짜 자동 업데이트 및 루틴 생성
   useEffect(() => {
     const checkMidnight = async () => {
       const now = new Date()
@@ -440,6 +690,9 @@ function App() {
 
         // 전날 미완료 항목을 다음 날로 이동
         await moveIncompleteTodosToNextDay(yesterday, tomorrow)
+
+        // 루틴 작업 생성
+        await createRoutineTodos()
 
         // 날짜 업데이트
         setSelectedDate(new Date())
@@ -908,6 +1161,7 @@ function App() {
                       onAddSubTodo={handleAddSubTodo}
                       subtodos={subtodos}
                       level={0}
+                      onCreateRoutine={handleCreateRoutineFromTodo}
                     />
                   )
                 })}
@@ -922,6 +1176,10 @@ function App() {
 
         <button onClick={handleOpenTrash} className="trash-button-fixed" title="휴지통">
           🗑️
+        </button>
+
+        <button onClick={handleOpenRoutine} className="routine-button-fixed" title="루틴 관리">
+          🔄
         </button>
 
         {showUndoToast && (
@@ -968,6 +1226,75 @@ function App() {
                           영구 삭제
                         </button>
                       </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showRoutineModal && (
+          <div className="modal-overlay" onClick={handleCloseRoutine}>
+            <div className="modal-content routine-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>🔄 루틴 관리</h2>
+                <button onClick={handleCloseRoutine} className="modal-close-button">✕</button>
+              </div>
+
+              <div className="routine-add-section">
+                <input
+                  type="text"
+                  value={routineInput}
+                  onChange={(e) => setRoutineInput(e.target.value)}
+                  placeholder="루틴 내용을 입력하세요..."
+                  className="routine-input"
+                  disabled={isAddingRoutine}
+                />
+                <div className="day-selector">
+                  {DAYS.map(day => (
+                    <button
+                      key={day.key}
+                      onClick={() => handleToggleDay(day.key)}
+                      className={`day-button ${selectedDays.includes(day.key) ? 'selected' : ''}`}
+                      disabled={isAddingRoutine}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleAddRoutine}
+                  className="add-routine-button"
+                  disabled={isAddingRoutine || routineInput.trim() === '' || selectedDays.length === 0}
+                >
+                  루틴 추가
+                </button>
+              </div>
+
+              <div className="routine-list">
+                {routines.length === 0 ? (
+                  <p className="empty-message">등록된 루틴이 없습니다.</p>
+                ) : (
+                  routines.map(routine => (
+                    <div key={routine.id} className="routine-item">
+                      <div className="routine-item-content">
+                        <span className="routine-text">{routine.text}</span>
+                        <div className="routine-days">
+                          {DAYS.filter(day => routine.days.includes(day.key)).map(day => (
+                            <span key={day.key} className="routine-day-badge">
+                              {day.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteRoutine(routine.id)}
+                        className="routine-delete-button"
+                        title="삭제"
+                      >
+                        삭제
+                      </button>
                     </div>
                   ))
                 )}
