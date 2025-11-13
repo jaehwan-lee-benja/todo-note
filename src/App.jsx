@@ -242,19 +242,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             </span>
           )}
         </div>
-        {!todo.parent_id && (
-          <button
-            className="add-subtodo-button-inline"
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsAddingSubTodo(!isAddingSubTodo)
-              setShowSubtodos(true)
-            }}
-            title="하위 할 일 추가"
-          >
-            +
-          </button>
-        )}
         <button
           className="details-toggle-button"
           onClick={(e) => {
@@ -274,21 +261,37 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             ? (showSubtodos ? '▲' : '▼')
             : (showDetails ? '▲' : '▼')}
         </button>
-        <span className={`todo-date ${(subtodos && subtodos.length > 0) ? (showSubtodos ? 'show' : '') : (showDetails ? 'show' : '')}`}>{formatDate(todo.created_at)}</span>
-        {!todo.parent_id && ((subtodos && subtodos.length > 0 && showSubtodos) || showDetails) && (
-          <div className="todo-actions-inline">
-            {!showRoutineSetup ? (
-              <button
-                className="routine-setup-button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowRoutineSetup(true)
-                }}
-                title="이 작업을 루틴으로 설정"
-              >
-                🔄 루틴으로 설정
-              </button>
-            ) : (
+        {((subtodos && subtodos.length > 0 && showSubtodos) || showDetails) && (
+          <>
+            <span className="todo-date">{formatDate(todo.created_at)}</span>
+            {!todo.parent_id && (
+              <div className="todo-actions-inline">
+                <button
+                  className="action-button-with-text"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsAddingSubTodo(!isAddingSubTodo)
+                    setShowSubtodos(true)
+                  }}
+                  title="하위 할 일 추가"
+                >
+                  <span className="action-icon">☑️</span>
+                  <span className="action-text">하위 투두</span>
+                </button>
+                <button
+                  className="action-button-with-text"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowRoutineSetup(!showRoutineSetup)
+                  }}
+                  title="이 작업을 루틴으로 설정"
+                >
+                  <span className="action-icon">📌</span>
+                  <span className="action-text">루틴 설정</span>
+                </button>
+              </div>
+            )}
+            {showRoutineSetup && !todo.parent_id && (
               <div className="routine-setup-inline" onClick={(e) => e.stopPropagation()}>
                 <div className="routine-setup-title">반복할 요일 선택:</div>
                 <div className="day-selector-inline">
@@ -328,7 +331,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
         {(subtodos && subtodos.length > 0 && showSubtodos) || (isAddingSubTodo && !todo.parent_id) ? (
           <div className="subtodos-in-item">
@@ -430,6 +433,7 @@ function App() {
   const [routineInput, setRoutineInput] = useState('')
   const [selectedDays, setSelectedDays] = useState([])
   const [isAddingRoutine, setIsAddingRoutine] = useState(false)
+  const [showSidebar, setShowSidebar] = useState(false)
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -674,6 +678,35 @@ function App() {
         : [...prev, dayKey]
     )
   }
+
+  // 스크롤바 표시 제어
+  useEffect(() => {
+    let scrollTimer = null
+
+    const handleScroll = () => {
+      // 스크롤 시작 시 클래스 추가
+      document.body.classList.add('is-scrolling')
+
+      // 기존 타이머 클리어
+      if (scrollTimer) {
+        clearTimeout(scrollTimer)
+      }
+
+      // 1초 후 클래스 제거
+      scrollTimer = setTimeout(() => {
+        document.body.classList.remove('is-scrolling')
+      }, 1000)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (scrollTimer) {
+        clearTimeout(scrollTimer)
+      }
+    }
+  }, [])
 
   // 자정에 날짜 자동 업데이트 및 루틴 생성
   useEffect(() => {
@@ -1041,13 +1074,14 @@ function App() {
     useSensor(PointerSensor, {
       activationConstraint: {
         delay: 300,
-        tolerance: 5,
+        tolerance: 8,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 300,
-        tolerance: 5,
+        delay: 500,
+        tolerance: 10,
+        distance: 10,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -1104,29 +1138,77 @@ function App() {
 
   return (
     <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
-      <div className="container">
-        <h1>✅ 할 일 노트</h1>
+      {/* 햄버거 메뉴 버튼 */}
+      <button
+        className={`hamburger-menu ${showSidebar ? 'hidden' : ''}`}
+        onClick={() => setShowSidebar(!showSidebar)}
+        title="메뉴"
+      >
+        ☰
+      </button>
 
-        <div className="input-section">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="새로운 할 일을 입력하세요..."
-            className="todo-input"
-            disabled={isAdding}
-          />
-          <button onClick={handleAddTodo} className="add-button" disabled={isAdding}>
-            추가
+      {/* 사이드바 오버레이 */}
+      {showSidebar && (
+        <div className="sidebar-overlay" onClick={() => setShowSidebar(false)} />
+      )}
+
+      {/* 사이드바 */}
+      <div className={`sidebar ${showSidebar ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <h2>메뉴</h2>
+          <button className="sidebar-close" onClick={() => setShowSidebar(false)}>✕</button>
+        </div>
+        <div className="sidebar-content">
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              handleOpenTrash()
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">🗑️</span>
+            <span>휴지통</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              handleOpenRoutine()
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">📌</span>
+            <span>루틴 관리</span>
           </button>
         </div>
+      </div>
 
-        <div className="date-navigation">
-          <button onClick={handlePrevDay} className="date-nav-button">←</button>
-          <span className="date-display">{formatDateOnly(selectedDate)}</span>
-          <button onClick={handleNextDay} className="date-nav-button">→</button>
+      <div className="container">
+        <div className="header-fixed">
+          <h1>to-do note</h1>
+
+          <div className="input-section">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="새로운 할 일을 입력하세요..."
+              className="todo-input"
+              disabled={isAdding}
+            />
+            <button onClick={handleAddTodo} className="add-button" disabled={isAdding}>
+              추가
+            </button>
+          </div>
+
+          <div className="date-navigation">
+            <button onClick={handlePrevDay} className="date-nav-button">←</button>
+            <span className="date-display">{formatDateOnly(selectedDate)}</span>
+            <button onClick={handleNextDay} className="date-nav-button">→</button>
+          </div>
         </div>
+
+        <div className="content-scrollable">
 
         <DndContext
           sensors={sensors}
@@ -1173,14 +1255,7 @@ function App() {
         <div className="todo-stats">
           <p>전체: {todos.length}개 | 완료: {todos.filter(t => t.completed).length}개</p>
         </div>
-
-        <button onClick={handleOpenTrash} className="trash-button-fixed" title="휴지통">
-          🗑️
-        </button>
-
-        <button onClick={handleOpenRoutine} className="routine-button-fixed" title="루틴 관리">
-          🔄
-        </button>
+        </div>
 
         {showUndoToast && (
           <div className="undo-toast">
@@ -1238,7 +1313,7 @@ function App() {
           <div className="modal-overlay" onClick={handleCloseRoutine}>
             <div className="modal-content routine-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>🔄 루틴 관리</h2>
+                <h2>📌 루틴 관리</h2>
                 <button onClick={handleCloseRoutine} className="modal-close-button">✕</button>
               </div>
 
