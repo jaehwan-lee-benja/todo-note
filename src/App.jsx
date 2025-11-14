@@ -25,7 +25,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
   const [showDetails, setShowDetails] = useState(false)
-  const [showSubtodos, setShowSubtodos] = useState(true)
+  const [showSubtodos, setShowSubtodos] = useState(false)
   const [isAddingSubTodo, setIsAddingSubTodo] = useState(false)
   const [subTodoText, setSubTodoText] = useState('')
   const [showRoutineSetup, setShowRoutineSetup] = useState(false)
@@ -247,8 +247,9 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
           onClick={(e) => {
             e.stopPropagation()
             if (subtodos && subtodos.length > 0) {
-              setShowSubtodos(!showSubtodos)
-              setShowDetails(!showDetails)
+              const newValue = !showSubtodos
+              setShowSubtodos(newValue)
+              setShowDetails(newValue)
             } else {
               setShowDetails(!showDetails)
             }
