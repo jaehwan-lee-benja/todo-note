@@ -646,15 +646,15 @@ h1 {
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr) auto;
-  grid-template-rows: auto auto auto auto auto;
+  grid-template-rows: 20px auto auto auto auto;
   align-items: center;
   align-content: start;
   column-gap: 0.5rem;
   row-gap: 0;
-  padding: 0.5rem 0.875rem;
+  padding: 0.8rem 0.875rem;
   background: #1a1a1a;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none;
   z-index: 2;
   width: 100%;
   box-sizing: border-box;
@@ -663,7 +663,7 @@ h1 {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: pan-y;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease;
   will-change: transform;
   backface-visibility: hidden;
   min-height: auto;
@@ -673,7 +673,6 @@ h1 {
 
 .todo-item:hover {
   background: #202020;
-  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .todo-item.completed {
@@ -683,7 +682,6 @@ h1 {
 .todo-item.drag-mode {
   cursor: grab;
   background: #2f2f2f;
-  border-color: #646cff;
   box-shadow: none;
 }
 
@@ -713,7 +711,7 @@ h1 {
   cursor: pointer;
   accent-color: #646cff;
   flex-shrink: 0;
-  align-self: center;
+  align-self: start;
   margin: 0;
   touch-action: auto;
   pointer-events: auto;
@@ -735,7 +733,7 @@ h1 {
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
-  align-self: center;
+  align-self: start;
   grid-column: 2;
   grid-row: 1;
 }
@@ -815,7 +813,7 @@ h1 {
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
-  align-self: center;
+  align-self: start;
   min-width: 36px;
   min-height: 36px;
   touch-action: auto;
@@ -1246,17 +1244,14 @@ h1 {
 
   .todo-item {
     background: rgba(0, 0, 0, 0.02);
-    border-color: rgba(0, 0, 0, 0.08);
   }
 
   .todo-item:hover {
     background: rgba(0, 0, 0, 0.04);
-    border-color: rgba(0, 0, 0, 0.12);
   }
 
   .todo-item.drag-mode {
     background: rgba(100, 108, 255, 0.08);
-    border-color: #646cff;
     box-shadow: none;
   }
 
