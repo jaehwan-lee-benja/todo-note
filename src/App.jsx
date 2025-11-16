@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import {
   DndContext,
@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities'
 import './App.css'
 
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -451,6 +451,10 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   <span className="history-label">생성일:</span>
                   <span className="history-value">{formatDate(todo.created_at)}</span>
                 </div>
+                <div className="history-item">
+                  <span className="history-label">생성된 페이지:</span>
+                  <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
+                </div>
                 {historyRecords.length > 0 && (
                   <div className="history-changes-list">
                     <div className="history-changes-header">변경 이력 ({historyRecords.length})</div>
@@ -459,6 +463,9 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                         <div className="history-record-summary">
                           <div className="history-change-time">
                             {formatDate(record.changed_at)}
+                            {record.changed_on_date && (
+                              <span className="history-page-info"> (페이지: {formatDateOnly(new Date(record.changed_on_date + 'T00:00:00'))})</span>
+                            )}
                           </div>
                           <button
                             className="history-detail-button"
@@ -583,6 +590,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 onDelete={onDelete}
                 onEdit={onEdit}
                 formatDate={formatDate}
+                formatDateOnly={formatDateOnly}
                 isFocused={isFocused}
                 onFocus={onFocus}
                 onAddSubTodo={onAddSubTodo}
@@ -675,6 +683,9 @@ function App() {
   const [editingRoutineId, setEditingRoutineId] = useState(null)
   const [editingRoutineText, setEditingRoutineText] = useState('')
   const [editingRoutineDays, setEditingRoutineDays] = useState([])
+  const [dummySessions, setDummySessions] = useState([])
+  const [showDummyModal, setShowDummyModal] = useState(false)
+  const [showDummySQL, setShowDummySQL] = useState(false)
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -707,6 +718,229 @@ function App() {
     const weekday = weekdays[date.getDay()]
 
     return `${year}.${month}.${day}(${weekday}) ${hours}:${minutes}`
+  }
+
+  // 더미 데이터 생성
+  const handleCreateDummyData = async () => {
+    try {
+      const sessionId = `DUMMY-${Date.now()}`
+      const today = new Date(2025, 10, 16) // 2025-11-16
+
+      const dummyData = []
+      const historyData = []
+
+      // 14일 페이지 (정상 생성)
+      const date14 = '2025-11-14'
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 14일생성-미완료-수정이력있음`, date: date14, completed: false, created_at: '2025-11-14T09:00:00Z', order_index: 1001 },
+        { text: `[${sessionId}] 더미: 14일생성-14일완료`, date: date14, completed: true, created_at: '2025-11-14T09:10:00Z', order_index: 1002 },
+        { text: `[${sessionId}] 더미: 14일생성-15일완료`, date: date14, completed: true, created_at: '2025-11-14T09:20:00Z', order_index: 1003 },
+        { text: `[${sessionId}] 더미: 14일생성-16일완료`, date: date14, completed: true, created_at: '2025-11-14T09:30:00Z', order_index: 1004 }
+      )
+
+      // 15일 페이지 (정상 생성)
+      const date15 = '2025-11-15'
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 15일생성-미완료-수정이력있음`, date: date15, completed: false, created_at: '2025-11-15T10:00:00Z', order_index: 1005 },
+        { text: `[${sessionId}] 더미: 15일생성-15일완료`, date: date15, completed: true, created_at: '2025-11-15T10:10:00Z', order_index: 1006 },
+        { text: `[${sessionId}] 더미: 15일생성-16일완료`, date: date15, completed: true, created_at: '2025-11-15T10:20:00Z', order_index: 1007 }
+      )
+
+      // 16일 페이지 (정상 생성)
+      const date16 = '2025-11-16'
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 16일생성-미완료`, date: date16, completed: false, created_at: '2025-11-16T11:00:00Z', order_index: 1008 },
+        { text: `[${sessionId}] 더미: 16일생성-16일완료`, date: date16, completed: true, created_at: '2025-11-16T11:10:00Z', order_index: 1009 }
+      )
+
+      // 15일 페이지에 미리 작성
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 14일생성-15일페이지-미완료`, date: date15, completed: false, created_at: '2025-11-14T14:00:00Z', order_index: 1010 },
+        { text: `[${sessionId}] 더미: 14일생성-15일페이지-15일완료`, date: date15, completed: true, created_at: '2025-11-14T14:10:00Z', order_index: 1011 }
+      )
+
+      // 16일 페이지에 미리 작성
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 15일생성-16일페이지-미완료`, date: date16, completed: false, created_at: '2025-11-15T15:00:00Z', order_index: 1012 },
+        { text: `[${sessionId}] 더미: 15일생성-16일페이지-16일완료`, date: date16, completed: true, created_at: '2025-11-15T15:10:00Z', order_index: 1013 },
+        { text: `[${sessionId}] 더미: 14일생성-16일페이지-미완료`, date: date16, completed: false, created_at: '2025-11-14T15:00:00Z', order_index: 1014 },
+        { text: `[${sessionId}] 더미: 14일생성-16일페이지-16일완료`, date: date16, completed: true, created_at: '2025-11-14T15:10:00Z', order_index: 1015 }
+      )
+
+      // 17일 페이지에 미리 작성 (미래)
+      const date17 = '2025-11-17'
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 16일생성-17일페이지-미완료`, date: date17, completed: false, created_at: '2025-11-16T16:00:00Z', order_index: 1016 },
+        { text: `[${sessionId}] 더미: 15일생성-17일페이지-미완료`, date: date17, completed: false, created_at: '2025-11-15T16:00:00Z', order_index: 1017 },
+        { text: `[${sessionId}] 더미: 14일생성-17일페이지-미완료`, date: date17, completed: false, created_at: '2025-11-14T16:00:00Z', order_index: 1018 }
+      )
+
+      // 18일 페이지에 미리 작성 (미래)
+      const date18 = '2025-11-18'
+      dummyData.push(
+        { text: `[${sessionId}] 더미: 16일생성-18일페이지-미완료`, date: date18, completed: false, created_at: '2025-11-16T17:00:00Z', order_index: 1019 },
+        { text: `[${sessionId}] 더미: 15일생성-18일페이지-미완료`, date: date18, completed: false, created_at: '2025-11-15T17:00:00Z', order_index: 1020 }
+      )
+
+      // Supabase에 투두 삽입
+      const { data: insertedTodos, error: todoError } = await supabase
+        .from('todos')
+        .insert(dummyData)
+        .select()
+
+      if (todoError) throw todoError
+
+      // 히스토리 데이터 생성 (수정 이력이 있는 투두들)
+      // 14일 생성 투두의 히스토리 (15일, 16일 수정)
+      const todo14 = insertedTodos.find(t => t.text.includes('14일생성-미완료-수정이력있음'))
+      if (todo14) {
+        historyData.push(
+          {
+            todo_id: todo14.id,
+            previous_text: `[${sessionId}] 더미: 14일생성-미완료-1차`,
+            new_text: `[${sessionId}] 더미: 14일생성-미완료-2차`,
+            changed_at: '2025-11-15T12:00:00Z',
+            changed_on_date: date15
+          },
+          {
+            todo_id: todo14.id,
+            previous_text: `[${sessionId}] 더미: 14일생성-미완료-2차`,
+            new_text: `[${sessionId}] 더미: 14일생성-미완료-수정이력있음`,
+            changed_at: '2025-11-16T12:00:00Z',
+            changed_on_date: date16
+          }
+        )
+      }
+
+      // 15일 생성 투두의 히스토리 (16일 수정)
+      const todo15 = insertedTodos.find(t => t.text.includes('15일생성-미완료-수정이력있음'))
+      if (todo15) {
+        historyData.push(
+          {
+            todo_id: todo15.id,
+            previous_text: `[${sessionId}] 더미: 15일생성-미완료-1차`,
+            new_text: `[${sessionId}] 더미: 15일생성-미완료-수정이력있음`,
+            changed_at: '2025-11-16T13:00:00Z',
+            changed_on_date: date16
+          }
+        )
+      }
+
+      // 히스토리 데이터 삽입
+      if (historyData.length > 0) {
+        const { error: historyError } = await supabase
+          .from('todo_history')
+          .insert(historyData)
+
+        if (historyError) {
+          console.error('히스토리 생성 오류:', historyError.message)
+        }
+      }
+
+      // 세션 정보 저장
+      setDummySessions(prev => [...prev, {
+        sessionId,
+        createdAt: new Date().toISOString(),
+        count: dummyData.length,
+        historyCount: historyData.length
+      }])
+
+      alert(`✅ 더미 데이터 생성 완료!\n투두: ${dummyData.length}개\n히스토리: ${historyData.length}개\n세션 ID: ${sessionId}`)
+
+      // 현재 날짜 새로고침
+      fetchTodos()
+    } catch (error) {
+      console.error('더미 데이터 생성 오류:', error.message)
+      alert('❌ 더미 데이터 생성 실패: ' + error.message)
+    }
+  }
+
+  // 특정 세션 더미 데이터 삭제
+  const handleDeleteDummySession = async (sessionId) => {
+    try {
+      // 먼저 해당 세션의 투두 ID들을 가져오기
+      const { data: todosToDelete, error: fetchError } = await supabase
+        .from('todos')
+        .select('id')
+        .like('text', `[${sessionId}]%`)
+
+      if (fetchError) throw fetchError
+
+      // 투두 ID들로 히스토리 삭제 (ON DELETE CASCADE가 없으면 수동으로)
+      if (todosToDelete && todosToDelete.length > 0) {
+        const todoIds = todosToDelete.map(t => t.id)
+
+        const { error: historyError } = await supabase
+          .from('todo_history')
+          .delete()
+          .in('todo_id', todoIds)
+
+        if (historyError) {
+          console.error('히스토리 삭제 오류:', historyError.message)
+        }
+      }
+
+      // 투두 삭제
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .like('text', `[${sessionId}]%`)
+
+      if (error) throw error
+
+      setDummySessions(prev => prev.filter(s => s.sessionId !== sessionId))
+      alert(`✅ 세션 ${sessionId} 삭제 완료!`)
+
+      // 현재 날짜 새로고침
+      fetchTodos()
+    } catch (error) {
+      console.error('더미 데이터 삭제 오류:', error.message)
+      alert('❌ 더미 데이터 삭제 실패: ' + error.message)
+    }
+  }
+
+  // 모든 더미 데이터 삭제
+  const handleDeleteAllDummies = async () => {
+    try {
+      // 먼저 모든 더미 투두 ID들을 가져오기
+      const { data: todosToDelete, error: fetchError } = await supabase
+        .from('todos')
+        .select('id')
+        .like('text', '[DUMMY-%')
+
+      if (fetchError) throw fetchError
+
+      // 투두 ID들로 히스토리 삭제
+      if (todosToDelete && todosToDelete.length > 0) {
+        const todoIds = todosToDelete.map(t => t.id)
+
+        const { error: historyError } = await supabase
+          .from('todo_history')
+          .delete()
+          .in('todo_id', todoIds)
+
+        if (historyError) {
+          console.error('히스토리 삭제 오류:', historyError.message)
+        }
+      }
+
+      // 투두 삭제
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .like('text', '[DUMMY-%')
+
+      if (error) throw error
+
+      setDummySessions([])
+      alert('✅ 모든 더미 데이터 삭제 완료!')
+
+      // 현재 날짜 새로고침
+      fetchTodos()
+    } catch (error) {
+      console.error('모든 더미 데이터 삭제 오류:', error.message)
+      alert('❌ 모든 더미 데이터 삭제 실패: ' + error.message)
+    }
   }
 
   // 날짜 변경 핸들러
@@ -1448,13 +1682,14 @@ function App() {
 
       if (!currentTodo || currentTodo.text === newText) return
 
-      // 히스토리에 변경 기록 추가
+      // 히스토리에 변경 기록 추가 (어떤 날짜 페이지에서 변경되었는지도 기록)
       const { error: historyError } = await supabase
         .from('todo_history')
         .insert([{
           todo_id: id,
           previous_text: currentTodo.text,
-          new_text: newText
+          new_text: newText,
+          changed_on_date: currentTodo.date
         }])
 
       if (historyError) {
@@ -1605,6 +1840,16 @@ function App() {
             <span className="sidebar-icon">📌</span>
             <span>루틴 관리</span>
           </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              setShowDummyModal(true)
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">🧪</span>
+            <span>더미 데이터 관리</span>
+          </button>
         </div>
       </div>
 
@@ -1663,25 +1908,55 @@ function App() {
                 items={todos.filter(t => !t.parent_id).map(todo => todo.id)}
                 strategy={verticalListSortingStrategy}
               >
-                {todos.filter(t => !t.parent_id).map((todo, index) => {
+                {todos.filter(t => !t.parent_id).map((todo, index, array) => {
                   const subtodos = todos.filter(t => t.parent_id === todo.id)
+
+                  // 현재 보고 있는 페이지의 날짜 (selectedDate)
+                  const currentPageDate = formatDateForDB(selectedDate)
+
+                  // 투두의 생성일 (created_at에서 날짜만 추출)
+                  const todoCreatedDate = todo.created_at ? todo.created_at.split('T')[0] : todo.date
+
+                  // 다음 투두의 생성일
+                  const nextTodo = array[index + 1]
+                  const nextTodoCreatedDate = nextTodo
+                    ? (nextTodo.created_at ? nextTodo.created_at.split('T')[0] : nextTodo.date)
+                    : null
+
+                  // 현재 투두는 페이지 날짜 이전에 생성, 다음 투두는 페이지 날짜에 생성된 경우 구분선 표시
+                  const showSeparator = todoCreatedDate < currentPageDate && nextTodoCreatedDate >= currentPageDate
+
+                  // 디버깅
+                  if (index < 5) {
+                    console.log('투두:', todo.text.substring(0, 30), '생성일:', todoCreatedDate, '다음생성일:', nextTodoCreatedDate, '페이지:', currentPageDate, 'separator:', showSeparator)
+                  }
+
                   return (
-                    <SortableTodoItem
-                      key={todo.id}
-                      todo={todo}
-                      index={index}
-                      onToggle={handleToggleTodo}
-                      onDelete={handleDeleteTodo}
-                      onEdit={handleEditTodo}
-                      formatDate={formatDate}
-                      isFocused={focusedTodoId === todo.id}
-                      onFocus={handleFocusTodo}
-                      onAddSubTodo={handleAddSubTodo}
-                      subtodos={subtodos}
-                      level={0}
-                      onCreateRoutine={handleCreateRoutineFromTodo}
-                      routines={routines}
-                    />
+                    <React.Fragment key={todo.id}>
+                      <SortableTodoItem
+                        todo={todo}
+                        index={index}
+                        onToggle={handleToggleTodo}
+                        onDelete={handleDeleteTodo}
+                        onEdit={handleEditTodo}
+                        formatDate={formatDate}
+                        formatDateOnly={formatDateOnly}
+                        isFocused={focusedTodoId === todo.id}
+                        onFocus={handleFocusTodo}
+                        onAddSubTodo={handleAddSubTodo}
+                        subtodos={subtodos}
+                        level={0}
+                        onCreateRoutine={handleCreateRoutineFromTodo}
+                        routines={routines}
+                      />
+                      {showSeparator && (
+                        <div className="todo-date-separator">
+                          <div className="separator-line"></div>
+                          <div className="separator-text">이전에서 넘어옴</div>
+                          <div className="separator-line"></div>
+                        </div>
+                      )}
+                    </React.Fragment>
                   )
                 })}
               </SortableContext>
@@ -1691,6 +1966,190 @@ function App() {
 
         <div className="todo-stats">
           <p>전체: {todos.length}개 | 완료: {todos.filter(t => t.completed).length}개</p>
+        </div>
+
+        {/* 더미 데이터 SQL 복사 섹션 */}
+        <div className="dummy-sql-section">
+          <button
+            className="dummy-sql-toggle"
+            onClick={() => setShowDummySQL(!showDummySQL)}
+          >
+            {showDummySQL ? '▲' : '▼'} 더미 데이터 SQL
+          </button>
+
+          {showDummySQL && (
+            <div className="dummy-sql-content">
+              <div className="sql-block">
+                <div className="sql-header">
+                  <span>생성 SQL</span>
+                  <div style={{display: 'flex', gap: '0.5rem'}}>
+                    <button
+                      onClick={() => {
+                        window.open('https://raw.githubusercontent.com/jaehwan-lee-benja/todo-note/main/create-dummy-data-v2.sql', '_blank');
+                      }}
+                      className="link-button"
+                      title="GitHub에서 파일 보기"
+                    >
+                      🔗
+                    </button>
+                    <button
+                      onClick={() => {
+                        const createSQL = `INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-14', false, '2025-11-14T09:00:00Z', 1001),
+  ('[DUMMY-TEST] 더미: 14일생성-14일완료', '2025-11-14', true, '2025-11-14T09:10:00Z', 1002),
+  ('[DUMMY-TEST] 더미: 14일생성-15일완료', '2025-11-14', true, '2025-11-14T09:20:00Z', 1003),
+  ('[DUMMY-TEST] 더미: 14일생성-16일완료', '2025-11-14', true, '2025-11-14T09:30:00Z', 1004);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-15', false, '2025-11-15T10:00:00Z', 1005),
+  ('[DUMMY-TEST] 더미: 15일생성-15일완료', '2025-11-15', true, '2025-11-15T10:10:00Z', 1006),
+  ('[DUMMY-TEST] 더미: 15일생성-16일완료', '2025-11-15', true, '2025-11-15T10:20:00Z', 1007);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 16일생성-미완료', '2025-11-16', false, '2025-11-16T11:00:00Z', 1008),
+  ('[DUMMY-TEST] 더미: 16일생성-16일완료', '2025-11-16', true, '2025-11-16T11:10:00Z', 1009);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-미완료', '2025-11-15', false, '2025-11-14T14:00:00Z', 1010),
+  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-15일완료', '2025-11-15', true, '2025-11-14T14:10:00Z', 1011);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-15T15:00:00Z', 1012),
+  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-15T15:10:00Z', 1013),
+  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-14T15:00:00Z', 1014),
+  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-14T15:10:00Z', 1015);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 16일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-16T16:00:00Z', 1016),
+  ('[DUMMY-TEST] 더미: 15일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-15T16:00:00Z', 1017),
+  ('[DUMMY-TEST] 더미: 14일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-14T16:00:00Z', 1018);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 16일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-16T17:00:00Z', 1019),
+  ('[DUMMY-TEST] 더미: 15일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-15T17:00:00Z', 1020);
+
+INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
+SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-1차', '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '2025-11-15T12:00:00Z', '2025-11-15'
+FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
+
+INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
+SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-16T12:00:00Z', '2025-11-16'
+FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
+
+INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
+SELECT id, '[DUMMY-TEST] 더미: 15일생성-미완료-1차', '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-16T13:00:00Z', '2025-11-16'
+FROM todos WHERE text = '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음' LIMIT 1;`;
+                        navigator.clipboard.writeText(createSQL);
+                        alert('생성 SQL 복사 완료!');
+                      }}
+                      className="copy-button"
+                    >
+                      📋 복사
+                    </button>
+                  </div>
+                </div>
+                <pre className="sql-code">{`INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-14', false, '2025-11-14T09:00:00Z', 1001),
+  ('[DUMMY-TEST] 더미: 14일생성-14일완료', '2025-11-14', true, '2025-11-14T09:10:00Z', 1002),
+  ('[DUMMY-TEST] 더미: 14일생성-15일완료', '2025-11-14', true, '2025-11-14T09:20:00Z', 1003),
+  ('[DUMMY-TEST] 더미: 14일생성-16일완료', '2025-11-14', true, '2025-11-14T09:30:00Z', 1004);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-15', false, '2025-11-15T10:00:00Z', 1005),
+  ('[DUMMY-TEST] 더미: 15일생성-15일완료', '2025-11-15', true, '2025-11-15T10:10:00Z', 1006),
+  ('[DUMMY-TEST] 더미: 15일생성-16일완료', '2025-11-15', true, '2025-11-15T10:20:00Z', 1007);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 16일생성-미완료', '2025-11-16', false, '2025-11-16T11:00:00Z', 1008),
+  ('[DUMMY-TEST] 더미: 16일생성-16일완료', '2025-11-16', true, '2025-11-16T11:10:00Z', 1009);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-미완료', '2025-11-15', false, '2025-11-14T14:00:00Z', 1010),
+  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-15일완료', '2025-11-15', true, '2025-11-14T14:10:00Z', 1011);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-15T15:00:00Z', 1012),
+  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-15T15:10:00Z', 1013),
+  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-14T15:00:00Z', 1014),
+  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-14T15:10:00Z', 1015);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 16일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-16T16:00:00Z', 1016),
+  ('[DUMMY-TEST] 더미: 15일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-15T16:00:00Z', 1017),
+  ('[DUMMY-TEST] 더미: 14일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-14T16:00:00Z', 1018);
+
+INSERT INTO todos (text, date, completed, created_at, order_index)
+VALUES
+  ('[DUMMY-TEST] 더미: 16일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-16T17:00:00Z', 1019),
+  ('[DUMMY-TEST] 더미: 15일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-15T17:00:00Z', 1020);
+
+INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
+SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-1차', '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '2025-11-15T12:00:00Z', '2025-11-15'
+FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
+
+INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
+SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-16T12:00:00Z', '2025-11-16'
+FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
+
+INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
+SELECT id, '[DUMMY-TEST] 더미: 15일생성-미완료-1차', '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-16T13:00:00Z', '2025-11-16'
+FROM todos WHERE text = '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음' LIMIT 1;`}</pre>
+              </div>
+
+              <div className="sql-block">
+                <div className="sql-header">
+                  <span>삭제 SQL</span>
+                  <div style={{display: 'flex', gap: '0.5rem'}}>
+                    <button
+                      onClick={() => {
+                        window.open('https://raw.githubusercontent.com/jaehwan-lee-benja/todo-note/main/delete-dummy-data-v2.sql', '_blank');
+                      }}
+                      className="link-button"
+                      title="GitHub에서 파일 보기"
+                    >
+                      🔗
+                    </button>
+                    <button
+                      onClick={() => {
+                        const deleteSQL = `DELETE FROM todo_history
+WHERE todo_id IN (
+  SELECT id FROM todos WHERE text LIKE '[DUMMY-TEST]%'
+);
+
+DELETE FROM todos
+WHERE text LIKE '[DUMMY-TEST]%';`;
+                        navigator.clipboard.writeText(deleteSQL);
+                        alert('삭제 SQL 복사 완료!');
+                      }}
+                      className="copy-button"
+                    >
+                      📋 복사
+                    </button>
+                  </div>
+                </div>
+                <pre className="sql-code">{`DELETE FROM todo_history
+WHERE todo_id IN (
+  SELECT id FROM todos WHERE text LIKE '[DUMMY-TEST]%'
+);
+
+DELETE FROM todos
+WHERE text LIKE '[DUMMY-TEST]%';`}</pre>
+              </div>
+            </div>
+          )}
         </div>
         </div>
 
@@ -1740,6 +2199,87 @@ function App() {
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDummyModal && (
+          <div className="modal-overlay" onClick={() => setShowDummyModal(false)}>
+            <div className="modal-content routine-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>🧪 더미 데이터 관리</h2>
+                <button onClick={() => setShowDummyModal(false)} className="modal-close-button">✕</button>
+              </div>
+
+              <div className="routine-add-section">
+                <h3>더미 데이터 생성</h3>
+                <p style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                  14일~18일 날짜에 걸쳐 총 20개의 테스트용 더미 데이터가 생성됩니다.
+                </p>
+                <button
+                  onClick={handleCreateDummyData}
+                  className="add-routine-button"
+                  style={{width: '100%'}}
+                >
+                  ✅ 더미 데이터 생성 (20개)
+                </button>
+              </div>
+
+              <div className="routine-list" style={{marginTop: '20px'}}>
+                <h3>생성된 세션 목록</h3>
+                {dummySessions.length === 0 ? (
+                  <p className="empty-message">생성된 더미 세션이 없습니다.</p>
+                ) : (
+                  <>
+                    {dummySessions.map((session, index) => (
+                      <div key={session.sessionId} className="routine-item">
+                        <div className="routine-item-content">
+                          <span className="routine-text">
+                            세션 #{index + 1}: {session.sessionId}
+                          </span>
+                          <div className="routine-days">
+                            <span className="routine-day-badge">
+                              투두 {session.count}개
+                            </span>
+                            {session.historyCount > 0 && (
+                              <span className="routine-day-badge">
+                                히스토리 {session.historyCount}개
+                              </span>
+                            )}
+                            <span className="routine-day-badge" style={{fontSize: '11px'}}>
+                              {formatDate(session.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="routine-item-actions">
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`세션 #${index + 1}을 삭제하시겠습니까?`)) {
+                                handleDeleteDummySession(session.sessionId)
+                              }
+                            }}
+                            className="routine-delete-button"
+                            title="이 세션만 삭제"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        if (window.confirm('모든 더미 데이터를 삭제하시겠습니까?')) {
+                          handleDeleteAllDummies()
+                        }
+                      }}
+                      className="routine-delete-button"
+                      style={{width: '100%', marginTop: '15px', padding: '12px'}}
+                    >
+                      🗑️ 모든 더미 데이터 삭제
+                    </button>
+                  </>
                 )}
               </div>
             </div>
