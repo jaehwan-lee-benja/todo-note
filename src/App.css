@@ -2391,3 +2391,173 @@ h1 {
   white-space: nowrap;
   line-height: 1;
 }
+
+/* Routine History Modal */
+.routine-history-modal {
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.routine-history-content {
+  padding: 20px;
+}
+
+.routine-history-calendar {
+  margin-bottom: 30px;
+}
+
+.history-month {
+  margin-bottom: 30px;
+}
+
+.history-month-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #646cff;
+}
+
+.history-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.history-day-header {
+  padding: 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #999;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.history-day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.history-day-cell.empty {
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.history-day-cell.not-routine-day {
+  opacity: 0.3;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.history-day-cell.completed {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.4);
+}
+
+.history-day-cell:hover:not(.empty) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+}
+
+.history-day-cell.completed:hover {
+  background: rgba(76, 175, 80, 0.3);
+}
+
+.day-number {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.check-mark {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 1.2rem;
+  color: #4caf50;
+}
+
+.routine-history-stats {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.stat-value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #646cff;
+}
+
+.stat-value.completed {
+  color: #4caf50;
+}
+
+.stat-value.incomplete {
+  color: #ff6b6b;
+}
+
+.routine-history-button {
+  padding: 0.4rem 0.6rem;
+  background: rgba(100, 108, 255, 0.1);
+  border: 1px solid rgba(100, 108, 255, 0.3);
+  color: #646cff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.routine-history-button:hover {
+  background: rgba(100, 108, 255, 0.2);
+  border-color: rgba(100, 108, 255, 0.5);
+}
+
+/* 루틴 섹션 및 일반 투두 섹션 구분 */
+.routine-section,
+.normal-section {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #999;
+  margin: 20px 0 15px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routine-section .section-title {
+  color: #646cff;
+}
+
+.normal-section .section-title {
+  color: #888;
+}

@@ -1,16 +1,55 @@
-# React + Vite
+# Todo Note
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+투두 관리 웹 애플리케이션
 
-Currently, two official plugins are available:
+## 개발 환경
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm run dev      # 개발 서버 실행
+npm run build    # 프로덕션 빌드
+npm run deploy   # GitHub Pages에 배포
+```
 
-## React Compiler
+## 배포
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**중요**: "배포"는 항상 `npm run deploy`를 의미합니다.
+- GitHub Pages로 실제 웹사이트 배포
+- 빌드 후 gh-pages 브랜치에 자동 푸시
+- 배포 URL: https://jaehwan-lee-benja.github.io/todo-note/
 
-## Expanding the ESLint configuration
+GitHub Release는 별도로 요청 시에만 수행합니다.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 데이터베이스 마이그레이션
+
+새로운 컬럼이나 테이블을 추가할 때는 별도의 SQL 파일로 생성:
+- `add-original-todo-id-column.sql`: 원본 투두 추적
+- `add-completed-at-column.sql`: 완료 날짜 추적
+- `restore-past-todos-from-carryover.sql`: 기존 데이터 복원
+
+## 테스트 데이터
+
+- `create-dummy-data-v2.sql`: 더미 데이터 생성 (현재 날짜 기준 동적 생성)
+- `delete-dummy-data-v2.sql`: 더미 데이터 삭제
+
+타임존: 모든 타임스탬프는 KST (Asia/Seoul) 사용
+
+## Claude Code 작업 시 주의사항
+
+### 배포 관련
+- "배포해줘" = `npm run deploy` 실행 (GitHub Pages 배포)
+- GitHub Release는 명시적으로 요청할 때만 수행
+
+### 문서화 규칙
+**중요한 결정이나 규칙이 생기면, 사용자에게 README.md 기록 여부를 확인하세요.**
+
+예시:
+```
+"이 규칙을 README.md에 기록할까요?"
+"이 중요한 변경사항을 문서화할까요?"
+```
+
+### 프로젝트 특성
+- Supabase 데이터베이스 사용
+- 이월 로직: 과거 투두를 복사 방식으로 이월 (이동 X)
+- 원본 투두 추적: `original_todo_id` 컬럼 사용
+- 완료 날짜 추적: `completed_at` 컬럼으로 미래 완료 표시

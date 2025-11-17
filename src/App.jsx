@@ -695,10 +695,14 @@ function App() {
   const recentlyEditedIds = useRef(new Set())
   const [editingRoutineId, setEditingRoutineId] = useState(null)
   const [editingRoutineText, setEditingRoutineText] = useState('')
+  const [showRoutineHistory, setShowRoutineHistory] = useState(false)
+  const [selectedRoutineForHistory, setSelectedRoutineForHistory] = useState(null)
+  const [routineHistoryData, setRoutineHistoryData] = useState([])
   const [editingRoutineDays, setEditingRoutineDays] = useState([])
   const [dummySessions, setDummySessions] = useState([])
   const [showDummyModal, setShowDummyModal] = useState(false)
   const [showDummySQL, setShowDummySQL] = useState(false)
+  const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -956,6 +960,98 @@ function App() {
     }
   }
 
+  // 중복 투두 확인 및 삭제
+  const handleRemoveDuplicates = async () => {
+    try {
+      // 모든 투두 가져오기 (삭제되지 않은 것만)
+      const { data: allTodos, error: fetchError } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('deleted', false)
+        .order('created_at', { ascending: true })
+
+      if (fetchError) throw fetchError
+
+      if (!allTodos || allTodos.length === 0) {
+        alert('투두가 없습니다.')
+        return
+      }
+
+      // 같은 텍스트를 가진 투두들을 그룹화
+      const textGroups = {}
+      allTodos.forEach(todo => {
+        if (!textGroups[todo.text]) {
+          textGroups[todo.text] = []
+        }
+        textGroups[todo.text].push(todo)
+      })
+
+      // 중복이 있는 그룹만 필터링 (2개 이상)
+      const duplicateGroups = Object.entries(textGroups).filter(([_, todos]) => todos.length > 1)
+
+      if (duplicateGroups.length === 0) {
+        alert('중복된 투두가 없습니다.')
+        return
+      }
+
+      // 중복 리스트 생성
+      let duplicateList = '중복된 투두 목록:\n\n'
+      let todosToDelete = []
+
+      duplicateGroups.forEach(([text, todos]) => {
+        duplicateList += `"${text}" - ${todos.length}개\n`
+        // 첫 번째(가장 오래된)를 제외한 나머지를 삭제 대상에 추가
+        const toDelete = todos.slice(1)
+        todosToDelete.push(...toDelete)
+        toDelete.forEach(todo => {
+          const createdDate = new Date(todo.created_at).toLocaleString('ko-KR')
+          duplicateList += `  ❌ 삭제 예정: ${createdDate}\n`
+        })
+        const keepTodo = todos[0]
+        const keepDate = new Date(keepTodo.created_at).toLocaleString('ko-KR')
+        duplicateList += `  ✅ 유지: ${keepDate}\n\n`
+      })
+
+      duplicateList += `\n총 ${todosToDelete.length}개의 중복 투두를 삭제합니다.`
+
+      // 확인 받기
+      const confirmDelete = window.confirm(duplicateList + '\n\n삭제하시겠습니까?')
+
+      if (!confirmDelete) {
+        return
+      }
+
+      // 삭제 실행
+      const idsToDelete = todosToDelete.map(t => t.id)
+
+      // 히스토리 먼저 삭제
+      const { error: historyError } = await supabase
+        .from('todo_history')
+        .delete()
+        .in('todo_id', idsToDelete)
+
+      if (historyError) {
+        console.error('히스토리 삭제 오류:', historyError.message)
+      }
+
+      // 투두 삭제
+      const { error: deleteError } = await supabase
+        .from('todos')
+        .delete()
+        .in('id', idsToDelete)
+
+      if (deleteError) throw deleteError
+
+      alert(`✅ ${todosToDelete.length}개의 중복 투두를 삭제했습니다.`)
+
+      // 현재 날짜 새로고침
+      fetchTodos()
+    } catch (error) {
+      console.error('중복 투두 삭제 오류:', error.message)
+      alert('❌ 중복 투두 삭제 실패: ' + error.message)
+    }
+  }
+
   // 날짜 변경 핸들러
   const handlePrevDay = () => {
     const newDate = new Date(selectedDate)
@@ -1045,7 +1141,7 @@ function App() {
         .lt('date', todayStr)
         .eq('deleted', false)
         .eq('completed', false)
-        .is('original_todo_id', null) // 이미 이월된 항목은 제외
+        .is('original_todo_id', null) // 이미 이월된 항목은 제외 (원본만)
         .order('date', { ascending: true })
         .order('order_index', { ascending: true })
 
@@ -1062,13 +1158,29 @@ function App() {
 
         if (todayError) throw todayError
 
+        // 오늘 날짜에 이미 이월된 항목의 original_todo_id 목록
+        const alreadyCarriedOverIds = new Set(
+          todayTodos
+            .filter(t => t.original_todo_id !== null)
+            .map(t => t.original_todo_id)
+        )
+
+        // 아직 이월되지 않은 항목만 필터링
+        const todosNeedCarryOver = pastIncompleteTodos.filter(
+          todo => !alreadyCarriedOverIds.has(todo.id)
+        )
+
+        if (todosNeedCarryOver.length === 0) {
+          return // 이월할 항목이 없음
+        }
+
         const todayCount = todayTodos ? todayTodos.length : 0
 
         // 오늘 기존 항목이 있으면 그 뒤에 추가
         const startIndex = todayCount + 1
 
         // 과거 미완료 항목들을 오늘로 복사 (새 레코드 생성)
-        const todosToInsert = pastIncompleteTodos.map((todo, index) => ({
+        const todosToInsert = todosNeedCarryOver.map((todo, index) => ({
           text: todo.text,
           completed: false,
           date: todayStr,
@@ -1084,7 +1196,7 @@ function App() {
 
         if (insertError) throw insertError
 
-        console.log(`${pastIncompleteTodos.length}개의 과거 미완료 항목을 오늘로 이월했습니다.`)
+        console.log(`${todosNeedCarryOver.length}개의 과거 미완료 항목을 오늘로 이월했습니다.`)
       }
     } catch (error) {
       console.error('과거 미완료 항목 이월 오류:', error.message)
@@ -1290,55 +1402,132 @@ function App() {
     }
   }
 
-  // 오늘 요일의 루틴 작업 자동 생성
-  const createRoutineTodos = async () => {
-    try {
-      const today = new Date()
-      const todayStr = formatDateForDB(today)
-      const todayDayKey = getDayKey(today.getDay())
+  // 특정 날짜의 루틴 작업 자동 생성
+  const createRoutineTodosForDate = async (dateStr) => {
+    // 이미 생성 중이면 중복 실행 방지
+    if (routineCreationInProgress.current.has(dateStr)) {
+      console.log(`루틴 작업 생성 중 (중복 방지): ${dateStr}`)
+      return
+    }
 
-      const { data: todayRoutines, error: routineError } = await supabase
+    try {
+      // 생성 시작 플래그 설정
+      routineCreationInProgress.current.add(dateStr)
+
+      const targetDate = new Date(dateStr)
+      const dayKey = getDayKey(targetDate.getDay())
+
+      // 날짜 표시 형식: "11/17(월)"
+      const month = targetDate.getMonth() + 1
+      const date = targetDate.getDate()
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+      const dayName = dayNames[targetDate.getDay()]
+      const dateDisplay = `${month}/${date}(${dayName})`
+
+      const { data: allRoutines, error: routineError } = await supabase
         .from('routines')
         .select('*')
         .eq('deleted', false)
 
       if (routineError) throw routineError
 
-      const matchingRoutines = todayRoutines.filter(routine => {
+      const matchingRoutines = allRoutines.filter(routine => {
         const days = routine.days || []
-        return days.includes(todayDayKey)
+        return days.includes(dayKey)
       })
 
       if (matchingRoutines.length === 0) return
 
       for (const routine of matchingRoutines) {
-        const { data: existingTodos, error: checkError } = await supabase
+        const todoText = `${routine.text}-for ${dateDisplay}`
+
+        // 1차 체크: routine_id로 확인
+        const { data: existingByRoutineId, error: checkError1 } = await supabase
           .from('todos')
           .select('id')
+          .eq('date', dateStr)
           .eq('routine_id', routine.id)
-          .eq('date', todayStr)
           .eq('deleted', false)
 
-        if (checkError) throw checkError
+        if (checkError1) throw checkError1
 
-        if (!existingTodos || existingTodos.length === 0) {
-          const { error: insertError } = await supabase
-            .from('todos')
-            .insert([{
-              text: routine.text,
-              completed: false,
-              date: todayStr,
-              order_index: 1000,
-              routine_id: routine.id
-            }])
+        // 2차 체크: 텍스트로 확인 (동시 실행 경쟁 조건 대비)
+        const { data: existingByText, error: checkError2 } = await supabase
+          .from('todos')
+          .select('id')
+          .eq('date', dateStr)
+          .eq('text', todoText)
+          .eq('deleted', false)
 
-          if (insertError) throw insertError
-          console.log(`루틴 작업 생성: ${routine.text}`)
+        if (checkError2) throw checkError2
+
+        // 둘 중 하나라도 존재하면 생성하지 않음
+        if ((existingByRoutineId && existingByRoutineId.length > 0) ||
+            (existingByText && existingByText.length > 0)) {
+          continue
+        }
+
+        // 투두 생성
+        const { error: insertError } = await supabase
+          .from('todos')
+          .insert([{
+            text: todoText,
+            completed: false,
+            date: dateStr,
+            order_index: 0, // 루틴은 제일 위에
+            routine_id: routine.id
+          }])
+
+        if (insertError) {
+          // 동시 실행으로 인한 중복은 무시
+          console.log(`루틴 작업 생성 실패 (중복 가능성): ${todoText}`)
+        } else {
+          console.log(`루틴 작업 생성: ${todoText} (${dateStr})`)
         }
       }
     } catch (error) {
       console.error('루틴 작업 생성 오류:', error.message)
+    } finally {
+      // 생성 완료 후 플래그 해제 (1초 후 - 다른 실행도 완료될 시간)
+      setTimeout(() => {
+        routineCreationInProgress.current.delete(dateStr)
+      }, 1000)
     }
+  }
+
+  // 오늘 요일의 루틴 작업 자동 생성 (자정용)
+  const createRoutineTodos = async () => {
+    const today = new Date()
+    const todayStr = formatDateForDB(today)
+    await createRoutineTodosForDate(todayStr)
+  }
+
+  // 루틴 히스토리 조회
+  const fetchRoutineHistory = async (routine) => {
+    try {
+      // 해당 루틴의 모든 투두 조회
+      const { data: routineTodos, error } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('routine_id', routine.id)
+        .eq('deleted', false)
+        .order('date', { ascending: true })
+
+      if (error) throw error
+
+      setRoutineHistoryData(routineTodos || [])
+      setSelectedRoutineForHistory(routine)
+      setShowRoutineHistory(true)
+    } catch (error) {
+      console.error('루틴 히스토리 조회 오류:', error.message)
+      alert('루틴 히스토리 조회 실패: ' + error.message)
+    }
+  }
+
+  const handleCloseRoutineHistory = () => {
+    setShowRoutineHistory(false)
+    setSelectedRoutineForHistory(null)
+    setRoutineHistoryData([])
   }
 
   // 루틴 모달 열기/닫기
@@ -1524,6 +1713,10 @@ function App() {
     try {
       setLoading(true)
       const dateStr = formatDateForDB(selectedDate)
+
+      // 해당 날짜의 요일에 맞는 루틴 투두 자동 생성
+      await createRoutineTodosForDate(dateStr)
+
       const { data, error } = await supabase
         .from('todos')
         .select('*')
@@ -2026,12 +2219,56 @@ function App() {
               <p className="empty-message">로딩 중...</p>
             ) : todos.length === 0 ? (
               <p className="empty-message">아직 할 일이 없습니다. 새로운 할 일을 추가해보세요!</p>
-            ) : (
-              <SortableContext
-                items={todos.filter(t => !t.parent_id).map(todo => todo.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {todos.filter(t => !t.parent_id).map((todo, index, array) => {
+            ) : (() => {
+              // 루틴 투두와 일반 투두 분리
+              const routineTodos = todos.filter(t => !t.parent_id && t.routine_id !== null)
+              const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null)
+
+              return (
+                <>
+                  {/* 루틴 섹션 */}
+                  {routineTodos.length > 0 && (
+                    <div className="routine-section">
+                      <h3 className="section-title">📌 루틴</h3>
+                      <SortableContext
+                        items={routineTodos.map(todo => todo.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {routineTodos.map((todo, index) => {
+                          const subtodos = todos.filter(t => t.parent_id === todo.id)
+                          return (
+                            <SortableTodoItem
+                              key={todo.id}
+                              todo={todo}
+                              index={index}
+                              onToggle={handleToggleTodo}
+                              onDelete={handleDeleteTodo}
+                              onEdit={handleEditTodo}
+                              formatDate={formatDate}
+                              formatDateOnly={formatDateOnly}
+                              isFocused={focusedTodoId === todo.id}
+                              onFocus={handleFocusTodo}
+                              onAddSubTodo={handleAddSubTodo}
+                              subtodos={subtodos}
+                              level={0}
+                              onCreateRoutine={handleCreateRoutineFromTodo}
+                              routines={routines}
+                            />
+                          )
+                        })}
+                      </SortableContext>
+                    </div>
+                  )}
+
+                  {/* 일반 투두 섹션 */}
+                  {normalTodos.length > 0 && (
+                    <div className="normal-section">
+                      {routineTodos.length > 0 && <h3 className="section-title">📝 일반 투두</h3>}
+                      <SortableContext
+                        items={normalTodos.map(todo => todo.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {normalTodos.map((todo, index, array) => {
                   const subtodos = todos.filter(t => t.parent_id === todo.id)
 
                   // 현재 보고 있는 페이지의 날짜 (selectedDate)
@@ -2082,8 +2319,12 @@ function App() {
                     </React.Fragment>
                   )
                 })}
-              </SortableContext>
-            )}
+                      </SortableContext>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         </DndContext>
 
@@ -2369,6 +2610,20 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                 </button>
               </div>
 
+              <div className="routine-add-section">
+                <h3>중복 투두 제거</h3>
+                <p style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
+                  같은 텍스트의 투두 중 생성일이 가장 빠른 것만 남기고 삭제합니다.
+                </p>
+                <button
+                  onClick={handleRemoveDuplicates}
+                  className="add-routine-button"
+                  style={{width: '100%', background: '#ff6b6b'}}
+                >
+                  🗑️ 중복 투두 제거
+                </button>
+              </div>
+
               <div className="routine-list" style={{marginTop: '20px'}}>
                 <h3>생성된 세션 목록</h3>
                 {dummySessions.length === 0 ? (
@@ -2526,6 +2781,13 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                           </div>
                           <div className="routine-item-actions">
                             <button
+                              onClick={() => fetchRoutineHistory(routine)}
+                              className="routine-history-button"
+                              title="히스토리 보기"
+                            >
+                              📊
+                            </button>
+                            <button
                               onClick={() => handleStartEditRoutine(routine)}
                               className="routine-edit-button"
                               title="수정"
@@ -2545,6 +2807,162 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showRoutineHistory && selectedRoutineForHistory && (
+          <div className="modal-overlay" onClick={handleCloseRoutineHistory}>
+            <div className="modal-content routine-history-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>📊 {selectedRoutineForHistory.text} 히스토리</h2>
+                <button onClick={handleCloseRoutineHistory} className="modal-close-button">✕</button>
+              </div>
+
+              <div className="routine-history-content">
+                {(() => {
+                  if (routineHistoryData.length === 0) {
+                    return <p className="empty-message">아직 생성된 투두가 없습니다.</p>
+                  }
+
+                  // 첫 번째 투두 날짜부터 오늘까지의 달력 생성
+                  const firstTodo = routineHistoryData[0]
+                  const firstDate = new Date(firstTodo.date)
+                  const today = new Date()
+
+                  // 날짜별 완료 여부 맵 생성
+                  const completionMap = {}
+                  routineHistoryData.forEach(todo => {
+                    completionMap[todo.date] = todo.completed
+                  })
+
+                  // 월별로 그룹화
+                  const monthGroups = []
+                  let currentDate = new Date(firstDate)
+
+                  while (currentDate <= today) {
+                    const year = currentDate.getFullYear()
+                    const month = currentDate.getMonth()
+                    const monthKey = `${year}-${month + 1}`
+
+                    if (!monthGroups.find(g => g.key === monthKey)) {
+                      monthGroups.push({
+                        key: monthKey,
+                        year,
+                        month,
+                        days: []
+                      })
+                    }
+
+                    const monthGroup = monthGroups.find(g => g.key === monthKey)
+                    const dateStr = formatDateForDB(currentDate)
+                    const dayOfWeek = currentDate.getDay()
+
+                    // 루틴이 해당 요일에 설정되어 있는지 확인
+                    const dayKey = getDayKey(dayOfWeek)
+                    const isRoutineDay = selectedRoutineForHistory.days.includes(dayKey)
+
+                    monthGroup.days.push({
+                      date: new Date(currentDate),
+                      dateStr,
+                      day: currentDate.getDate(),
+                      dayOfWeek,
+                      isCompleted: completionMap[dateStr] === true,
+                      isRoutineDay,
+                      hasTodo: completionMap[dateStr] !== undefined
+                    })
+
+                    currentDate.setDate(currentDate.getDate() + 1)
+                  }
+
+                  return (
+                    <div className="routine-history-calendar">
+                      {monthGroups.map(monthGroup => (
+                        <div key={monthGroup.key} className="history-month">
+                          <h3 className="history-month-title">
+                            {monthGroup.year}년 {monthGroup.month + 1}월
+                          </h3>
+                          <div className="history-calendar-grid">
+                            <div className="history-day-header">일</div>
+                            <div className="history-day-header">월</div>
+                            <div className="history-day-header">화</div>
+                            <div className="history-day-header">수</div>
+                            <div className="history-day-header">목</div>
+                            <div className="history-day-header">금</div>
+                            <div className="history-day-header">토</div>
+
+                            {/* 첫 주의 빈 칸 */}
+                            {monthGroup.days.length > 0 && Array(monthGroup.days[0].dayOfWeek).fill(null).map((_, i) => (
+                              <div key={`empty-${i}`} className="history-day-cell empty"></div>
+                            ))}
+
+                            {/* 날짜 셀 */}
+                            {monthGroup.days.map((dayInfo, index) => {
+                              // 다음 월의 첫날이면 빈칸 추가
+                              if (index > 0 && dayInfo.day === 1) {
+                                const prevDay = monthGroup.days[index - 1]
+                                const emptyCount = 6 - prevDay.dayOfWeek
+                                return (
+                                  <>
+                                    {Array(emptyCount).fill(null).map((_, i) => (
+                                      <div key={`empty-end-${index}-${i}`} className="history-day-cell empty"></div>
+                                    ))}
+                                    <div key={dayInfo.dateStr} className="history-day-header">일</div>
+                                    <div className="history-day-header">월</div>
+                                    <div className="history-day-header">화</div>
+                                    <div className="history-day-header">수</div>
+                                    <div className="history-day-header">목</div>
+                                    <div className="history-day-header">금</div>
+                                    <div className="history-day-header">토</div>
+                                    <div className={`history-day-cell ${dayInfo.isCompleted ? 'completed' : ''} ${!dayInfo.isRoutineDay ? 'not-routine-day' : ''}`}>
+                                      <span className="day-number">{dayInfo.day}</span>
+                                      {dayInfo.isCompleted && <span className="check-mark">✓</span>}
+                                    </div>
+                                  </>
+                                )
+                              }
+
+                              return (
+                                <div
+                                  key={dayInfo.dateStr}
+                                  className={`history-day-cell ${dayInfo.isCompleted ? 'completed' : ''} ${!dayInfo.isRoutineDay ? 'not-routine-day' : ''}`}
+                                  title={`${dayInfo.dateStr}${!dayInfo.isRoutineDay ? ' (루틴 요일 아님)' : ''}${dayInfo.isCompleted ? ' - 완료' : dayInfo.hasTodo ? ' - 미완료' : ''}`}
+                                >
+                                  <span className="day-number">{dayInfo.day}</span>
+                                  {dayInfo.isCompleted && <span className="check-mark">✓</span>}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                <div className="routine-history-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">총 투두:</span>
+                    <span className="stat-value">{routineHistoryData.length}개</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">완료:</span>
+                    <span className="stat-value completed">{routineHistoryData.filter(t => t.completed).length}개</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">미완료:</span>
+                    <span className="stat-value incomplete">{routineHistoryData.filter(t => !t.completed).length}개</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">완료율:</span>
+                    <span className="stat-value">
+                      {routineHistoryData.length > 0
+                        ? Math.round((routineHistoryData.filter(t => t.completed).length / routineHistoryData.length) * 100)
+                        : 0}%
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
