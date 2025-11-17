@@ -2375,3 +2375,19 @@ h1 {
   line-height: 1.5;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+/* Completed date badge */
+.completed-date-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.7rem;
+  background: rgba(76, 175, 80, 0.15);
+  color: #81c784;
+  border-radius: 8px;
+  font-weight: 600;
+  border: 1px solid rgba(76, 175, 80, 0.25);
+  white-space: nowrap;
+  line-height: 1;
+}

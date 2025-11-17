@@ -315,57 +315,70 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             </span>
           )}
         </div>
-        {(subtodos.length > 0 || todo.routine_id) && (
-          <div className="todo-badges">
-            {subtodos.length > 0 && (
-              <span
-                className="todo-badge clickable"
-                title="나노투두 보기"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (showNanotodos) {
-                    // 이미 나노투두가 열려있으면 토글 닫기
-                    setShowDetails(false)
-                    setShowNanotodos(false)
-                    setIsAddingSubTodo(false)
-                  } else {
-                    // 나노투두 열기
-                    setShowDetails(true)
-                    setShowNanotodos(true)
-                    setIsAddingSubTodo(false)
-                    setShowRoutineSetup(false)
-                    setShowHistory(false)
-                  }
-                }}
-              >
-                🔬
-              </span>
-            )}
-            {todo.routine_id && (
-              <span
-                className="todo-badge clickable"
-                title="루틴 보기"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (showRoutineSetup) {
-                    // 이미 루틴설정이 열려있으면 토글 닫기
-                    setShowDetails(false)
-                    setShowRoutineSetup(false)
-                  } else {
-                    // 루틴설정 열기
-                    setShowDetails(true)
-                    setShowRoutineSetup(true)
-                    setShowNanotodos(false)
-                    setIsAddingSubTodo(false)
-                    setShowHistory(false)
-                  }
-                }}
-              >
-                📌
-              </span>
-            )}
-          </div>
-        )}
+        {(() => {
+          const hasCompletedDateBadge = todo.completed && todo.completed_at &&
+            new Date(todo.completed_at).toISOString().split('T')[0] !== todo.date
+          return (subtodos.length > 0 || todo.routine_id || hasCompletedDateBadge) && (
+            <div className="todo-badges">
+              {hasCompletedDateBadge && (() => {
+                const completedDate = new Date(todo.completed_at).toISOString().split('T')[0]
+                const completedDay = new Date(todo.completed_at).getDate()
+                return (
+                  <span className="completed-date-badge" title={`${completedDate}에 완료됨`}>
+                    {completedDay}일✓
+                  </span>
+                )
+              })()}
+              {subtodos.length > 0 && (
+                <span
+                  className="todo-badge clickable"
+                  title="나노투두 보기"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (showNanotodos) {
+                      // 이미 나노투두가 열려있으면 토글 닫기
+                      setShowDetails(false)
+                      setShowNanotodos(false)
+                      setIsAddingSubTodo(false)
+                    } else {
+                      // 나노투두 열기
+                      setShowDetails(true)
+                      setShowNanotodos(true)
+                      setIsAddingSubTodo(false)
+                      setShowRoutineSetup(false)
+                      setShowHistory(false)
+                    }
+                  }}
+                >
+                  🔬
+                </span>
+              )}
+              {todo.routine_id && (
+                <span
+                  className="todo-badge clickable"
+                  title="루틴 보기"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (showRoutineSetup) {
+                      // 이미 루틴설정이 열려있으면 토글 닫기
+                      setShowDetails(false)
+                      setShowRoutineSetup(false)
+                    } else {
+                      // 루틴설정 열기
+                      setShowDetails(true)
+                      setShowRoutineSetup(true)
+                      setShowNanotodos(false)
+                      setIsAddingSubTodo(false)
+                      setShowHistory(false)
+                    }
+                  }}
+                >
+                  📌
+                </span>
+              )}
+            </div>
+          )
+        })()}
         <button
           className="details-toggle-button"
           onClick={(e) => {
@@ -963,19 +976,20 @@ function App() {
   }
 
 
-  // 전날 미완료 항목을 다음 날로 이동
+  // 전날 미완료 항목을 다음 날로 이월 (복사 방식)
   const moveIncompleteTodosToNextDay = async (fromDate, toDate) => {
     try {
       const fromDateStr = formatDateForDB(fromDate)
       const toDateStr = formatDateForDB(toDate)
 
-      // 전날의 미완료 항목 가져오기
+      // 전날의 미완료 항목 가져오기 (이미 이월된 항목은 제외)
       const { data: incompleteTodos, error: fetchError } = await supabase
         .from('todos')
         .select('*')
         .eq('date', fromDateStr)
         .eq('deleted', false)
         .eq('completed', false)
+        .is('original_todo_id', null)
         .order('order_index', { ascending: true })
 
       if (fetchError) throw fetchError
@@ -996,21 +1010,84 @@ function App() {
         // 다음 날 기존 항목이 있으면 그 뒤에 추가
         const startIndex = nextDayCount + 1
 
-        // 미완료 항목을 다음 날로 이동 (날짜와 order_index 업데이트)
-        const updatePromises = incompleteTodos.map((todo, index) =>
-          supabase
-            .from('todos')
-            .update({
-              date: toDateStr,
-              order_index: startIndex + index
-            })
-            .eq('id', todo.id)
-        )
+        // 미완료 항목들을 다음 날로 복사 (새 레코드 생성)
+        const todosToInsert = incompleteTodos.map((todo, index) => ({
+          text: todo.text,
+          completed: false,
+          date: toDateStr,
+          order_index: startIndex + index,
+          original_todo_id: todo.id, // 원본 투두 ID 저장
+          parent_id: null, // 서브투두는 이월하지 않음
+          routine_id: todo.routine_id
+        }))
 
-        await Promise.all(updatePromises)
+        const { error: insertError } = await supabase
+          .from('todos')
+          .insert(todosToInsert)
+
+        if (insertError) throw insertError
       }
     } catch (error) {
-      console.error('미완료 항목 이동 오류:', error.message)
+      console.error('미완료 항목 이월 오류:', error.message)
+    }
+  }
+
+  // 과거의 모든 미완료 항목을 오늘로 이월 (복사 방식)
+  const movePastIncompleteTodosToToday = async () => {
+    try {
+      const today = new Date()
+      const todayStr = formatDateForDB(today)
+
+      // 오늘 이전 날짜의 모든 미완료 항목 가져오기
+      const { data: pastIncompleteTodos, error: fetchError } = await supabase
+        .from('todos')
+        .select('*')
+        .lt('date', todayStr)
+        .eq('deleted', false)
+        .eq('completed', false)
+        .is('original_todo_id', null) // 이미 이월된 항목은 제외
+        .order('date', { ascending: true })
+        .order('order_index', { ascending: true })
+
+      if (fetchError) throw fetchError
+
+      if (pastIncompleteTodos && pastIncompleteTodos.length > 0) {
+        // 오늘 날짜의 기존 항목 가져오기
+        const { data: todayTodos, error: todayError } = await supabase
+          .from('todos')
+          .select('*')
+          .eq('date', todayStr)
+          .eq('deleted', false)
+          .order('order_index', { ascending: true })
+
+        if (todayError) throw todayError
+
+        const todayCount = todayTodos ? todayTodos.length : 0
+
+        // 오늘 기존 항목이 있으면 그 뒤에 추가
+        const startIndex = todayCount + 1
+
+        // 과거 미완료 항목들을 오늘로 복사 (새 레코드 생성)
+        const todosToInsert = pastIncompleteTodos.map((todo, index) => ({
+          text: todo.text,
+          completed: false,
+          date: todayStr,
+          order_index: startIndex + index,
+          original_todo_id: todo.id, // 원본 투두 ID 저장
+          parent_id: null, // 서브투두는 이월하지 않음
+          routine_id: todo.routine_id
+        }))
+
+        const { error: insertError } = await supabase
+          .from('todos')
+          .insert(todosToInsert)
+
+        if (insertError) throw insertError
+
+        console.log(`${pastIncompleteTodos.length}개의 과거 미완료 항목을 오늘로 이월했습니다.`)
+      }
+    } catch (error) {
+      console.error('과거 미완료 항목 이월 오류:', error.message)
     }
   }
 
@@ -1318,6 +1395,11 @@ function App() {
     fetchRoutines()
   }, [])
 
+  // 앱 시작 시 과거 미완료 항목을 오늘로 이월
+  useEffect(() => {
+    movePastIncompleteTodosToToday()
+  }, [])
+
   // 자정에 날짜 자동 업데이트 및 루틴 생성
   useEffect(() => {
     const checkMidnight = async () => {
@@ -1508,14 +1590,33 @@ function App() {
     if (!todo) return
 
     try {
+      const newCompleted = !todo.completed
+      const completedAt = newCompleted ? new Date().toISOString() : null
+
+      // 현재 투두 업데이트
       const { error } = await supabase
         .from('todos')
-        .update({ completed: !todo.completed })
+        .update({
+          completed: newCompleted,
+          completed_at: completedAt
+        })
         .eq('id', id)
 
       if (error) throw error
+
+      // 이월된 투두라면 원본도 완료 처리
+      if (newCompleted && todo.original_todo_id) {
+        await supabase
+          .from('todos')
+          .update({
+            completed: true,
+            completed_at: completedAt
+          })
+          .eq('id', todo.original_todo_id)
+      }
+
       setTodos(todos.map(t =>
-        t.id === id ? { ...t, completed: !t.completed } : t
+        t.id === id ? { ...t, completed: newCompleted, completed_at: completedAt } : t
       ))
     } catch (error) {
       console.error('할 일 토글 오류:', error.message)
@@ -1694,6 +1795,28 @@ function App() {
 
       if (historyError) {
         console.error('히스토리 저장 오류:', historyError.message)
+      }
+
+      // 이월된 투두라면 원본의 히스토리에도 기록
+      if (currentTodo.original_todo_id) {
+        // 원본 투두 정보 가져오기
+        const { data: originalTodo, error: originalError } = await supabase
+          .from('todos')
+          .select('text, date')
+          .eq('id', currentTodo.original_todo_id)
+          .single()
+
+        if (!originalError && originalTodo) {
+          // 원본 투두의 히스토리에도 변경 기록 추가
+          await supabase
+            .from('todo_history')
+            .insert([{
+              todo_id: currentTodo.original_todo_id,
+              previous_text: currentTodo.text, // 이월 당시의 텍스트
+              new_text: newText,
+              changed_on_date: currentTodo.date // 현재 페이지 날짜
+            }])
+        }
       }
 
       // 투두 텍스트 업데이트
@@ -1994,60 +2117,91 @@ function App() {
                     </button>
                     <button
                       onClick={() => {
-                        const createSQL = `INSERT INTO todos (text, date, completed, created_at, order_index)
+                        // 현재 날짜 기준 동적 SQL 생성
+                        const today = new Date();
+                        const getDateStr = (offset) => {
+                          const d = new Date(today);
+                          d.setDate(d.getDate() + offset);
+                          return d.toISOString().split('T')[0];
+                        };
+                        const getDay = (offset) => {
+                          const d = new Date(today);
+                          d.setDate(d.getDate() + offset);
+                          return d.getDate();
+                        };
+
+                        const sessionId = Date.now();
+                        const d_m2 = getDay(-2), d_m1 = getDay(-1), d_0 = getDay(0), d_p1 = getDay(1), d_p2 = getDay(2);
+                        const date_m2 = getDateStr(-2), date_m1 = getDateStr(-1), date_0 = getDateStr(0), date_p1 = getDateStr(1), date_p2 = getDateStr(2);
+
+                        const createSQL = `-- 오늘 날짜 기준 앞뒤 이틀씩 더미 데이터 생성 (${date_0} 기준)
+INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-14', false, '2025-11-14T09:00:00Z', 1001),
-  ('[DUMMY-TEST] 더미: 14일생성-14일완료', '2025-11-14', true, '2025-11-14T09:10:00Z', 1002),
-  ('[DUMMY-TEST] 더미: 14일생성-15일완료', '2025-11-14', true, '2025-11-14T09:20:00Z', 1003),
-  ('[DUMMY-TEST] 더미: 14일생성-16일완료', '2025-11-14', true, '2025-11-14T09:30:00Z', 1004);
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음', '${date_m2}', false, '${date_m2}T09:00:00+09:00', 1001),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m2}일완료', '${date_m2}', true, '${date_m2}T09:10:00+09:00', 1002),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m1}일완료', '${date_m2}', true, '${date_m2}T09:20:00+09:00', 1003),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_0}일완료', '${date_m2}', true, '${date_m2}T09:30:00+09:00', 1004);
 
 INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-15', false, '2025-11-15T10:00:00Z', 1005),
-  ('[DUMMY-TEST] 더미: 15일생성-15일완료', '2025-11-15', true, '2025-11-15T10:10:00Z', 1006),
-  ('[DUMMY-TEST] 더미: 15일생성-16일완료', '2025-11-15', true, '2025-11-15T10:20:00Z', 1007);
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-수정이력있음', '${date_m1}', false, '${date_m1}T10:00:00+09:00', 1005),
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_m1}일완료', '${date_m1}', true, '${date_m1}T10:10:00+09:00', 1006),
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_0}일완료', '${date_m1}', true, '${date_m1}T10:20:00+09:00', 1007);
 
 INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 16일생성-미완료', '2025-11-16', false, '2025-11-16T11:00:00Z', 1008),
-  ('[DUMMY-TEST] 더미: 16일생성-16일완료', '2025-11-16', true, '2025-11-16T11:10:00Z', 1009);
+  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-미완료', '${date_0}', false, '${date_0}T11:00:00+09:00', 1008),
+  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-${d_0}일완료', '${date_0}', true, '${date_0}T11:10:00+09:00', 1009);
 
 INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-미완료', '2025-11-15', false, '2025-11-14T14:00:00Z', 1010),
-  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-15일완료', '2025-11-15', true, '2025-11-14T14:10:00Z', 1011);
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m1}일페이지-미완료', '${date_m1}', false, '${date_m2}T14:00:00+09:00', 1010),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m1}일페이지-${d_m1}일완료', '${date_m1}', true, '${date_m2}T14:10:00+09:00', 1011);
 
 INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-15T15:00:00Z', 1012),
-  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-15T15:10:00Z', 1013),
-  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-14T15:00:00Z', 1014),
-  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-14T15:10:00Z', 1015);
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_0}일페이지-미완료', '${date_0}', false, '${date_m1}T15:00:00+09:00', 1012),
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_0}일페이지-${d_0}일완료', '${date_0}', true, '${date_m1}T15:10:00+09:00', 1013),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_0}일페이지-미완료', '${date_0}', false, '${date_m2}T15:00:00+09:00', 1014),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_0}일페이지-${d_0}일완료', '${date_0}', true, '${date_m2}T15:10:00+09:00', 1015);
 
 INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 16일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-16T16:00:00Z', 1016),
-  ('[DUMMY-TEST] 더미: 15일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-15T16:00:00Z', 1017),
-  ('[DUMMY-TEST] 더미: 14일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-14T16:00:00Z', 1018);
+  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-${d_p1}일페이지-미완료', '${date_p1}', false, '${date_0}T16:00:00+09:00', 1016),
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_p1}일페이지-미완료', '${date_p1}', false, '${date_m1}T16:00:00+09:00', 1017),
+  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_p1}일페이지-미완료', '${date_p1}', false, '${date_m2}T16:00:00+09:00', 1018);
 
 INSERT INTO todos (text, date, completed, created_at, order_index)
 VALUES
-  ('[DUMMY-TEST] 더미: 16일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-16T17:00:00Z', 1019),
-  ('[DUMMY-TEST] 더미: 15일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-15T17:00:00Z', 1020);
+  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-${d_p2}일페이지-미완료', '${date_p2}', false, '${date_0}T17:00:00+09:00', 1019),
+  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_p2}일페이지-미완료', '${date_p2}', false, '${date_m1}T17:00:00+09:00', 1020);
 
 INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-1차', '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '2025-11-15T12:00:00Z', '2025-11-15'
-FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
+SELECT id, '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-1차', '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-2차', '${date_m1}T12:00:00+09:00', '${date_m1}'
+FROM todos WHERE text = '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음' LIMIT 1;
 
 INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-16T12:00:00Z', '2025-11-16'
-FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
+SELECT id, '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-2차', '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음', '${date_0}T12:00:00+09:00', '${date_0}'
+FROM todos WHERE text = '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음' LIMIT 1;
 
 INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-TEST] 더미: 15일생성-미완료-1차', '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-16T13:00:00Z', '2025-11-16'
-FROM todos WHERE text = '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음' LIMIT 1;`;
-                        navigator.clipboard.writeText(createSQL);
-                        alert('생성 SQL 복사 완료!');
+SELECT id, '[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-1차', '[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-수정이력있음', '${date_0}T13:00:00+09:00', '${date_0}'
+FROM todos WHERE text = '[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-수정이력있음' LIMIT 1;`;
+
+                        // Fallback 복사 방법 (HTTPS 없이도 작동)
+                        const textarea = document.createElement('textarea');
+                        textarea.value = createSQL;
+                        textarea.style.position = 'fixed';
+                        textarea.style.opacity = '0';
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        try {
+                          document.execCommand('copy');
+                          alert('생성 SQL 복사 완료!');
+                        } catch (err) {
+                          alert('복사에 실패했습니다.');
+                        }
+                        document.body.removeChild(textarea);
                       }}
                       className="copy-button"
                     >
@@ -2055,58 +2209,33 @@ FROM todos WHERE text = '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력
                     </button>
                   </div>
                 </div>
-                <pre className="sql-code">{`INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-14', false, '2025-11-14T09:00:00Z', 1001),
-  ('[DUMMY-TEST] 더미: 14일생성-14일완료', '2025-11-14', true, '2025-11-14T09:10:00Z', 1002),
-  ('[DUMMY-TEST] 더미: 14일생성-15일완료', '2025-11-14', true, '2025-11-14T09:20:00Z', 1003),
-  ('[DUMMY-TEST] 더미: 14일생성-16일완료', '2025-11-14', true, '2025-11-14T09:30:00Z', 1004);
+                <pre className="sql-code">{`-- ⚠️ 참고: 복사 버튼 클릭 시 오늘 날짜 기준으로 자동 생성됩니다
+-- 아래는 예시입니다 (실제 날짜는 실행 시점 기준 앞뒤 이틀)
 
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-15', false, '2025-11-15T10:00:00Z', 1005),
-  ('[DUMMY-TEST] 더미: 15일생성-15일완료', '2025-11-15', true, '2025-11-15T10:10:00Z', 1006),
-  ('[DUMMY-TEST] 더미: 15일생성-16일완료', '2025-11-15', true, '2025-11-15T10:20:00Z', 1007);
+-- DO 블록 버전 (PostgreSQL/Supabase)
+DO $$
+DECLARE
+  day_m2 date := CURRENT_DATE - INTERVAL '2 days';
+  day_m1 date := CURRENT_DATE - INTERVAL '1 day';
+  day_0 date := CURRENT_DATE;
+  day_p1 date := CURRENT_DATE + INTERVAL '1 day';
+  day_p2 date := CURRENT_DATE + INTERVAL '2 days';
+  d_m2 text := EXTRACT(DAY FROM CURRENT_DATE - INTERVAL '2 days')::text;
+  d_m1 text := EXTRACT(DAY FROM CURRENT_DATE - INTERVAL '1 day')::text;
+  d_0 text := EXTRACT(DAY FROM CURRENT_DATE)::text;
+  d_p1 text := EXTRACT(DAY FROM CURRENT_DATE + INTERVAL '1 day')::text;
+  d_p2 text := EXTRACT(DAY FROM CURRENT_DATE + INTERVAL '2 days')::text;
+  session_id text := EXTRACT(EPOCH FROM NOW())::bigint::text;
+BEGIN
+  -- -2일 페이지 데이터 (4개)
+  INSERT INTO todos (text, date, completed, created_at, order_index)
+  VALUES
+    ('[DUMMY-' || session_id || '] 더미: ' || d_m2 || '일생성-미완료-수정이력있음', day_m2, false, (day_m2 + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul', 1001),
+    ...
 
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 16일생성-미완료', '2025-11-16', false, '2025-11-16T11:00:00Z', 1008),
-  ('[DUMMY-TEST] 더미: 16일생성-16일완료', '2025-11-16', true, '2025-11-16T11:10:00Z', 1009);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-미완료', '2025-11-15', false, '2025-11-14T14:00:00Z', 1010),
-  ('[DUMMY-TEST] 더미: 14일생성-15일페이지-15일완료', '2025-11-15', true, '2025-11-14T14:10:00Z', 1011);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-15T15:00:00Z', 1012),
-  ('[DUMMY-TEST] 더미: 15일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-15T15:10:00Z', 1013),
-  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-미완료', '2025-11-16', false, '2025-11-14T15:00:00Z', 1014),
-  ('[DUMMY-TEST] 더미: 14일생성-16일페이지-16일완료', '2025-11-16', true, '2025-11-14T15:10:00Z', 1015);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 16일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-16T16:00:00Z', 1016),
-  ('[DUMMY-TEST] 더미: 15일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-15T16:00:00Z', 1017),
-  ('[DUMMY-TEST] 더미: 14일생성-17일페이지-미완료', '2025-11-17', false, '2025-11-14T16:00:00Z', 1018);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-TEST] 더미: 16일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-16T17:00:00Z', 1019),
-  ('[DUMMY-TEST] 더미: 15일생성-18일페이지-미완료', '2025-11-18', false, '2025-11-15T17:00:00Z', 1020);
-
-INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-1차', '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '2025-11-15T12:00:00Z', '2025-11-15'
-FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
-
-INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-TEST] 더미: 14일생성-미완료-2차', '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음', '2025-11-16T12:00:00Z', '2025-11-16'
-FROM todos WHERE text = '[DUMMY-TEST] 더미: 14일생성-미완료-수정이력있음' LIMIT 1;
-
-INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-TEST] 더미: 15일생성-미완료-1차', '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음', '2025-11-16T13:00:00Z', '2025-11-16'
-FROM todos WHERE text = '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력있음' LIMIT 1;`}</pre>
+  -- 총 20개의 투두와 3개의 히스토리 생성
+  -- 자세한 내용은 GitHub 파일 참고
+END $$;`}</pre>
               </div>
 
               <div className="sql-block">
@@ -2126,13 +2255,26 @@ FROM todos WHERE text = '[DUMMY-TEST] 더미: 15일생성-미완료-수정이력
                       onClick={() => {
                         const deleteSQL = `DELETE FROM todo_history
 WHERE todo_id IN (
-  SELECT id FROM todos WHERE text LIKE '[DUMMY-TEST]%'
+  SELECT id FROM todos WHERE text LIKE '[DUMMY-%'
 );
 
 DELETE FROM todos
-WHERE text LIKE '[DUMMY-TEST]%';`;
-                        navigator.clipboard.writeText(deleteSQL);
-                        alert('삭제 SQL 복사 완료!');
+WHERE text LIKE '[DUMMY-%';`;
+
+                        // Fallback 복사 방법 (HTTPS 없이도 작동)
+                        const textarea = document.createElement('textarea');
+                        textarea.value = deleteSQL;
+                        textarea.style.position = 'fixed';
+                        textarea.style.opacity = '0';
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        try {
+                          document.execCommand('copy');
+                          alert('삭제 SQL 복사 완료!');
+                        } catch (err) {
+                          alert('복사에 실패했습니다.');
+                        }
+                        document.body.removeChild(textarea);
                       }}
                       className="copy-button"
                     >
@@ -2142,11 +2284,11 @@ WHERE text LIKE '[DUMMY-TEST]%';`;
                 </div>
                 <pre className="sql-code">{`DELETE FROM todo_history
 WHERE todo_id IN (
-  SELECT id FROM todos WHERE text LIKE '[DUMMY-TEST]%'
+  SELECT id FROM todos WHERE text LIKE '[DUMMY-%'
 );
 
 DELETE FROM todos
-WHERE text LIKE '[DUMMY-TEST]%';`}</pre>
+WHERE text LIKE '[DUMMY-%';`}</pre>
               </div>
             </div>
           )}
