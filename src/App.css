@@ -2561,3 +2561,176 @@ h1 {
 .normal-section .section-title {
   color: #888;
 }
+
+/* 메모 모달 스타일 */
+.memo-modal {
+  max-width: 800px;
+  width: 90vw;
+  max-height: 90vh;
+  height: auto;
+}
+
+.memo-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.memo-edit-mode {
+  display: flex;
+  flex-direction: column;
+  height: 70vh;
+}
+
+.memo-view-mode {
+  display: flex;
+  flex-direction: column;
+  height: 70vh;
+}
+
+.memo-textarea {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 15px;
+  resize: vertical;
+  min-height: 400px;
+  margin-bottom: 15px;
+}
+
+.memo-textarea:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.2);
+}
+
+.memo-display {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 15px;
+  overflow-y: auto;
+  max-height: 500px;
+}
+
+.memo-text {
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+}
+
+.memo-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.memo-save-button {
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.memo-save-button:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.memo-save-button:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+.memo-cancel-button {
+  background: #666;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.memo-cancel-button:hover:not(:disabled) {
+  background: #777;
+}
+
+.memo-edit-button {
+  background: #646cff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.memo-edit-button:hover {
+  background: #5a5fd7;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .memo-modal {
+    width: 95vw;
+    max-height: 95vh;
+  }
+
+  .memo-edit-mode,
+  .memo-view-mode {
+    height: 60vh;
+  }
+
+  .memo-textarea {
+    font-size: 13px;
+    min-height: 300px;
+  }
+
+  .memo-text {
+    font-size: 13px;
+  }
+
+  .memo-actions {
+    flex-direction: column;
+  }
+
+  .memo-save-button,
+  .memo-cancel-button,
+  .memo-edit-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -19,6 +19,39 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import './App.css'
 
+// 기본 기획서 내용
+const DEFAULT_SPEC_CONTENT = `# Todo Note 간단 기획서
+
+## 📋 프로젝트 개요
+**Todo Note** - 날짜별 투두 관리 및 루틴 트래킹 웹 애플리케이션
+
+---
+
+## 🎯 핵심 기능
+
+### **투두 관리** - 날짜별 할 일 추가, 수정, 삭제 및 완료 체크
+
+### **자동 이월** - 미완료 투두를 다음날로 자동 복사하여 놓치지 않게 관리
+
+### **루틴 시스템** - 특정 요일마다 반복되는 작업을 자동으로 생성
+
+### **날짜 네비게이션** - 달력으로 특정 날짜 이동 및 이전/다음 날 버튼
+
+---
+
+## 🛠️ 기술 스택
+
+- **Frontend**: React 19.1.1 + Vite
+- **Database**: Supabase (PostgreSQL)
+- **Deployment**: GitHub Pages
+
+---
+
+## 🌐 접속 방법
+
+- **배포 URL**: https://jaehwan-lee-benja.github.io/todo-note/
+- **개발 서버**: \`npm run dev\` → http://localhost:5173/todo-note/`
+
 // 드래그 가능한 Todo 항목 컴포넌트
 function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines }) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -702,6 +735,11 @@ function App() {
   const [dummySessions, setDummySessions] = useState([])
   const [showDummyModal, setShowDummyModal] = useState(false)
   const [showDummySQL, setShowDummySQL] = useState(false)
+  const [showMemoModal, setShowMemoModal] = useState(false)
+  const [memoContent, setMemoContent] = useState('')
+  const [isEditingMemo, setIsEditingMemo] = useState(false)
+  const [isSavingMemo, setIsSavingMemo] = useState(false)
+  const [memoOriginalContent, setMemoOriginalContent] = useState('')
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
@@ -1921,6 +1959,88 @@ function App() {
     setShowTrashModal(false)
   }
 
+  // 메모 관련 함수
+  const handleOpenMemo = async () => {
+    setShowMemoModal(true)
+    await fetchMemoContent()
+  }
+
+  const handleCloseMemo = () => {
+    setShowMemoModal(false)
+    setIsEditingMemo(false)
+    setMemoContent(memoOriginalContent) // 취소 시 원래 내용으로 복원
+  }
+
+  const fetchMemoContent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('spec_memos')
+        .select('content')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (error) throw error
+
+      const content = data && data.length > 0 ? data[0].content : DEFAULT_SPEC_CONTENT
+      setMemoContent(content)
+      setMemoOriginalContent(content)
+    } catch (error) {
+      console.error('메모 내용 가져오기 오류:', error.message)
+      setMemoContent(DEFAULT_SPEC_CONTENT)
+      setMemoOriginalContent(DEFAULT_SPEC_CONTENT)
+    }
+  }
+
+  const handleEditMemo = () => {
+    setIsEditingMemo(true)
+  }
+
+  const handleSaveMemo = async () => {
+    if (isSavingMemo) return
+
+    try {
+      setIsSavingMemo(true)
+
+      // 기존 메모 데이터 가져오기
+      const { data: existingData, error: fetchError } = await supabase
+        .from('spec_memos')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (fetchError) throw fetchError
+
+      if (existingData && existingData.length > 0) {
+        // 업데이트
+        const { error: updateError } = await supabase
+          .from('spec_memos')
+          .update({ content: memoContent, updated_at: new Date().toISOString() })
+          .eq('id', existingData[0].id)
+
+        if (updateError) throw updateError
+      } else {
+        // 새로 생성
+        const { error: insertError } = await supabase
+          .from('spec_memos')
+          .insert([{ content: memoContent }])
+
+        if (insertError) throw insertError
+      }
+
+      setMemoOriginalContent(memoContent)
+      setIsEditingMemo(false)
+    } catch (error) {
+      console.error('메모 저장 오류:', error.message)
+    } finally {
+      setIsSavingMemo(false)
+    }
+  }
+
+  const handleResetMemo = () => {
+    setMemoContent(memoOriginalContent)
+    setIsEditingMemo(false)
+  }
+
   const handleFocusTodo = (id) => {
     setFocusedTodoId(focusedTodoId === id ? null : id)
   }
@@ -2155,6 +2275,16 @@ function App() {
           >
             <span className="sidebar-icon">📌</span>
             <span>루틴 관리</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              handleOpenMemo()
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">📝</span>
+            <span>기획서 메모</span>
           </button>
           <button
             className="sidebar-menu-item"
@@ -2677,6 +2807,61 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                       🗑️ 모든 더미 데이터 삭제
                     </button>
                   </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMemoModal && (
+          <div className="modal-overlay" onClick={handleCloseMemo}>
+            <div className="modal-content memo-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>📝 기획서 메모</h2>
+                <button onClick={handleCloseMemo} className="modal-close-button">✕</button>
+              </div>
+
+              <div className="memo-content">
+                {isEditingMemo ? (
+                  <div className="memo-edit-mode">
+                    <textarea
+                      value={memoContent}
+                      onChange={(e) => setMemoContent(e.target.value)}
+                      className="memo-textarea"
+                      placeholder="메모 내용을 입력하세요..."
+                      rows={20}
+                    />
+                    <div className="memo-actions">
+                      <button
+                        onClick={handleSaveMemo}
+                        className="memo-save-button"
+                        disabled={isSavingMemo}
+                      >
+                        {isSavingMemo ? '저장 중...' : '💾 저장'}
+                      </button>
+                      <button
+                        onClick={handleResetMemo}
+                        className="memo-cancel-button"
+                        disabled={isSavingMemo}
+                      >
+                        ↩️ 취소
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="memo-view-mode">
+                    <div className="memo-display">
+                      <pre className="memo-text">{memoContent}</pre>
+                    </div>
+                    <div className="memo-actions">
+                      <button
+                        onClick={handleEditMemo}
+                        className="memo-edit-button"
+                      >
+                        ✏️ 편집
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
