@@ -53,7 +53,7 @@ const DEFAULT_SPEC_CONTENT = `# Todo Note 간단 기획서
 - **개발 서버**: \`npm run dev\` → http://localhost:5173/todo-note/`
 
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -489,6 +489,19 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   <span className="action-icon">📋</span>
                   <span className="action-text">히스토리</span>
                 </button>
+                {todo.routine_id && currentRoutine && onShowRoutineHistory && (
+                  <button
+                    className="action-button-with-text"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onShowRoutineHistory(currentRoutine)
+                    }}
+                    title="루틴 통계 보기"
+                  >
+                    <span className="action-icon">📊</span>
+                    <span className="action-text">루틴기록</span>
+                  </button>
+                )}
               </div>
             )}
             {showHistory && (
@@ -643,6 +656,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 subtodos={[]}
                 level={level + 1}
                 routines={routines}
+                onShowRoutineHistory={onShowRoutineHistory}
               />
             ))}
             {isAddingSubTodo && (
@@ -741,6 +755,7 @@ function App() {
   const [isSavingMemo, setIsSavingMemo] = useState(false)
   const [memoOriginalContent, setMemoOriginalContent] = useState('')
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
+  const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -1116,14 +1131,14 @@ function App() {
       const fromDateStr = formatDateForDB(fromDate)
       const toDateStr = formatDateForDB(toDate)
 
-      // 전날의 미완료 항목 가져오기 (이미 이월된 항목은 제외)
+      // 전날의 미완료 항목 가져오기 (루틴 제외, 원본이든 이월된 것이든 모두 포함)
       const { data: incompleteTodos, error: fetchError } = await supabase
         .from('todos')
         .select('*')
         .eq('date', fromDateStr)
         .eq('deleted', false)
         .eq('completed', false)
-        .is('original_todo_id', null)
+        .is('routine_id', null) // 루틴 투두는 이월하지 않음
         .order('order_index', { ascending: true })
 
       if (fetchError) throw fetchError
@@ -1139,20 +1154,37 @@ function App() {
 
         if (nextDayError) throw nextDayError
 
+        // 이미 이월된 항목 체크 (original_todo_id 또는 투두 자체 id로)
+        const alreadyCarriedOverIds = new Set()
+        nextDayTodos?.forEach(t => {
+          if (t.original_todo_id !== null) {
+            alreadyCarriedOverIds.add(t.original_todo_id)
+          }
+        })
+
+        // 이미 이월된 투두는 제외
+        const todosNeedCarryOver = incompleteTodos.filter(
+          todo => !alreadyCarriedOverIds.has(todo.id) && !alreadyCarriedOverIds.has(todo.original_todo_id)
+        )
+
+        if (todosNeedCarryOver.length === 0) {
+          return
+        }
+
         const nextDayCount = nextDayTodos ? nextDayTodos.length : 0
 
         // 다음 날 기존 항목이 있으면 그 뒤에 추가
         const startIndex = nextDayCount + 1
 
         // 미완료 항목들을 다음 날로 복사 (새 레코드 생성)
-        const todosToInsert = incompleteTodos.map((todo, index) => ({
+        const todosToInsert = todosNeedCarryOver.map((todo, index) => ({
           text: todo.text,
           completed: false,
           date: toDateStr,
           order_index: startIndex + index,
-          original_todo_id: todo.id, // 원본 투두 ID 저장
+          original_todo_id: todo.original_todo_id || todo.id, // 최초 원본 ID를 유지
           parent_id: null, // 서브투두는 이월하지 않음
-          routine_id: todo.routine_id
+          routine_id: null // 루틴 연결 해제
         }))
 
         const { error: insertError } = await supabase
@@ -1168,45 +1200,56 @@ function App() {
 
   // 과거의 모든 미완료 항목을 오늘로 이월 (복사 방식)
   const movePastIncompleteTodosToToday = async () => {
+    // 이미 실행 중이면 중복 실행 방지
+    if (carryOverInProgress.current) {
+      console.log('이월 작업 실행 중 (중복 방지)')
+      return
+    }
+
     try {
+      // 실행 시작 플래그 설정
+      carryOverInProgress.current = true
+
       const today = new Date()
       const todayStr = formatDateForDB(today)
 
-      // 오늘 이전 날짜의 모든 미완료 항목 가져오기
+      // 오늘 날짜의 기존 항목 먼저 가져오기
+      const { data: todayTodos, error: todayError } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('date', todayStr)
+        .eq('deleted', false)
+        .order('order_index', { ascending: true })
+
+      if (todayError) throw todayError
+
+      // 오늘 날짜에 이미 이월된 항목의 original_todo_id 목록 (최초 원본 ID 기준)
+      const alreadyCarriedOverOriginalIds = new Set()
+      todayTodos?.forEach(t => {
+        if (t.original_todo_id !== null) {
+          alreadyCarriedOverOriginalIds.add(t.original_todo_id)
+        }
+      })
+
+      // 오늘 이전 날짜의 모든 미완료 항목 가져오기 (루틴 제외)
       const { data: pastIncompleteTodos, error: fetchError } = await supabase
         .from('todos')
         .select('*')
         .lt('date', todayStr)
         .eq('deleted', false)
         .eq('completed', false)
-        .is('original_todo_id', null) // 이미 이월된 항목은 제외 (원본만)
+        .is('routine_id', null) // 루틴 투두는 이월하지 않음
         .order('date', { ascending: true })
         .order('order_index', { ascending: true })
 
       if (fetchError) throw fetchError
 
       if (pastIncompleteTodos && pastIncompleteTodos.length > 0) {
-        // 오늘 날짜의 기존 항목 가져오기
-        const { data: todayTodos, error: todayError } = await supabase
-          .from('todos')
-          .select('*')
-          .eq('date', todayStr)
-          .eq('deleted', false)
-          .order('order_index', { ascending: true })
-
-        if (todayError) throw todayError
-
-        // 오늘 날짜에 이미 이월된 항목의 original_todo_id 목록
-        const alreadyCarriedOverIds = new Set(
-          todayTodos
-            .filter(t => t.original_todo_id !== null)
-            .map(t => t.original_todo_id)
-        )
-
-        // 아직 이월되지 않은 항목만 필터링
-        const todosNeedCarryOver = pastIncompleteTodos.filter(
-          todo => !alreadyCarriedOverIds.has(todo.id)
-        )
+        // 아직 이월되지 않은 항목만 필터링 (최초 원본 ID 기준)
+        const todosNeedCarryOver = pastIncompleteTodos.filter(todo => {
+          const originalId = todo.original_todo_id || todo.id
+          return !alreadyCarriedOverOriginalIds.has(originalId)
+        })
 
         if (todosNeedCarryOver.length === 0) {
           return // 이월할 항목이 없음
@@ -1223,9 +1266,9 @@ function App() {
           completed: false,
           date: todayStr,
           order_index: startIndex + index,
-          original_todo_id: todo.id, // 원본 투두 ID 저장
+          original_todo_id: todo.original_todo_id || todo.id, // 최초 원본 ID 유지
           parent_id: null, // 서브투두는 이월하지 않음
-          routine_id: todo.routine_id
+          routine_id: null // 루틴 연결 해제
         }))
 
         const { error: insertError } = await supabase
@@ -1238,6 +1281,9 @@ function App() {
       }
     } catch (error) {
       console.error('과거 미완료 항목 이월 오류:', error.message)
+    } finally {
+      // 작업 완료 후 플래그 해제
+      carryOverInProgress.current = false
     }
   }
 
@@ -2383,6 +2429,7 @@ function App() {
                               level={0}
                               onCreateRoutine={handleCreateRoutineFromTodo}
                               routines={routines}
+                              onShowRoutineHistory={fetchRoutineHistory}
                             />
                           )
                         })}
@@ -2438,6 +2485,7 @@ function App() {
                         level={0}
                         onCreateRoutine={handleCreateRoutineFromTodo}
                         routines={routines}
+                        onShowRoutineHistory={fetchRoutineHistory}
                       />
                       {showSeparator && (
                         <div className="todo-date-separator">
