@@ -67,6 +67,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [showHistory, setShowHistory] = useState(false)
   const [historyRecords, setHistoryRecords] = useState([])
   const [expandedHistoryIds, setExpandedHistoryIds] = useState([])
+  const [carryOverPath, setCarryOverPath] = useState([])
+  const [originalDate, setOriginalDate] = useState(null)
 
   // 현재 투두의 루틴 정보 찾기
   const currentRoutine = todo.routine_id ? routines.find(r => r.id === todo.routine_id) : null
@@ -258,6 +260,48 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
 
       if (error) throw error
       setHistoryRecords(data || [])
+
+      // 이월 경로 조회 (original_todo_id가 있는 경우)
+      if (todo.original_todo_id) {
+        // 원본 투두 조회
+        const { data: originalData, error: originalError } = await supabase
+          .from('todos')
+          .select('id, date, created_at')
+          .eq('id', todo.original_todo_id)
+          .single()
+
+        if (originalError) {
+          console.error('원본 투두 조회 오류:', originalError.message)
+          setCarryOverPath([])
+          setOriginalDate(null)
+          return
+        }
+
+        // 원본 날짜 저장
+        setOriginalDate(originalData.date)
+
+        // 같은 original_todo_id를 가진 모든 이월된 투두들 조회
+        const { data: pathData, error: pathError } = await supabase
+          .from('todos')
+          .select('id, date, created_at')
+          .eq('original_todo_id', todo.original_todo_id)
+          .order('date', { ascending: true })
+
+        if (pathError) {
+          console.error('이월 경로 조회 오류:', pathError.message)
+          setCarryOverPath([])
+          return
+        }
+
+        // 원본 + 이월된 투두들을 날짜순으로 정렬
+        const allPath = [originalData, ...(pathData || [])].sort((a, b) =>
+          new Date(a.date) - new Date(b.date)
+        )
+        setCarryOverPath(allPath)
+      } else {
+        setCarryOverPath([])
+        setOriginalDate(todo.date)
+      }
     } catch (error) {
       console.error('히스토리 가져오기 오류:', error.message)
     }
@@ -511,9 +555,44 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   <span className="history-value">{formatDate(todo.created_at)}</span>
                 </div>
                 <div className="history-item">
-                  <span className="history-label">생성된 페이지:</span>
-                  <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
+                  <span className="history-label">원본 페이지:</span>
+                  <span className="history-value">
+                    {originalDate ? formatDateOnly(new Date(originalDate + 'T00:00:00')) : formatDateOnly(new Date(todo.date + 'T00:00:00'))}
+                  </span>
                 </div>
+                {carryOverPath.length > 0 && (
+                  <div className="history-item">
+                    <span className="history-label">이월 경로:</span>
+                    <span className="history-value">
+                      {carryOverPath.map((path, idx) => {
+                        const isCurrentPage = path.date === todo.date
+                        const dateStr = formatDateOnly(new Date(path.date + 'T00:00:00'))
+                        return (
+                          <span key={path.id}>
+                            {idx > 0 && ' → '}
+                            <span style={isCurrentPage ? { fontWeight: 'bold', color: '#4CAF50' } : {}}>
+                              {dateStr.split('(')[0]}{isCurrentPage ? '(여기)' : ''}
+                            </span>
+                          </span>
+                        )
+                      })}
+                    </span>
+                  </div>
+                )}
+                {(() => {
+                  // created_at의 날짜와 현재 date가 다른지 확인 (이월된 경우)
+                  const createdDate = new Date(todo.created_at).toISOString().split('T')[0]
+                  const currentDate = todo.date
+                  if (createdDate !== currentDate && carryOverPath.length === 0) {
+                    return (
+                      <div className="history-item">
+                        <span className="history-label">현재 페이지:</span>
+                        <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
                 {historyRecords.length > 0 && (
                   <div className="history-changes-list">
                     <div className="history-changes-header">변경 이력 ({historyRecords.length})</div>
@@ -754,6 +833,9 @@ function App() {
   const [isEditingMemo, setIsEditingMemo] = useState(false)
   const [isSavingMemo, setIsSavingMemo] = useState(false)
   const [memoOriginalContent, setMemoOriginalContent] = useState('')
+  const [showGanttChart, setShowGanttChart] = useState(false)
+  const [ganttData, setGanttData] = useState([])
+  const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
   const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
 
@@ -1171,21 +1253,44 @@ function App() {
           return
         }
 
+        // 원본 투두들의 created_at을 가져오기 위한 ID 수집
+        const originalIds = todosNeedCarryOver
+          .map(todo => todo.original_todo_id || todo.id)
+          .filter((id, index, self) => self.indexOf(id) === index) // 중복 제거
+
+        // 원본 투두들의 created_at 조회
+        const { data: originalTodos, error: originalError } = await supabase
+          .from('todos')
+          .select('id, created_at')
+          .in('id', originalIds)
+
+        if (originalError) throw originalError
+
+        // ID -> created_at 맵 생성
+        const createdAtMap = {}
+        originalTodos?.forEach(t => {
+          createdAtMap[t.id] = t.created_at
+        })
+
         const nextDayCount = nextDayTodos ? nextDayTodos.length : 0
 
         // 다음 날 기존 항목이 있으면 그 뒤에 추가
         const startIndex = nextDayCount + 1
 
         // 미완료 항목들을 다음 날로 복사 (새 레코드 생성)
-        const todosToInsert = todosNeedCarryOver.map((todo, index) => ({
-          text: todo.text,
-          completed: false,
-          date: toDateStr,
-          order_index: startIndex + index,
-          original_todo_id: todo.original_todo_id || todo.id, // 최초 원본 ID를 유지
-          parent_id: null, // 서브투두는 이월하지 않음
-          routine_id: null // 루틴 연결 해제
-        }))
+        const todosToInsert = todosNeedCarryOver.map((todo, index) => {
+          const originalId = todo.original_todo_id || todo.id
+          return {
+            text: todo.text,
+            completed: false,
+            date: toDateStr,
+            created_at: createdAtMap[originalId] || todo.created_at, // 원본의 created_at 유지
+            order_index: startIndex + index,
+            original_todo_id: originalId, // 최초 원본 ID를 유지
+            parent_id: null, // 서브투두는 이월하지 않음
+            routine_id: null // 루틴 연결 해제
+          }
+        })
 
         const { error: insertError } = await supabase
           .from('todos')
@@ -1198,7 +1303,7 @@ function App() {
     }
   }
 
-  // 과거의 모든 미완료 항목을 오늘로 이월 (복사 방식)
+  // 과거의 모든 미완료 항목을 날짜별로 순차 이월 (복사 방식)
   const movePastIncompleteTodosToToday = async () => {
     // 이미 실행 중이면 중복 실행 방지
     if (carryOverInProgress.current) {
@@ -1213,71 +1318,127 @@ function App() {
       const today = new Date()
       const todayStr = formatDateForDB(today)
 
-      // 오늘 날짜의 기존 항목 먼저 가져오기
-      const { data: todayTodos, error: todayError } = await supabase
+      // 과거의 가장 오래된 미완료 항목 날짜 찾기
+      const { data: oldestTodo, error: oldestError } = await supabase
         .from('todos')
-        .select('*')
-        .eq('date', todayStr)
-        .eq('deleted', false)
-        .order('order_index', { ascending: true })
-
-      if (todayError) throw todayError
-
-      // 오늘 날짜에 이미 이월된 항목의 original_todo_id 목록 (최초 원본 ID 기준)
-      const alreadyCarriedOverOriginalIds = new Set()
-      todayTodos?.forEach(t => {
-        if (t.original_todo_id !== null) {
-          alreadyCarriedOverOriginalIds.add(t.original_todo_id)
-        }
-      })
-
-      // 오늘 이전 날짜의 모든 미완료 항목 가져오기 (루틴 제외)
-      const { data: pastIncompleteTodos, error: fetchError } = await supabase
-        .from('todos')
-        .select('*')
+        .select('date')
         .lt('date', todayStr)
         .eq('deleted', false)
         .eq('completed', false)
-        .is('routine_id', null) // 루틴 투두는 이월하지 않음
+        .is('routine_id', null)
         .order('date', { ascending: true })
-        .order('order_index', { ascending: true })
+        .limit(1)
 
-      if (fetchError) throw fetchError
+      if (oldestError) throw oldestError
 
-      if (pastIncompleteTodos && pastIncompleteTodos.length > 0) {
-        // 아직 이월되지 않은 항목만 필터링 (최초 원본 ID 기준)
-        const todosNeedCarryOver = pastIncompleteTodos.filter(todo => {
-          const originalId = todo.original_todo_id || todo.id
-          return !alreadyCarriedOverOriginalIds.has(originalId)
-        })
+      if (!oldestTodo || oldestTodo.length === 0) {
+        return // 이월할 항목이 없음
+      }
 
-        if (todosNeedCarryOver.length === 0) {
-          return // 이월할 항목이 없음
+      const oldestDate = new Date(oldestTodo[0].date + 'T00:00:00')
+
+      // 가장 오래된 날짜부터 어제까지, 하루씩 순차적으로 이월
+      let currentDate = new Date(oldestDate)
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+
+      let totalCarriedOver = 0
+
+      while (currentDate <= yesterday) {
+        const fromDateStr = formatDateForDB(currentDate)
+        const nextDate = new Date(currentDate)
+        nextDate.setDate(nextDate.getDate() + 1)
+        const toDateStr = formatDateForDB(nextDate)
+
+        // 현재 날짜의 미완료 항목 가져오기
+        const { data: incompleteTodos, error: fetchError } = await supabase
+          .from('todos')
+          .select('*')
+          .eq('date', fromDateStr)
+          .eq('deleted', false)
+          .eq('completed', false)
+          .is('routine_id', null)
+          .order('order_index', { ascending: true })
+
+        if (fetchError) throw fetchError
+
+        if (incompleteTodos && incompleteTodos.length > 0) {
+          // 다음 날의 기존 항목 가져오기
+          const { data: nextDayTodos, error: nextDayError } = await supabase
+            .from('todos')
+            .select('*')
+            .eq('date', toDateStr)
+            .eq('deleted', false)
+            .order('order_index', { ascending: true })
+
+          if (nextDayError) throw nextDayError
+
+          // 이미 이월된 항목 체크
+          const alreadyCarriedOverIds = new Set()
+          nextDayTodos?.forEach(t => {
+            if (t.original_todo_id !== null) {
+              alreadyCarriedOverIds.add(t.original_todo_id)
+            }
+          })
+
+          // 아직 이월되지 않은 항목만 필터링
+          const todosNeedCarryOver = incompleteTodos.filter(todo => {
+            const originalId = todo.original_todo_id || todo.id
+            return !alreadyCarriedOverIds.has(originalId)
+          })
+
+          if (todosNeedCarryOver.length > 0) {
+            // 원본 투두들의 created_at 조회
+            const originalIds = todosNeedCarryOver
+              .map(todo => todo.original_todo_id || todo.id)
+              .filter((id, index, self) => self.indexOf(id) === index)
+
+            const { data: originalTodos, error: originalError } = await supabase
+              .from('todos')
+              .select('id, created_at')
+              .in('id', originalIds)
+
+            if (originalError) throw originalError
+
+            const createdAtMap = {}
+            originalTodos?.forEach(t => {
+              createdAtMap[t.id] = t.created_at
+            })
+
+            const nextDayCount = nextDayTodos ? nextDayTodos.length : 0
+            const startIndex = nextDayCount + 1
+
+            // 다음 날로 복사
+            const todosToInsert = todosNeedCarryOver.map((todo, index) => {
+              const originalId = todo.original_todo_id || todo.id
+              return {
+                text: todo.text,
+                completed: false,
+                date: toDateStr,
+                created_at: createdAtMap[originalId] || todo.created_at,
+                order_index: startIndex + index,
+                original_todo_id: originalId,
+                parent_id: null,
+                routine_id: null
+              }
+            })
+
+            const { error: insertError } = await supabase
+              .from('todos')
+              .insert(todosToInsert)
+
+            if (insertError) throw insertError
+
+            totalCarriedOver += todosNeedCarryOver.length
+          }
         }
 
-        const todayCount = todayTodos ? todayTodos.length : 0
+        // 다음 날로 이동
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
 
-        // 오늘 기존 항목이 있으면 그 뒤에 추가
-        const startIndex = todayCount + 1
-
-        // 과거 미완료 항목들을 오늘로 복사 (새 레코드 생성)
-        const todosToInsert = todosNeedCarryOver.map((todo, index) => ({
-          text: todo.text,
-          completed: false,
-          date: todayStr,
-          order_index: startIndex + index,
-          original_todo_id: todo.original_todo_id || todo.id, // 최초 원본 ID 유지
-          parent_id: null, // 서브투두는 이월하지 않음
-          routine_id: null // 루틴 연결 해제
-        }))
-
-        const { error: insertError } = await supabase
-          .from('todos')
-          .insert(todosToInsert)
-
-        if (insertError) throw insertError
-
-        console.log(`${todosNeedCarryOver.length}개의 과거 미완료 항목을 오늘로 이월했습니다.`)
+      if (totalCarriedOver > 0) {
+        console.log(`${totalCarriedOver}개의 과거 미완료 항목을 날짜별로 순차 이월했습니다.`)
       }
     } catch (error) {
       console.error('과거 미완료 항목 이월 오류:', error.message)
@@ -1673,6 +1834,13 @@ function App() {
     movePastIncompleteTodosToToday()
   }, [])
 
+  // 간트차트 기간이 변경되면 데이터 다시 로드
+  useEffect(() => {
+    if (showGanttChart) {
+      fetchGanttData()
+    }
+  }, [ganttPeriod])
+
   // 자정에 날짜 자동 업데이트 및 루틴 생성
   useEffect(() => {
     const checkMidnight = async () => {
@@ -2005,6 +2173,114 @@ function App() {
     setShowTrashModal(false)
   }
 
+  // 간트차트 관련 함수
+  const handleOpenGanttChart = async () => {
+    setShowGanttChart(true)
+    await fetchGanttData()
+  }
+
+  const handleCloseGanttChart = () => {
+    setShowGanttChart(false)
+    setGanttData([])
+  }
+
+  const fetchGanttData = async () => {
+    try {
+      const today = new Date()
+      const todayStr = formatDateForDB(today)
+
+      // 기간 계산
+      let startDate = null
+      if (ganttPeriod !== 'all') {
+        startDate = new Date(today)
+        switch (ganttPeriod) {
+          case '1week':
+            startDate.setDate(today.getDate() - 7)
+            break
+          case '2weeks':
+            startDate.setDate(today.getDate() - 14)
+            break
+          case '1month':
+            startDate.setMonth(today.getMonth() - 1)
+            break
+          case '3months':
+            startDate.setMonth(today.getMonth() - 3)
+            break
+          case '6months':
+            startDate.setMonth(today.getMonth() - 6)
+            break
+        }
+      }
+
+      // 모든 투두 조회 (기간 필터링 포함)
+      let query = supabase
+        .from('todos')
+        .select('*')
+        .eq('deleted', false)
+        .is('routine_id', null) // 루틴 투두 제외
+        .order('created_at', { ascending: true })
+
+      if (startDate) {
+        query = query.gte('date', formatDateForDB(startDate))
+      }
+
+      const { data: allTodos, error } = await query
+
+      if (error) throw error
+
+      // original_todo_id로 그룹화 (같은 투두의 이월 버전들)
+      const groupedByOriginal = {}
+
+      for (const todo of allTodos || []) {
+        // 원본 ID 결정 (original_todo_id가 있으면 그것, 없으면 자신의 id)
+        const originalId = todo.original_todo_id || todo.id
+
+        if (!groupedByOriginal[originalId]) {
+          groupedByOriginal[originalId] = []
+        }
+        groupedByOriginal[originalId].push(todo)
+      }
+
+      // 배열로 변환하고 생성일 순서대로 정렬
+      const ganttItems = Object.entries(groupedByOriginal).map(([originalId, todos]) => {
+        // 날짜순 정렬
+        const sortedTodos = todos.sort((a, b) => new Date(a.date) - new Date(b.date))
+        const firstTodo = sortedTodos[0]
+
+        // 모든 날짜 추출
+        const allDates = sortedTodos.map(t => t.date)
+
+        // 완료 날짜 찾기 (completed_at이 있는 투두에서 추출)
+        let completedDate = null
+        for (const todo of sortedTodos) {
+          if (todo.completed && todo.completed_at) {
+            const completedAtDate = new Date(todo.completed_at)
+            completedDate = formatDateForDB(completedAtDate)
+            break
+          }
+        }
+
+        // 오늘 날짜에 있는 투두 찾기 (완료 여부 확인용)
+        const todayTodo = sortedTodos.find(t => t.date === todayStr)
+
+        return {
+          text: firstTodo.text,
+          originalId: parseInt(originalId),
+          createdAt: firstTodo.created_at,
+          startDate: allDates[0],
+          endDate: allDates[allDates.length - 1],
+          dates: allDates,
+          completed: todayTodo?.completed || false,
+          completedDate: completedDate
+        }
+      }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+
+      setGanttData(ganttItems)
+    } catch (error) {
+      console.error('간트차트 데이터 조회 오류:', error.message)
+    }
+  }
+
   // 메모 관련 함수
   const handleOpenMemo = async () => {
     setShowMemoModal(true)
@@ -2331,6 +2607,16 @@ function App() {
           >
             <span className="sidebar-icon">📝</span>
             <span>기획서 메모</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              handleOpenGanttChart()
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">📊</span>
+            <span>간트로 보기</span>
           </button>
           <button
             className="sidebar-menu-item"
@@ -2909,6 +3195,125 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         ✏️ 편집
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showGanttChart && (
+          <div className="modal-overlay" onClick={handleCloseGanttChart}>
+            <div className="modal-content gantt-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>📊 간트차트 - 투두 현황</h2>
+                <button onClick={handleCloseGanttChart} className="modal-close-button">✕</button>
+              </div>
+
+              <div className="gantt-filter">
+                <div className="gantt-period-buttons">
+                  {[
+                    { value: '1week', label: '지난 1주일' },
+                    { value: '2weeks', label: '지난 2주일' },
+                    { value: '1month', label: '지난 1개월' },
+                    { value: '3months', label: '지난 3개월' },
+                    { value: '6months', label: '지난 6개월' },
+                    { value: 'all', label: '전체' }
+                  ].map(period => (
+                    <button
+                      key={period.value}
+                      className={`period-button ${ganttPeriod === period.value ? 'active' : ''}`}
+                      onClick={() => setGanttPeriod(period.value)}
+                    >
+                      {period.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="gantt-content">
+                {ganttData.length === 0 ? (
+                  <p className="empty-message">투두가 없습니다.</p>
+                ) : (
+                  <div className="gantt-chart">
+                    {/* 날짜 헤더 */}
+                    {(() => {
+                      // 전체 날짜 범위 계산
+                      const allDates = ganttData.flatMap(item => item.dates)
+                      const uniqueDates = [...new Set(allDates)].sort((a, b) => new Date(a) - new Date(b))
+
+                      const minDate = uniqueDates[0]
+                      const maxDate = uniqueDates[uniqueDates.length - 1]
+
+                      // minDate부터 maxDate까지의 모든 날짜 생성
+                      const dateRange = []
+                      let currentDate = new Date(minDate + 'T00:00:00')
+                      const endDate = new Date(maxDate + 'T00:00:00')
+
+                      while (currentDate <= endDate) {
+                        dateRange.push(formatDateForDB(currentDate))
+                        currentDate.setDate(currentDate.getDate() + 1)
+                      }
+
+                      return (
+                        <>
+                          <div className="gantt-header">
+                            <div className="gantt-task-column">투두 항목</div>
+                            <div className="gantt-timeline">
+                              {dateRange.map(date => (
+                                <div key={date} className="gantt-date-cell">
+                                  {formatDateOnly(new Date(date + 'T00:00:00')).split('(')[0]}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 간트 차트 본문 */}
+                          {ganttData.map((item, idx) => {
+                            const datesSet = new Set(item.dates)
+
+                            return (
+                              <div key={item.originalId} className="gantt-row">
+                                <div className="gantt-task-column" title={item.text}>
+                                  <span className={item.completed ? 'completed-task' : ''}>
+                                    {item.text}
+                                  </span>
+                                </div>
+                                <div className="gantt-timeline">
+                                  {dateRange.map(date => {
+                                    const hasTask = datesSet.has(date)
+
+                                    if (!hasTask) {
+                                      return <div key={date} className="gantt-date-cell"></div>
+                                    }
+
+                                    // 날짜 타입 결정
+                                    const isStartDate = date === item.startDate
+                                    const isCompletedDate = date === item.completedDate
+                                    const isMiddle = !isStartDate && !isCompletedDate
+
+                                    let cellClass = 'gantt-date-cell has-task'
+                                    if (isStartDate) {
+                                      cellClass += ' start-date'
+                                    } else if (isCompletedDate) {
+                                      cellClass += ' completed-date'
+                                    } else {
+                                      cellClass += ' middle-date'
+                                    }
+
+                                    return (
+                                      <div key={date} className={cellClass}>
+                                        {isCompletedDate ? <span className="completed-circle">✓</span> : '○'}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
