@@ -730,18 +730,20 @@ h1 {
 }
 
 .subtodos-in-item {
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   grid-row: 4;
   padding: 0.75rem;
   margin-top: 0.5rem;
-  margin-left: 0.5rem;
-  margin-right: 0.5rem;
+  margin-left: 0;
+  margin-right: 0;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .subtodo-input-section {
@@ -881,7 +883,7 @@ h1 {
 .todo-item {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(200px, 1fr) auto auto;
+  grid-template-columns: auto minmax(200px, 1fr) minmax(0, 60px) auto;
   grid-template-rows: 20px auto auto auto auto;
   align-items: center;
   align-content: start;
@@ -934,7 +936,7 @@ h1 {
     padding: 0.75rem 1rem;
     min-height: auto;
     touch-action: pan-y !important;
-    grid-template-columns: auto minmax(150px, 1fr) auto auto;
+    grid-template-columns: auto minmax(150px, 1fr) minmax(0, 60px) auto;
     column-gap: 0.625rem;
   }
 
@@ -1050,7 +1052,7 @@ h1 {
 
 /* 히스토리 섹션 */
 .todo-history {
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   grid-row: 5;
   display: flex;
   flex-direction: column;
@@ -1060,8 +1062,10 @@ h1 {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   margin-top: 0.5rem;
-  margin-left: 0.5rem;
-  margin-right: 0.5rem;
+  margin-left: 0;
+  margin-right: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .history-item {
@@ -1209,6 +1213,9 @@ h1 {
   align-self: center;
   justify-content: center;
   padding: 0 0.25rem;
+  max-width: 60px;
+  flex-shrink: 0;
+  overflow: visible;
 }
 
 .todo-badge {
@@ -2205,13 +2212,15 @@ h1 {
 .todo-actions-inline {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   grid-row: 3;
   padding-top: 1rem;
   padding-bottom: 0.5rem;
-  padding-left: 0.5rem;
+  padding-left: 0;
+  max-width: 100%;
 }
 
 .action-icon-button {
@@ -2319,13 +2328,15 @@ h1 {
   padding: 0.75rem;
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
-  margin-left: 0.5rem;
-  margin-right: 0.5rem;
+  margin-left: 0;
+  margin-right: 0;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   grid-row: 6;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .routine-setup-title {
@@ -2599,15 +2610,16 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.7rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.65rem;
   background: rgba(76, 175, 80, 0.15);
   color: #81c784;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 600;
   border: 1px solid rgba(76, 175, 80, 0.25);
   white-space: nowrap;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 /* Routine History Modal */

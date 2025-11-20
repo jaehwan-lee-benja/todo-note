@@ -395,7 +395,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
         {(() => {
           const hasCompletedDateBadge = todo.completed && todo.completed_at &&
             new Date(todo.completed_at).toISOString().split('T')[0] !== todo.date
-          return (subtodos.length > 0 || todo.routine_id || hasCompletedDateBadge) && (
+          return (subtodos.length > 0 || hasCompletedDateBadge) && (
             <div className="todo-badges">
               {hasCompletedDateBadge && (() => {
                 const completedDate = new Date(todo.completed_at).toISOString().split('T')[0]
@@ -428,29 +428,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   }}
                 >
                   🔬
-                </span>
-              )}
-              {todo.routine_id && (
-                <span
-                  className="todo-badge clickable"
-                  title="루틴 보기"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (showRoutineSetup) {
-                      // 이미 루틴설정이 열려있으면 토글 닫기
-                      setShowDetails(false)
-                      setShowRoutineSetup(false)
-                    } else {
-                      // 루틴설정 열기
-                      setShowDetails(true)
-                      setShowRoutineSetup(true)
-                      setShowNanotodos(false)
-                      setIsAddingSubTodo(false)
-                      setShowHistory(false)
-                    }
-                  }}
-                >
-                  📌
                 </span>
               )}
             </div>
@@ -3081,22 +3058,13 @@ function App() {
                       <h3 className="section-title">📋 기획서 메모</h3>
                       <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
                         {!isEditingMemoInline && (
-                          <>
-                            <button
-                              onClick={handleStartEditMemoInline}
-                              className="memo-edit-button-inline"
-                              title="메모 편집"
-                            >
-                              ✏️ 편집
-                            </button>
-                            <button
-                              onClick={() => setShowDummySQL(!showDummySQL)}
-                              className="memo-edit-button-inline"
-                              title="더미 데이터 SQL"
-                            >
-                              🧪 SQL
-                            </button>
-                          </>
+                          <button
+                            onClick={handleStartEditMemoInline}
+                            className="memo-edit-button-inline"
+                            title="메모 편집"
+                          >
+                            ✏️ 편집
+                          </button>
                         )}
                         {isEditingMemoInline && (
                           <div className="memo-edit-actions">
@@ -3138,6 +3106,42 @@ function App() {
                         ) : (
                           <div className="memo-empty">메모를 작성해보세요</div>
                         )}
+                      </div>
+                    )}
+
+                    {/* SQL 버튼 */}
+                    {!isEditingMemoInline && (
+                      <div style={{marginTop: '1rem'}}>
+                        <button
+                          onClick={() => setShowDummySQL(!showDummySQL)}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                          }}
+                          title="더미 데이터 SQL 펼치기/접기"
+                        >
+                          <span>🧪 SQL 더미 데이터</span>
+                          <span>{showDummySQL ? '▲' : '▼'}</span>
+                        </button>
                       </div>
                     )}
 
