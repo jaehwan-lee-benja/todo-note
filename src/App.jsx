@@ -836,6 +836,13 @@ function App() {
   const [showGanttChart, setShowGanttChart] = useState(false)
   const [ganttData, setGanttData] = useState([])
   const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
+  const [encouragementMessages, setEncouragementMessages] = useState([])
+  const [showEncouragementModal, setShowEncouragementModal] = useState(false)
+  const [newEncouragementMessage, setNewEncouragementMessage] = useState('')
+  const [editingEncouragementId, setEditingEncouragementId] = useState(null)
+  const [editingEncouragementText, setEditingEncouragementText] = useState('')
+  const [showEncouragementEmoji, setShowEncouragementEmoji] = useState(false)
+  const [currentEncouragementMessage, setCurrentEncouragementMessage] = useState('')
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
   const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
 
@@ -855,6 +862,39 @@ function App() {
     const weekdays = ['일', '월', '화', '수', '목', '금', '토']
     const weekday = weekdays[date.getDay()]
     return `${year}.${month}.${day}(${weekday})`
+  }
+
+  // 오늘 날짜인지 체크
+  const isToday = (date) => {
+    const today = new Date()
+    return formatDateForDB(date) === formatDateForDB(today)
+  }
+
+  // 랜덤 격려 문구 선택
+  const getRandomEncouragement = () => {
+    if (encouragementMessages.length === 0) return ""
+    const randomIndex = Math.floor(Math.random() * encouragementMessages.length)
+    return encouragementMessages[randomIndex]
+  }
+
+  // 격려 메시지 클릭 핸들러
+  const handleEncouragementClick = () => {
+    // 이모지 표시
+    setShowEncouragementEmoji(true)
+
+    // 새로운 랜덤 문구 선택 (현재 문구와 다르게)
+    let newMessage = getRandomEncouragement()
+    let attempts = 0
+    while (newMessage === currentEncouragementMessage && encouragementMessages.length > 1 && attempts < 10) {
+      newMessage = getRandomEncouragement()
+      attempts++
+    }
+
+    // 1초 후 이모지 숨기고 문구 변경
+    setTimeout(() => {
+      setShowEncouragementEmoji(false)
+      setCurrentEncouragementMessage(newMessage)
+    }, 1000)
   }
 
   // 날짜를 YY.MM.DD(요일) HH:MM 형식으로 포맷팅 (생성시간 표시용)
@@ -1829,10 +1869,22 @@ function App() {
     fetchRoutines()
   }, [])
 
+  // 앱 시작 시 격려 메시지 가져오기
+  useEffect(() => {
+    fetchEncouragementMessages()
+  }, [])
+
   // 앱 시작 시 과거 미완료 항목을 오늘로 이월
   useEffect(() => {
     movePastIncompleteTodosToToday()
   }, [])
+
+  // 격려 메시지가 로드되면 초기 메시지 설정
+  useEffect(() => {
+    if (encouragementMessages.length > 0 && !currentEncouragementMessage) {
+      setCurrentEncouragementMessage(getRandomEncouragement())
+    }
+  }, [encouragementMessages])
 
   // 간트차트 기간이 변경되면 데이터 다시 로드
   useEffect(() => {
@@ -1961,6 +2013,117 @@ function App() {
     }
   }, [isDraggingAny])
 
+  // 격려 메시지 가져오기
+  const fetchEncouragementMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('encouragement_messages')
+        .select('*')
+        .order('order_index', { ascending: true })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const messages = data.map(item => item.message)
+        setEncouragementMessages(messages)
+        // 현재 메시지가 없으면 첫 번째 메시지로 설정
+        if (!currentEncouragementMessage) {
+          setCurrentEncouragementMessage(messages[0])
+        }
+      }
+    } catch (error) {
+      console.error('격려 메시지 가져오기 오류:', error.message)
+    }
+  }
+
+  // 격려 메시지 추가
+  const addEncouragementMessage = async (message) => {
+    try {
+      // 현재 최대 order_index 찾기
+      const { data: existingMessages } = await supabase
+        .from('encouragement_messages')
+        .select('order_index')
+        .order('order_index', { ascending: false })
+        .limit(1)
+
+      const maxOrder = existingMessages && existingMessages.length > 0
+        ? existingMessages[0].order_index
+        : 0
+
+      const { error } = await supabase
+        .from('encouragement_messages')
+        .insert([{ message, order_index: maxOrder + 1 }])
+
+      if (error) throw error
+
+      // 목록 새로고침
+      await fetchEncouragementMessages()
+    } catch (error) {
+      console.error('격려 메시지 추가 오류:', error.message)
+      alert('격려 메시지 추가에 실패했습니다.')
+    }
+  }
+
+  // 격려 메시지 수정
+  const updateEncouragementMessage = async (index, newMessage) => {
+    try {
+      // 현재 메시지 목록에서 해당 인덱스의 메시지 찾기
+      const { data: allMessages } = await supabase
+        .from('encouragement_messages')
+        .select('*')
+        .order('order_index', { ascending: true })
+
+      if (!allMessages || index >= allMessages.length) {
+        throw new Error('메시지를 찾을 수 없습니다.')
+      }
+
+      const targetMessage = allMessages[index]
+
+      const { error } = await supabase
+        .from('encouragement_messages')
+        .update({ message: newMessage })
+        .eq('id', targetMessage.id)
+
+      if (error) throw error
+
+      // 목록 새로고침
+      await fetchEncouragementMessages()
+    } catch (error) {
+      console.error('격려 메시지 수정 오류:', error.message)
+      alert('격려 메시지 수정에 실패했습니다.')
+    }
+  }
+
+  // 격려 메시지 삭제
+  const deleteEncouragementMessage = async (index) => {
+    try {
+      // 현재 메시지 목록에서 해당 인덱스의 메시지 찾기
+      const { data: allMessages } = await supabase
+        .from('encouragement_messages')
+        .select('*')
+        .order('order_index', { ascending: true })
+
+      if (!allMessages || index >= allMessages.length) {
+        throw new Error('메시지를 찾을 수 없습니다.')
+      }
+
+      const targetMessage = allMessages[index]
+
+      const { error } = await supabase
+        .from('encouragement_messages')
+        .delete()
+        .eq('id', targetMessage.id)
+
+      if (error) throw error
+
+      // 목록 새로고침
+      await fetchEncouragementMessages()
+    } catch (error) {
+      console.error('격려 메시지 삭제 오류:', error.message)
+      alert('격려 메시지 삭제에 실패했습니다.')
+    }
+  }
+
   const fetchTodos = async () => {
     try {
       setLoading(true)
@@ -2038,6 +2201,9 @@ function App() {
       const newCompleted = !todo.completed
       const completedAt = newCompleted ? new Date().toISOString() : null
 
+      // 원본 ID 찾기 (이월된 투두면 original_todo_id, 아니면 자신의 id)
+      const originalId = todo.original_todo_id || todo.id
+
       // 현재 투두 업데이트
       const { error } = await supabase
         .from('todos')
@@ -2049,15 +2215,46 @@ function App() {
 
       if (error) throw error
 
-      // 이월된 투두라면 원본도 완료 처리
-      if (newCompleted && todo.original_todo_id) {
+      // 완료 처리 시: 원본 + 모든 이월된 투두들도 함께 완료
+      if (newCompleted) {
+        // 원본 투두 완료
         await supabase
           .from('todos')
           .update({
             completed: true,
             completed_at: completedAt
           })
-          .eq('id', todo.original_todo_id)
+          .eq('id', originalId)
+
+        // 같은 original_todo_id를 가진 모든 이월 투두들 완료
+        await supabase
+          .from('todos')
+          .update({
+            completed: true,
+            completed_at: completedAt
+          })
+          .eq('original_todo_id', originalId)
+      }
+
+      // 미완료 처리 시: 원본 + 모든 이월된 투두들도 함께 미완료
+      if (!newCompleted) {
+        // 원본 투두 미완료
+        await supabase
+          .from('todos')
+          .update({
+            completed: false,
+            completed_at: null
+          })
+          .eq('id', originalId)
+
+        // 같은 original_todo_id를 가진 모든 이월 투두들 미완료
+        await supabase
+          .from('todos')
+          .update({
+            completed: false,
+            completed_at: null
+          })
+          .eq('original_todo_id', originalId)
       }
 
       setTodos(todos.map(t =>
@@ -2621,6 +2818,16 @@ function App() {
           <button
             className="sidebar-menu-item"
             onClick={() => {
+              setShowEncouragementModal(true)
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">💬</span>
+            <span>격려 문구 관리</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
               setShowDummyModal(true)
               setShowSidebar(false)
             }}
@@ -2651,19 +2858,42 @@ function App() {
           </div>
 
           <div className="date-navigation">
-            <button onClick={handlePrevDay} className="date-nav-button">←</button>
-            <div className="date-picker-wrapper">
-              <span className="date-display">
-                {formatDateOnly(selectedDate)}
-              </span>
-              <input
-                type="date"
-                value={formatDateForDB(selectedDate)}
-                onChange={handleDateChange}
-                className="date-picker-input"
-              />
+            <div className="date-nav-row">
+              <button onClick={handlePrevDay} className="date-nav-button">←</button>
+              <div className="date-display-wrapper">
+                <span className="date-display">
+                  {formatDateOnly(selectedDate)}
+                </span>
+                <input
+                  type="date"
+                  value={formatDateForDB(selectedDate)}
+                  onChange={handleDateChange}
+                  className="date-picker-input"
+                />
+              </div>
+              <button onClick={handleNextDay} className="date-nav-button">→</button>
             </div>
-            <button onClick={handleNextDay} className="date-nav-button">→</button>
+            {isToday(selectedDate) ? (
+              <div
+                className="encouragement-message"
+                onClick={handleEncouragementClick}
+                title="클릭하면 다른 격려 문구가 나와요!"
+              >
+                {showEncouragementEmoji ? (
+                  <span className="encouragement-emoji">😊 🥰 😄</span>
+                ) : (
+                  currentEncouragementMessage || getRandomEncouragement()
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setSelectedDate(new Date())}
+                className="today-link"
+                title="오늘로 가기"
+              >
+                오늘 페이지로 바로가기
+              </button>
+            )}
           </div>
         </div>
 
@@ -3601,6 +3831,120 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                     </span>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEncouragementModal && (
+          <div className="modal-overlay" onClick={() => setShowEncouragementModal(false)}>
+            <div className="modal-content encouragement-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>💬 격려 문구 관리</h2>
+                <button onClick={() => setShowEncouragementModal(false)} className="modal-close-button">✕</button>
+              </div>
+
+              <div className="encouragement-add-section">
+                <input
+                  type="text"
+                  value={newEncouragementMessage}
+                  onChange={(e) => setNewEncouragementMessage(e.target.value)}
+                  placeholder="새로운 격려 문구를 입력하세요..."
+                  className="encouragement-input"
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter' && newEncouragementMessage.trim() !== '') {
+                      await addEncouragementMessage(newEncouragementMessage.trim())
+                      setNewEncouragementMessage('')
+                    }
+                  }}
+                />
+                <button
+                  onClick={async () => {
+                    if (newEncouragementMessage.trim() !== '') {
+                      await addEncouragementMessage(newEncouragementMessage.trim())
+                      setNewEncouragementMessage('')
+                    }
+                  }}
+                  className="add-encouragement-button"
+                  disabled={newEncouragementMessage.trim() === ''}
+                >
+                  추가
+                </button>
+              </div>
+
+              <div className="encouragement-list">
+                {encouragementMessages.length === 0 ? (
+                  <p className="empty-message">등록된 격려 문구가 없습니다.</p>
+                ) : (
+                  encouragementMessages.map((message, index) => (
+                    <div key={index} className="encouragement-item">
+                      {editingEncouragementId === index ? (
+                        // 수정 모드
+                        <>
+                          <input
+                            type="text"
+                            value={editingEncouragementText}
+                            onChange={(e) => setEditingEncouragementText(e.target.value)}
+                            className="encouragement-edit-input"
+                            placeholder="격려 문구"
+                          />
+                          <div className="encouragement-item-actions">
+                            <button
+                              onClick={async () => {
+                                if (editingEncouragementText.trim() !== '') {
+                                  await updateEncouragementMessage(index, editingEncouragementText.trim())
+                                  setEditingEncouragementId(null)
+                                  setEditingEncouragementText('')
+                                }
+                              }}
+                              className="encouragement-save-button"
+                              disabled={editingEncouragementText.trim() === ''}
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingEncouragementId(null)
+                                setEditingEncouragementText('')
+                              }}
+                              className="encouragement-cancel-button"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        // 일반 모드
+                        <>
+                          <span className="encouragement-text">{message}</span>
+                          <div className="encouragement-item-actions">
+                            <button
+                              onClick={() => {
+                                setEditingEncouragementId(index)
+                                setEditingEncouragementText(message)
+                              }}
+                              className="encouragement-edit-button"
+                              title="수정"
+                            >
+                              수정
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm('이 격려 문구를 삭제하시겠습니까?')) {
+                                  await deleteEncouragementMessage(index)
+                                }
+                              }}
+                              className="encouragement-delete-button"
+                              title="삭제"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
