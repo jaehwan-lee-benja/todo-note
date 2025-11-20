@@ -108,8 +108,9 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
 }
 
 .container-wide .content-scrollable {
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 0;
+  padding-right: 0;
+  overflow-x: visible;
 }
 
 .content-scrollable::-webkit-scrollbar {
@@ -2768,14 +2769,11 @@ h1 {
   flex-direction: row;
   gap: 1.5rem;
   align-items: flex-start;
-  overflow-x: scroll;
+  overflow-x: auto;
   overflow-y: visible;
   scroll-behavior: smooth;
-  padding-bottom: 1rem;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding: 0;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
 }
 
 .sections-container.horizontal-layout .section-block {
@@ -2783,20 +2781,6 @@ h1 {
   width: 380px;
   min-width: 320px;
   max-width: 450px;
-  max-height: calc(100vh - 200px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
-}
-
-.sections-container.horizontal-layout .section-block > h3 {
-  flex-shrink: 0;
-}
-
-.sections-container.horizontal-layout .section-block .memo-preview,
-.sections-container.horizontal-layout .section-block .memo-textarea {
-  flex: 1;
-  min-height: 0;
 }
 
 /* 가로 스크롤바 스타일링 */
