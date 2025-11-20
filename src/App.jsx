@@ -833,6 +833,8 @@ function App() {
   const [isEditingMemo, setIsEditingMemo] = useState(false)
   const [isSavingMemo, setIsSavingMemo] = useState(false)
   const [memoOriginalContent, setMemoOriginalContent] = useState('')
+  const [isEditingMemoInline, setIsEditingMemoInline] = useState(false)
+  const memoTextareaRef = useRef(null)
   const [showGanttChart, setShowGanttChart] = useState(false)
   const [ganttData, setGanttData] = useState([])
   const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
@@ -843,8 +845,15 @@ function App() {
   const [editingEncouragementText, setEditingEncouragementText] = useState('')
   const [showEncouragementEmoji, setShowEncouragementEmoji] = useState(false)
   const [currentEncouragementMessage, setCurrentEncouragementMessage] = useState('')
+  const [viewMode, setViewMode] = useState(() => {
+    // 로컬스토리지에서 뷰 모드 불러오기
+    const saved = localStorage.getItem('viewMode')
+    return saved || 'vertical' // 기본값: vertical
+  })
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
   const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
+  // TODO: elastic bounce 효과 구현 시 사용할 ref (현재 미사용)
+  const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -1874,6 +1883,11 @@ function App() {
     fetchEncouragementMessages()
   }, [])
 
+  // 앱 시작 시 기획서 메모 가져오기
+  useEffect(() => {
+    fetchMemoContent()
+  }, [])
+
   // 앱 시작 시 과거 미완료 항목을 오늘로 이월
   useEffect(() => {
     movePastIncompleteTodosToToday()
@@ -1885,6 +1899,58 @@ function App() {
       setCurrentEncouragementMessage(getRandomEncouragement())
     }
   }, [encouragementMessages])
+
+  // TODO: 가로 스크롤 elastic bounce 효과 - 나중에 다시 시도
+  // 현재 브라우저 호환성 이슈로 비활성화됨
+  // 트렐로 스타일의 고무줄 효과를 구현하려고 했으나 동작하지 않음
+  // 다른 라이브러리 사용이나 다른 접근 방법 고려 필요
+  /*
+  useEffect(() => {
+    if (viewMode !== 'horizontal' || !sectionsContainerRef.current) return
+
+    const container = sectionsContainerRef.current
+    let isOverscrolling = false
+    let overscrollAmount = 0
+    let animationFrameId = null
+
+    const handleWheel = (e) => {
+      const { scrollLeft, scrollWidth, clientWidth } = container
+      const atStart = scrollLeft <= 0
+      const atEnd = scrollLeft >= scrollWidth - clientWidth - 1
+
+      if ((atStart && e.deltaX < 0) || (atEnd && e.deltaX > 0)) {
+        e.preventDefault()
+        isOverscrolling = true
+        overscrollAmount += e.deltaX * 0.3 // 탄성 계수
+
+        // 최대 이동 거리 제한
+        overscrollAmount = Math.max(-100, Math.min(100, overscrollAmount))
+
+        // Transform 적용
+        container.style.transform = `translateX(${-overscrollAmount}px)`
+        container.style.transition = 'none'
+
+        // 자동으로 복귀
+        if (animationFrameId) cancelAnimationFrame(animationFrameId)
+        animationFrameId = requestAnimationFrame(() => {
+          setTimeout(() => {
+            container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            container.style.transform = 'translateX(0)'
+            overscrollAmount = 0
+            isOverscrolling = false
+          }, 50)
+        })
+      }
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+      if (animationFrameId) cancelAnimationFrame(animationFrameId)
+    }
+  }, [viewMode])
+  */
 
   // 간트차트 기간이 변경되면 데이터 다시 로드
   useEffect(() => {
@@ -2514,6 +2580,71 @@ function App() {
     setIsEditingMemo(true)
   }
 
+  const handleStartEditMemoInline = () => {
+    setIsEditingMemoInline(true)
+    setMemoOriginalContent(memoContent)
+    // textarea에 포커스
+    setTimeout(() => {
+      if (memoTextareaRef.current) {
+        memoTextareaRef.current.focus()
+      }
+    }, 0)
+  }
+
+  const handleSaveMemoInline = async () => {
+    if (isSavingMemo) return
+
+    try {
+      setIsSavingMemo(true)
+
+      // 기존 메모가 있는지 확인
+      const { data: existingMemo } = await supabase
+        .from('spec_memos')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (existingMemo && existingMemo.length > 0) {
+        // 업데이트
+        await supabase
+          .from('spec_memos')
+          .update({ content: memoContent, updated_at: new Date().toISOString() })
+          .eq('id', existingMemo[0].id)
+      } else {
+        // 신규 생성
+        await supabase
+          .from('spec_memos')
+          .insert([{ content: memoContent }])
+      }
+
+      setMemoOriginalContent(memoContent)
+      setIsEditingMemoInline(false)
+    } catch (error) {
+      console.error('메모 저장 오류:', error.message)
+      alert('메모 저장에 실패했습니다.')
+    } finally {
+      setIsSavingMemo(false)
+    }
+  }
+
+  const handleCancelEditMemoInline = () => {
+    setMemoContent(memoOriginalContent)
+    setIsEditingMemoInline(false)
+  }
+
+  const handleMemoKeyDown = (e) => {
+    // Cmd/Ctrl+S to save
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault()
+      handleSaveMemoInline()
+    }
+    // Esc to cancel
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEditMemoInline()
+    }
+  }
+
   const handleSaveMemo = async () => {
     if (isSavingMemo) return
 
@@ -2838,7 +2969,7 @@ function App() {
         </div>
       </div>
 
-      <div className="container">
+      <div className={`container ${viewMode === 'horizontal' ? 'container-wide' : ''}`}>
         <div className="header-fixed">
           <h1>to-do note</h1>
 
@@ -2857,8 +2988,9 @@ function App() {
             </button>
           </div>
 
-          <div className="date-navigation">
-            <div className="date-nav-row">
+          <div className="settings-bar">
+            {/* 날짜 네비게이션 */}
+            <div className="date-nav-section">
               <button onClick={handlePrevDay} className="date-nav-button">←</button>
               <div className="date-display-wrapper">
                 <span className="date-display">
@@ -2873,27 +3005,49 @@ function App() {
               </div>
               <button onClick={handleNextDay} className="date-nav-button">→</button>
             </div>
-            {isToday(selectedDate) ? (
-              <div
-                className="encouragement-message"
-                onClick={handleEncouragementClick}
-                title="클릭하면 다른 격려 문구가 나와요!"
-              >
-                {showEncouragementEmoji ? (
-                  <span className="encouragement-emoji">😊 🥰 😄</span>
-                ) : (
-                  currentEncouragementMessage || getRandomEncouragement()
-                )}
-              </div>
-            ) : (
+
+            {/* 뷰어 설정 버튼 */}
+            <div className="view-mode-section">
               <button
-                onClick={() => setSelectedDate(new Date())}
-                className="today-link"
-                title="오늘로 가기"
+                onClick={() => {
+                  const newMode = viewMode === 'vertical' ? 'horizontal' : 'vertical'
+                  setViewMode(newMode)
+                  localStorage.setItem('viewMode', newMode)
+                }}
+                className="view-mode-button"
+                title={viewMode === 'vertical' ? '가로 나열' : '세로 나열'}
               >
-                오늘 페이지로 바로가기
+                {viewMode === 'vertical' ? '⬌' : '⬍'}
+                <span className="view-mode-text">
+                  {viewMode === 'vertical' ? '가로 나열' : '세로 나열'}
+                </span>
               </button>
-            )}
+            </div>
+
+            {/* 응원 메시지 */}
+            <div className="encouragement-section">
+              {isToday(selectedDate) ? (
+                <div
+                  className="encouragement-message"
+                  onClick={handleEncouragementClick}
+                  title="클릭하면 다른 격려 문구가 나와요!"
+                >
+                  {showEncouragementEmoji ? (
+                    <span className="encouragement-emoji">😊 🥰 😄</span>
+                  ) : (
+                    currentEncouragementMessage || getRandomEncouragement()
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setSelectedDate(new Date())}
+                  className="today-link"
+                  title="오늘로 가기"
+                >
+                  오늘 페이지로 바로가기
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2917,10 +3071,69 @@ function App() {
               const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null)
 
               return (
-                <>
+                <div
+                  ref={sectionsContainerRef}
+                  className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+                >
+                  {/* 메모 섹션 */}
+                  <div className="memo-section section-block">
+                    <div className="section-header">
+                      <h3 className="section-title">📋 기획서 메모</h3>
+                      {!isEditingMemoInline && (
+                        <button
+                          onClick={handleStartEditMemoInline}
+                          className="memo-edit-button-inline"
+                          title="메모 편집"
+                        >
+                          ✏️ 편집
+                        </button>
+                      )}
+                      {isEditingMemoInline && (
+                        <div className="memo-edit-actions">
+                          <button
+                            onClick={handleSaveMemoInline}
+                            className="memo-save-button"
+                            disabled={isSavingMemo}
+                          >
+                            💾 저장
+                          </button>
+                          <button
+                            onClick={handleCancelEditMemoInline}
+                            className="memo-cancel-button"
+                            disabled={isSavingMemo}
+                          >
+                            ✕ 취소
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {isEditingMemoInline ? (
+                      <textarea
+                        ref={memoTextareaRef}
+                        value={memoContent}
+                        onChange={(e) => setMemoContent(e.target.value)}
+                        onKeyDown={handleMemoKeyDown}
+                        className="memo-textarea"
+                        placeholder="메모를 작성해보세요..."
+                      />
+                    ) : (
+                      <div className="memo-preview" onClick={handleStartEditMemoInline}>
+                        {memoContent ? (
+                          <div className="memo-preview-content">
+                            {memoContent.split('\n').map((line, idx) => (
+                              <div key={idx} className="memo-preview-line">{line || '\u00A0'}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="memo-empty">메모를 작성해보세요</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* 루틴 섹션 */}
                   {routineTodos.length > 0 && (
-                    <div className="routine-section">
+                    <div className="routine-section section-block">
                       <h3 className="section-title">📌 루틴</h3>
                       <SortableContext
                         items={routineTodos.map(todo => todo.id)}
@@ -2955,7 +3168,7 @@ function App() {
 
                   {/* 일반 투두 섹션 */}
                   {normalTodos.length > 0 && (
-                    <div className="normal-section">
+                    <div className="normal-section section-block">
                       {routineTodos.length > 0 && <h3 className="section-title">📝 일반 투두</h3>}
                       <SortableContext
                         items={normalTodos.map(todo => todo.id)}
@@ -3016,7 +3229,7 @@ function App() {
                       </SortableContext>
                     </div>
                   )}
-                </>
+                </div>
               )
             })()}
           </div>
