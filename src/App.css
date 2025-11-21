@@ -126,6 +126,25 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   box-sizing: border-box;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.content-scrollable:active {
+  cursor: grabbing;
+}
+
+.content-scrollable .section-block {
+  cursor: default;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.content-scrollable .section-block * {
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .content-scrollable::-webkit-scrollbar {
@@ -2811,33 +2830,64 @@ h1 {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sections-container.vertical-layout:active {
+  cursor: grabbing;
+}
+
+.sections-container.vertical-layout .section-block {
+  cursor: default;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sections-container.vertical-layout .section-block * {
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .sections-container.horizontal-layout {
   flex-direction: row;
   gap: 1.5rem;
-  align-items: flex-end;
+  align-items: flex-start;
   overflow-x: auto;
   overflow-y: visible;
   scroll-behavior: smooth;
-  padding: 0 0 1rem 0;
+  padding: 1rem 0 1rem 0;
   -webkit-overflow-scrolling: touch;
-  transform: rotateX(180deg);
   scrollbar-width: thin;
   scrollbar-color: orange transparent;
   box-sizing: border-box;
   min-width: 100%;
   margin: 0;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  background: rgba(255, 255, 0, 0.2);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sections-container.horizontal-layout:active {
+  cursor: grabbing;
 }
 
 .sections-container.horizontal-layout .section-block {
   flex: 0 0 auto;
   width: 480px;
   min-width: 420px;
-  transform: rotateX(180deg);
+  cursor: default;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sections-container.horizontal-layout .section-block * {
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* 가로 나열 내부의 모든 자식 요소 스크롤바를 회색으로 강제 */
@@ -2912,7 +2962,7 @@ h1 {
 .routine-section,
 .normal-section {
   margin-bottom: 20px;
-  background: rgba(255, 255, 255, 0.03);
+  background: #242424;
   border-radius: 12px;
   padding: 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.08);

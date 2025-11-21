@@ -829,8 +829,8 @@ function App() {
   })
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
   const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
-  // TODO: elastic bounce 효과 구현 시 사용할 ref (현재 미사용)
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
+  const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
   const formatDateForDB = (date) => {
@@ -1333,7 +1333,6 @@ function App() {
   const movePastIncompleteTodosToToday = async () => {
     // 이미 실행 중이면 중복 실행 방지
     if (carryOverInProgress.current) {
-      console.log('이월 작업 실행 중 (중복 방지)')
       return
     }
 
@@ -1464,7 +1463,6 @@ function App() {
       }
 
       if (totalCarriedOver > 0) {
-        console.log(`${totalCarriedOver}개의 과거 미완료 항목을 날짜별로 순차 이월했습니다.`)
       }
     } catch (error) {
       console.error('과거 미완료 항목 이월 오류:', error.message)
@@ -1532,7 +1530,6 @@ function App() {
           )
         )
 
-        console.log('루틴 제거 완료')
         return
       }
 
@@ -1545,7 +1542,6 @@ function App() {
 
         if (error) throw error
 
-        console.log(`루틴 수정 완료: ${text}`)
 
         // 로컬 루틴 목록 업데이트
         setRoutines(prevRoutines =>
@@ -1560,7 +1556,6 @@ function App() {
 
         if (error) throw error
 
-        console.log(`루틴 생성 완료: ${text}`)
 
         // 해당 투두에 루틴 ID 연결
         const { error: updateError } = await supabase
@@ -1677,7 +1672,6 @@ function App() {
   const createRoutineTodosForDate = async (dateStr) => {
     // 이미 생성 중이면 중복 실행 방지
     if (routineCreationInProgress.current.has(dateStr)) {
-      console.log(`루틴 작업 생성 중 (중복 방지): ${dateStr}`)
       return
     }
 
@@ -1751,9 +1745,7 @@ function App() {
 
         if (insertError) {
           // 동시 실행으로 인한 중복은 무시
-          console.log(`루틴 작업 생성 실패 (중복 가능성): ${todoText}`)
         } else {
-          console.log(`루틴 작업 생성: ${todoText} (${dateStr})`)
         }
       }
     } catch (error) {
@@ -1929,6 +1921,198 @@ function App() {
   }, [viewMode])
   */
 
+  // 가로/세로 레이아웃에서 드래그로 스크롤 기능 + elastic bounce
+  useEffect(() => {
+    if (!sectionsContainerRef.current) return
+
+    const container = sectionsContainerRef.current
+    const isHorizontal = viewMode === 'horizontal'
+    let isDown = false
+    let startPos = 0
+    let scrollPos = 0
+    let bounceOffset = 0
+    let animationFrame = null
+
+    const handleMouseDown = (e) => {
+      isDown = true
+      startPos = isHorizontal ? e.pageX : e.pageY
+      scrollPos = isHorizontal ? container.scrollLeft : container.scrollTop
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame)
+        animationFrame = null
+      }
+      container.style.transition = 'none'
+      container.style.transform = isHorizontal ? 'translateX(0)' : 'translateY(0)'
+      bounceOffset = 0
+    }
+
+    const handleMouseLeave = () => {
+      if (isDown && bounceOffset !== 0) {
+        container.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        container.style.transform = isHorizontal ? 'translateX(0)' : 'translateY(0)'
+        setTimeout(() => {
+          container.style.transition = 'none'
+          bounceOffset = 0
+        }, 300)
+      }
+      isDown = false
+    }
+
+    const handleMouseUp = () => {
+      if (bounceOffset !== 0) {
+        container.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        container.style.transform = isHorizontal ? 'translateX(0)' : 'translateY(0)'
+        setTimeout(() => {
+          container.style.transition = 'none'
+          bounceOffset = 0
+        }, 300)
+      }
+      isDown = false
+    }
+
+    const handleMouseMove = (e) => {
+      if (!isDown) return
+      e.preventDefault()
+
+      const pos = isHorizontal ? e.pageX : e.pageY
+      const walk = (pos - startPos) * 1.5
+      const newScrollPos = scrollPos - walk
+
+      const maxScroll = isHorizontal
+        ? container.scrollWidth - container.clientWidth
+        : container.scrollHeight - container.clientHeight
+
+      if (newScrollPos < 0) {
+        const overscroll = -newScrollPos
+        bounceOffset = Math.min(overscroll * 0.3, 100)
+        if (isHorizontal) {
+          container.scrollLeft = 0
+          container.style.transform = `translateX(${bounceOffset}px)`
+        } else {
+          container.scrollTop = 0
+          container.style.transform = `translateY(${bounceOffset}px)`
+        }
+      } else if (newScrollPos > maxScroll) {
+        const overscroll = newScrollPos - maxScroll
+        bounceOffset = -Math.min(overscroll * 0.3, 100)
+        if (isHorizontal) {
+          container.scrollLeft = maxScroll
+          container.style.transform = `translateX(${bounceOffset}px)`
+        } else {
+          container.scrollTop = maxScroll
+          container.style.transform = `translateY(${bounceOffset}px)`
+        }
+      } else {
+        bounceOffset = 0
+        container.style.transform = isHorizontal ? 'translateX(0)' : 'translateY(0)'
+        if (isHorizontal) {
+          container.scrollLeft = newScrollPos
+        } else {
+          container.scrollTop = newScrollPos
+        }
+      }
+    }
+
+    container.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('mouseleave', handleMouseLeave)
+    container.addEventListener('mousemove', handleMouseMove)
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('mouseleave', handleMouseLeave)
+      container.removeEventListener('mousemove', handleMouseMove)
+      if (animationFrame) cancelAnimationFrame(animationFrame)
+    }
+  }, [viewMode, todos, routines])
+
+  // 세로 스크롤 드래그 기능 (content-scrollable)
+  useEffect(() => {
+    if (!contentScrollableRef.current) return
+
+    const container = contentScrollableRef.current
+    let isDown = false
+    let startY = 0
+    let scrollTop = 0
+    let bounceOffset = 0
+
+    const handleMouseDown = (e) => {
+      // 섹션 블록 내부 클릭은 제외
+      const isClickOnSection = e.target.closest('.section-block')
+      if (isClickOnSection) return
+
+      isDown = true
+      startY = e.pageY
+      scrollTop = container.scrollTop
+      container.style.transition = 'none'
+      container.style.transform = 'translateY(0)'
+      bounceOffset = 0
+    }
+
+    const handleMouseLeave = () => {
+      if (isDown && bounceOffset !== 0) {
+        container.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        container.style.transform = 'translateY(0)'
+        setTimeout(() => {
+          container.style.transition = 'none'
+          bounceOffset = 0
+        }, 300)
+      }
+      isDown = false
+    }
+
+    const handleMouseUp = () => {
+      if (bounceOffset !== 0) {
+        container.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        container.style.transform = 'translateY(0)'
+        setTimeout(() => {
+          container.style.transition = 'none'
+          bounceOffset = 0
+        }, 300)
+      }
+      isDown = false
+    }
+
+    const handleMouseMove = (e) => {
+      if (!isDown) return
+      e.preventDefault()
+
+      const y = e.pageY
+      const walk = (y - startY) * 1.5
+      const newScrollTop = scrollTop - walk
+      const maxScroll = container.scrollHeight - container.clientHeight
+
+      if (newScrollTop < 0) {
+        const overscroll = -newScrollTop
+        bounceOffset = Math.min(overscroll * 0.3, 100)
+        container.scrollTop = 0
+        container.style.transform = `translateY(${bounceOffset}px)`
+      } else if (newScrollTop > maxScroll) {
+        const overscroll = newScrollTop - maxScroll
+        bounceOffset = -Math.min(overscroll * 0.3, 100)
+        container.scrollTop = maxScroll
+        container.style.transform = `translateY(${bounceOffset}px)`
+      } else {
+        bounceOffset = 0
+        container.style.transform = 'translateY(0)'
+        container.scrollTop = newScrollTop
+      }
+    }
+
+    container.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('mouseleave', handleMouseLeave)
+    container.addEventListener('mousemove', handleMouseMove)
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('mouseleave', handleMouseLeave)
+      container.removeEventListener('mousemove', handleMouseMove)
+    }
+  }, [todos, routines])
+
   // 간트차트 기간이 변경되면 데이터 다시 로드
   useEffect(() => {
     if (showGanttChart) {
@@ -1984,7 +2168,6 @@ function App() {
           filter: `date=eq.${dateStr}`
         },
         (payload) => {
-          console.log('Realtime 변경 감지:', payload)
 
           if (payload.eventType === 'INSERT') {
             // 새 항목 추가
@@ -2017,7 +2200,6 @@ function App() {
         }
       )
       .subscribe((status) => {
-        console.log('Realtime 구독 상태:', status)
       })
 
     // 컴포넌트 언마운트 또는 날짜 변경 시 구독 해제
@@ -3028,7 +3210,7 @@ function App() {
           </div>
         </div>
 
-        <div className="content-scrollable">
+        <div className="content-scrollable" ref={contentScrollableRef}>
 
         <DndContext
           sensors={sensors}
@@ -3400,7 +3582,6 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
 
                   // 디버깅
                   if (index < 5) {
-                    console.log('투두:', todo.text.substring(0, 30), '생성일:', todoCreatedDate, '다음생성일:', nextTodoCreatedDate, '페이지:', currentPageDate, 'separator:', showSeparator)
                   }
 
                   return (
