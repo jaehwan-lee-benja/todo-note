@@ -825,11 +825,12 @@ function App() {
   const [viewMode, setViewMode] = useState(() => {
     // 로컬스토리지에서 뷰 모드 불러오기
     const saved = localStorage.getItem('viewMode')
-    return saved || 'vertical' // 기본값: vertical
+    return saved || 'horizontal' // 기본값: horizontal
   })
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
   const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0) // 모바일 섹션 인덱스
   const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
 
   // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
@@ -1934,6 +1935,9 @@ function App() {
     let animationFrame = null
 
     const handleMouseDown = (e) => {
+      // section-block 위에서는 그랩 스크롤 비활성화
+      if (e.target.closest('.section-block')) return
+
       isDown = true
       startPos = isHorizontal ? e.pageX : e.pageY
       scrollPos = isHorizontal ? container.scrollLeft : container.scrollTop
@@ -2013,18 +2017,62 @@ function App() {
       }
     }
 
+    // section-block 위에서 가로 휠 스크롤 방지
+    const handleWheel = (e) => {
+      if (isHorizontal && e.target.closest('.section-block') && e.deltaX !== 0) {
+        e.preventDefault()
+      }
+    }
+
     container.addEventListener('mousedown', handleMouseDown)
     document.addEventListener('mouseup', handleMouseUp)
     document.addEventListener('mouseleave', handleMouseLeave)
     container.addEventListener('mousemove', handleMouseMove)
+    container.addEventListener('wheel', handleWheel, { passive: false })
 
     return () => {
       container.removeEventListener('mousedown', handleMouseDown)
       document.removeEventListener('mouseup', handleMouseUp)
       document.removeEventListener('mouseleave', handleMouseLeave)
       container.removeEventListener('mousemove', handleMouseMove)
+      container.removeEventListener('wheel', handleWheel)
       if (animationFrame) cancelAnimationFrame(animationFrame)
     }
+  }, [viewMode, todos, routines])
+
+  // 모바일 섹션 스크롤 감지 (페이지네이션 dots용)
+  useEffect(() => {
+    if (viewMode !== 'horizontal' || !sectionsContainerRef.current) return
+
+    const container = sectionsContainerRef.current
+    const handleScroll = () => {
+      const sections = container.querySelectorAll('.section-block')
+      if (sections.length === 0) return
+
+      const containerRect = container.getBoundingClientRect()
+      const containerCenter = containerRect.left + containerRect.width / 2
+
+      let closestIndex = 0
+      let closestDistance = Infinity
+
+      sections.forEach((section, index) => {
+        const sectionRect = section.getBoundingClientRect()
+        const sectionCenter = sectionRect.left + sectionRect.width / 2
+        const distance = Math.abs(sectionCenter - containerCenter)
+
+        if (distance < closestDistance) {
+          closestDistance = distance
+          closestIndex = index
+        }
+      })
+
+      setCurrentSectionIndex(closestIndex)
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    handleScroll() // 초기 상태 설정
+
+    return () => container.removeEventListener('scroll', handleScroll)
   }, [viewMode, todos, routines])
 
   // 세로 스크롤 드래그 기능 (content-scrollable)
@@ -3068,6 +3116,18 @@ function App() {
           <button
             className="sidebar-menu-item"
             onClick={() => {
+              const newMode = viewMode === 'vertical' ? 'horizontal' : 'vertical'
+              setViewMode(newMode)
+              localStorage.setItem('viewMode', newMode)
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">{viewMode === 'vertical' ? '⬌' : '⬍'}</span>
+            <span>{viewMode === 'vertical' ? '가로 나열' : '세로 나열'}</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
               handleOpenTrash()
               setShowSidebar(false)
             }}
@@ -3163,24 +3223,6 @@ function App() {
                 />
               </div>
               <button onClick={handleNextDay} className="date-nav-button">→</button>
-            </div>
-
-            {/* 뷰어 설정 버튼 */}
-            <div className="view-mode-section">
-              <button
-                onClick={() => {
-                  const newMode = viewMode === 'vertical' ? 'horizontal' : 'vertical'
-                  setViewMode(newMode)
-                  localStorage.setItem('viewMode', newMode)
-                }}
-                className="view-mode-button"
-                title={viewMode === 'vertical' ? '가로 나열' : '세로 나열'}
-              >
-                {viewMode === 'vertical' ? '⬌' : '⬍'}
-                <span className="view-mode-text">
-                  {viewMode === 'vertical' ? '가로 나열' : '세로 나열'}
-                </span>
-              </button>
             </div>
 
             {/* 응원 메시지 */}
@@ -3621,6 +3663,26 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
             })()}
           </div>
         </DndContext>
+
+        {/* 모바일 섹션 페이지네이션 dots */}
+        {viewMode === 'horizontal' && (
+          <div className="section-pagination-dots">
+            {[0, 1, 2].map((index) => (
+              <button
+                key={index}
+                className={`pagination-dot ${currentSectionIndex === index ? 'active' : ''}`}
+                onClick={() => {
+                  const container = sectionsContainerRef.current
+                  if (!container) return
+                  const sections = container.querySelectorAll('.section-block')
+                  if (sections[index]) {
+                    sections[index].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+                  }
+                }}
+              />
+            ))}
+          </div>
+        )}
         </div>
 
         {showUndoToast && (

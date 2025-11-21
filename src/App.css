@@ -2861,11 +2861,11 @@ h1 {
   padding: 1rem 0 1rem 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: orange transparent;
+  scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
   box-sizing: border-box;
   min-width: 100%;
   margin: 0;
-  background: rgba(255, 255, 0, 0.2);
+  background: transparent;
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
@@ -2882,6 +2882,8 @@ h1 {
   cursor: default;
   user-select: text;
   -webkit-user-select: text;
+  touch-action: pan-y;
+  overscroll-behavior-x: none;
 }
 
 .sections-container.horizontal-layout .section-block * {
@@ -3710,4 +3712,59 @@ h1 {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.9);
+}
+
+/* 섹션 페이지네이션 dots */
+.section-pagination-dots {
+  display: none;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 0;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 20px;
+  padding: 8px 16px;
+}
+
+.pagination-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.pagination-dot.active {
+  background: rgba(255, 255, 255, 0.9);
+  transform: scale(1.2);
+}
+
+.pagination-dot:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* 모바일 scroll-snap */
+@media (max-width: 768px) {
+  .section-pagination-dots {
+    display: flex;
+  }
+
+  .sections-container.horizontal-layout {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sections-container.horizontal-layout .section-block {
+    scroll-snap-align: center;
+    width: calc(100vw - 32px);
+    min-width: calc(100vw - 32px);
+    flex-shrink: 0;
+  }
 }
