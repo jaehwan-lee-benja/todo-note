@@ -2407,15 +2407,30 @@ function App() {
       // 해당 날짜의 요일에 맞는 루틴 투두 자동 생성
       await createRoutineTodosForDate(dateStr)
 
+      // 하이브리드 조회: 새 방식(visible_dates) + 구 방식(date) 모두 지원
+      // TODO: 3단계 완료 후 서버 사이드 필터링으로 최적화
       const { data, error } = await supabase
         .from('todos')
         .select('*')
-        .eq('date', dateStr)
         .eq('deleted', false)
         .order('order_index', { ascending: true })
 
       if (error) throw error
-      setTodos(data || [])
+
+      // 클라이언트 사이드 필터링
+      const filteredTodos = (data || []).filter(todo => {
+        // 새 방식: visible_dates에 현재 날짜가 포함되어 있는지 확인
+        if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
+          const isVisible = todo.visible_dates.includes(dateStr)
+          const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(dateStr)
+          return isVisible && !isHidden
+        }
+
+        // 구 방식 (하위 호환): visible_dates가 없거나 빈 배열이면 date 컬럼 사용
+        return todo.date === dateStr
+      })
+
+      setTodos(filteredTodos)
     } catch (error) {
       console.error('할 일 가져오기 오류:', error.message)
     } finally {
