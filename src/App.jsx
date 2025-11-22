@@ -1236,96 +1236,59 @@ function App() {
   }
 
 
-  // 전날 미완료 항목을 다음 날로 이월 (복사 방식)
+  // 전날 미완료 항목을 다음 날로 이월 (JSON 방식)
   const moveIncompleteTodosToNextDay = async (fromDate, toDate) => {
     try {
       const fromDateStr = formatDateForDB(fromDate)
       const toDateStr = formatDateForDB(toDate)
 
-      // 전날의 미완료 항목 가져오기 (루틴 제외, 원본이든 이월된 것이든 모두 포함)
-      const { data: incompleteTodos, error: fetchError } = await supabase
+      // 전날의 모든 투두 가져오기 (하이브리드 방식)
+      const { data: allTodos, error: fetchError } = await supabase
         .from('todos')
         .select('*')
-        .eq('date', fromDateStr)
         .eq('deleted', false)
         .eq('completed', false)
         .is('routine_id', null) // 루틴 투두는 이월하지 않음
-        .order('order_index', { ascending: true })
 
       if (fetchError) throw fetchError
 
-      if (incompleteTodos && incompleteTodos.length > 0) {
-        // 다음 날의 기존 항목 가져오기
-        const { data: nextDayTodos, error: nextDayError } = await supabase
-          .from('todos')
-          .select('*')
-          .eq('date', toDateStr)
-          .eq('deleted', false)
-          .order('order_index', { ascending: true })
+      // 클라이언트 사이드 필터링: fromDateStr에 보이는 미완료 투두
+      const incompleteTodos = (allTodos || []).filter(todo => {
+        // 새 방식: visible_dates 사용
+        if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
+          const isVisible = todo.visible_dates.includes(fromDateStr)
+          const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(fromDateStr)
+          return isVisible && !isHidden
+        }
+        // 구 방식: date 사용
+        return todo.date === fromDateStr
+      })
 
-        if (nextDayError) throw nextDayError
+      if (incompleteTodos.length === 0) {
+        return
+      }
 
-        // 이미 이월된 항목 체크 (original_todo_id 또는 투두 자체 id로)
-        const alreadyCarriedOverIds = new Set()
-        nextDayTodos?.forEach(t => {
-          if (t.original_todo_id !== null) {
-            alreadyCarriedOverIds.add(t.original_todo_id)
-          }
-        })
+      // 각 투두의 visible_dates에 toDateStr 추가
+      for (const todo of incompleteTodos) {
+        let currentVisibleDates = todo.visible_dates || [todo.date]
 
-        // 이미 이월된 투두는 제외
-        const todosNeedCarryOver = incompleteTodos.filter(
-          todo => !alreadyCarriedOverIds.has(todo.id) && !alreadyCarriedOverIds.has(todo.original_todo_id)
-        )
-
-        if (todosNeedCarryOver.length === 0) {
-          return
+        // 이미 포함되어 있으면 스킵
+        if (currentVisibleDates.includes(toDateStr)) {
+          continue
         }
 
-        // 원본 투두들의 created_at을 가져오기 위한 ID 수집
-        const originalIds = todosNeedCarryOver
-          .map(todo => todo.original_todo_id || todo.id)
-          .filter((id, index, self) => self.indexOf(id) === index) // 중복 제거
+        // 새 날짜 추가
+        const newVisibleDates = [...currentVisibleDates, toDateStr].sort()
 
-        // 원본 투두들의 created_at 조회
-        const { data: originalTodos, error: originalError } = await supabase
+        // 업데이트
+        const { error: updateError } = await supabase
           .from('todos')
-          .select('id, created_at')
-          .in('id', originalIds)
+          .update({ visible_dates: newVisibleDates })
+          .eq('id', todo.id)
 
-        if (originalError) throw originalError
-
-        // ID -> created_at 맵 생성
-        const createdAtMap = {}
-        originalTodos?.forEach(t => {
-          createdAtMap[t.id] = t.created_at
-        })
-
-        const nextDayCount = nextDayTodos ? nextDayTodos.length : 0
-
-        // 다음 날 기존 항목이 있으면 그 뒤에 추가
-        const startIndex = nextDayCount + 1
-
-        // 미완료 항목들을 다음 날로 복사 (새 레코드 생성)
-        const todosToInsert = todosNeedCarryOver.map((todo, index) => {
-          const originalId = todo.original_todo_id || todo.id
-          return {
-            text: todo.text,
-            completed: false,
-            date: toDateStr,
-            created_at: createdAtMap[originalId] || todo.created_at, // 원본의 created_at 유지
-            order_index: startIndex + index,
-            original_todo_id: originalId, // 최초 원본 ID를 유지
-            parent_id: null, // 서브투두는 이월하지 않음
-            routine_id: null // 루틴 연결 해제
-          }
-        })
-
-        const { error: insertError } = await supabase
-          .from('todos')
-          .insert(todosToInsert)
-
-        if (insertError) throw insertError
+        if (updateError) {
+          console.error(`투두 ${todo.id} 이월 오류:`, updateError.message)
+        }
       }
     } catch (error) {
       console.error('미완료 항목 이월 오류:', error.message)
@@ -2464,11 +2427,18 @@ function App() {
       // 새 항목은 맨 아래에 추가
       const newOrderIndex = todos.length > 0 ? Math.max(...todos.map(t => t.order_index)) + 1 : 1
 
-      // 새 항목을 추가
+      // 새 항목을 추가 (JSON 방식)
       const dateStr = formatDateForDB(selectedDate)
       const { data, error } = await supabase
         .from('todos')
-        .insert([{ text: inputValue, completed: false, order_index: newOrderIndex, date: dateStr }])
+        .insert([{
+          text: inputValue,
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr], // JSON 방식: 현재 날짜를 배열로 설정
+          hidden_dates: []
+        }])
         .select()
 
       if (error) throw error
@@ -2491,10 +2461,7 @@ function App() {
       const newCompleted = !todo.completed
       const completedAt = newCompleted ? new Date().toISOString() : null
 
-      // 원본 ID 찾기 (이월된 투두면 original_todo_id, 아니면 자신의 id)
-      const originalId = todo.original_todo_id || todo.id
-
-      // 현재 투두 업데이트
+      // JSON 방식: 1개 투두만 업데이트 (간단!)
       const { error } = await supabase
         .from('todos')
         .update({
@@ -2504,48 +2471,6 @@ function App() {
         .eq('id', id)
 
       if (error) throw error
-
-      // 완료 처리 시: 원본 + 모든 이월된 투두들도 함께 완료
-      if (newCompleted) {
-        // 원본 투두 완료
-        await supabase
-          .from('todos')
-          .update({
-            completed: true,
-            completed_at: completedAt
-          })
-          .eq('id', originalId)
-
-        // 같은 original_todo_id를 가진 모든 이월 투두들 완료
-        await supabase
-          .from('todos')
-          .update({
-            completed: true,
-            completed_at: completedAt
-          })
-          .eq('original_todo_id', originalId)
-      }
-
-      // 미완료 처리 시: 원본 + 모든 이월된 투두들도 함께 미완료
-      if (!newCompleted) {
-        // 원본 투두 미완료
-        await supabase
-          .from('todos')
-          .update({
-            completed: false,
-            completed_at: null
-          })
-          .eq('id', originalId)
-
-        // 같은 original_todo_id를 가진 모든 이월 투두들 미완료
-        await supabase
-          .from('todos')
-          .update({
-            completed: false,
-            completed_at: null
-          })
-          .eq('original_todo_id', originalId)
-      }
 
       setTodos(todos.map(t =>
         t.id === id ? { ...t, completed: newCompleted, completed_at: completedAt } : t
