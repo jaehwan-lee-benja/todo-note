@@ -3768,3 +3768,144 @@ h1 {
     flex-shrink: 0;
   }
 }
+
+/* 삭제 확인 모달 스타일 */
+.delete-confirm-modal {
+  max-width: 500px;
+  width: 90%;
+}
+
+.delete-confirm-content {
+  padding: 1.5rem;
+}
+
+.delete-confirm-text {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.delete-confirm-description {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 1.5rem;
+}
+
+.delete-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.delete-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.delete-option-group:last-child {
+  background: rgba(255, 140, 77, 0.12);
+  border: 1px solid rgba(255, 140, 77, 0.25);
+}
+
+.option-group-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.87);
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.delete-option-group:last-child .option-group-title {
+  border-bottom-color: rgba(255, 140, 77, 0.3);
+}
+
+.option-group-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.delete-option-button {
+  padding: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.87);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.delete-option-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.delete-option-button:active {
+  transform: translateY(0);
+}
+
+/* 레드 계열 (내일 이월 없음) - 강조 */
+.delete-option-button.option-1 {
+  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.15);
+}
+
+.delete-option-button.option-1:hover {
+  border-color: rgba(255, 107, 107, 0.8);
+  background: rgba(255, 107, 107, 0.25);
+}
+
+.delete-option-button.option-4 {
+  border-color: rgba(255, 77, 77, 0.4);
+  background: rgba(255, 77, 77, 0.15);
+}
+
+.delete-option-button.option-4:hover {
+  border-color: rgba(255, 77, 77, 0.8);
+  background: rgba(255, 77, 77, 0.25);
+}
+
+/* 블루 계열 (내일 이월 유지) - 강조 */
+.delete-option-button.option-2 {
+  border-color: rgba(74, 158, 255, 0.4);
+  background: rgba(74, 158, 255, 0.15);
+}
+
+.delete-option-button.option-2:hover {
+  border-color: rgba(74, 158, 255, 0.8);
+  background: rgba(74, 158, 255, 0.25);
+}
+
+.delete-option-button.option-3 {
+  border-color: rgba(100, 181, 246, 0.4);
+  background: rgba(100, 181, 246, 0.15);
+}
+
+.delete-option-button.option-3:hover {
+  border-color: rgba(100, 181, 246, 0.8);
+  background: rgba(100, 181, 246, 0.25);
+}
+
+/* 모바일 반응형 */
+@media (max-width: 600px) {
+  .option-group-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .delete-option-button {
+    font-size: 0.85rem;
+  }
+
+  .option-group-title {
+    font-size: 0.95rem;
+  }
+}
