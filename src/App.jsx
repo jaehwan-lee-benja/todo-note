@@ -2485,17 +2485,20 @@ function App() {
     const todo = todos.find(t => t.id === id)
     if (!todo) return
 
-    // 이월된 투두인 경우 (original_todo_id가 있으면) 모달 표시
-    if (todo.original_todo_id !== null && todo.original_todo_id !== undefined) {
+    // visible_dates 확인 (여러 날짜에 보이는 투두인지 체크)
+    const visibleDates = todo.visible_dates || [todo.date]
+
+    // 여러 날짜에 보이는 경우 모달 표시
+    if (visibleDates.length > 1) {
       setTodoToDelete(todo)
       setShowDeleteConfirmModal(true)
     } else {
-      // 이월이 없는 경우 바로 삭제 (기존 로직)
+      // 단일 날짜 투두는 바로 삭제
       await executeSimpleDelete(id)
     }
   }
 
-  // 단순 삭제 (이월 없는 경우)
+  // 단순 삭제 (단일 날짜 투두)
   const executeSimpleDelete = async (id) => {
     try {
       const todo = todos.find(t => t.id === id)
@@ -2529,112 +2532,42 @@ function App() {
     }
   }
 
-  // 옵션 1: 이 날짜만 삭제 - 내일부터도 이월 생성 X
-  const deleteOnlyThisDateStopCarryOver = async (todo) => {
+  // 옵션 1: 이 날짜에서만 숨김 (hidden_dates에 추가)
+  const hideOnThisDateOnly = async (todo) => {
     try {
       const dateStr = formatDateForDB(selectedDate)
-      const originalId = todo.original_todo_id || todo.id
+      const currentHiddenDates = todo.hidden_dates || []
 
-      // 현재 투두 삭제
-      await supabase
+      // hidden_dates에 현재 날짜 추가
+      const newHiddenDates = [...currentHiddenDates, dateStr]
+
+      const { error } = await supabase
         .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
+        .update({ hidden_dates: newHiddenDates })
         .eq('id', todo.id)
 
-      // 원본 투두도 삭제 (이월 중단)
-      await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
-        .eq('id', originalId)
+      if (error) throw error
 
       // UI에서 제거
       setTodos(todos.filter(t => t.id !== todo.id))
       setShowDeleteConfirmModal(false)
       setTodoToDelete(null)
     } catch (error) {
-      console.error('삭제 오류:', error.message)
+      console.error('숨김 오류:', error.message)
     }
   }
 
-  // 옵션 2: 이 날짜만 삭제 - 내일부터는 다시 유지
-  const deleteOnlyThisDateKeepCarryOver = async (todo) => {
+  // 옵션 2: 완전 삭제 (deleted = true)
+  const deleteCompletely = async (todo) => {
     try {
       const dateStr = formatDateForDB(selectedDate)
 
-      // 현재 투두만 삭제
-      await supabase
+      const { error } = await supabase
         .from('todos')
         .update({ deleted: true, deleted_date: dateStr })
         .eq('id', todo.id)
 
-      // UI에서 제거
-      setTodos(todos.filter(t => t.id !== todo.id))
-      setShowDeleteConfirmModal(false)
-      setTodoToDelete(null)
-    } catch (error) {
-      console.error('삭제 오류:', error.message)
-    }
-  }
-
-  // 옵션 3: 과거의 모든 기록 함께 삭제 → 내일 다시 이월
-  const deleteAllPastKeepFuture = async (todo) => {
-    try {
-      const dateStr = formatDateForDB(selectedDate)
-      const originalId = todo.original_todo_id || todo.id
-      const todayStr = formatDateForDB(new Date())
-
-      // 원본 투두와 오늘까지의 모든 이월 삭제
-      await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
-        .eq('id', originalId)
-
-      await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
-        .eq('original_todo_id', originalId)
-        .lte('date', todayStr)
-
-      // 새로운 원본 투두를 오늘 날짜로 생성 (미완료 상태)
-      const maxOrderIndex = todos.length > 0 ? Math.max(...todos.map(t => t.order_index)) : 0
-      await supabase
-        .from('todos')
-        .insert([{
-          text: todo.text,
-          completed: false,
-          date: todayStr,
-          order_index: maxOrderIndex + 1,
-          original_todo_id: null,
-          parent_id: null,
-          routine_id: null
-        }])
-
-      // UI 새로고침
-      fetchTodos()
-      setShowDeleteConfirmModal(false)
-      setTodoToDelete(null)
-    } catch (error) {
-      console.error('삭제 오류:', error.message)
-    }
-  }
-
-  // 옵션 4: 과거의 모든 기록 함께 삭제 → 내일 이월도 없음
-  const deleteAllCompletely = async (todo) => {
-    try {
-      const dateStr = formatDateForDB(selectedDate)
-      const originalId = todo.original_todo_id || todo.id
-
-      // 원본 투두 삭제
-      await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
-        .eq('id', originalId)
-
-      // 모든 이월된 투두 삭제 (과거/현재/미래)
-      await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
-        .eq('original_todo_id', originalId)
+      if (error) throw error
 
       // UI에서 제거
       setTodos(todos.filter(t => t.id !== todo.id))
@@ -3779,44 +3712,25 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                   <strong>{todoToDelete.text}</strong>
                 </p>
                 <p className="delete-confirm-description">
-                  이 투두는 이월 기록이 있습니다. 어떻게 삭제하시겠습니까?
+                  이 투두는 여러 날짜에 보입니다. 어떻게 삭제하시겠습니까?
                 </p>
-                <div className="delete-options">
-                  <div className="delete-option-group">
-                    <h3 className="option-group-title">이 날짜만 삭제</h3>
-                    <div className="option-group-buttons">
-                      <button
-                        className="delete-option-button option-1"
-                        onClick={() => deleteOnlyThisDateStopCarryOver(todoToDelete)}
-                      >
-                        이월 중단
-                      </button>
-                      <button
-                        className="delete-option-button option-2"
-                        onClick={() => deleteOnlyThisDateKeepCarryOver(todoToDelete)}
-                      >
-                        계속 이월
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="delete-option-group">
-                    <h3 className="option-group-title">과거 기록 함께 삭제</h3>
-                    <div className="option-group-buttons">
-                      <button
-                        className="delete-option-button option-4"
-                        onClick={() => deleteAllCompletely(todoToDelete)}
-                      >
-                        이월 중단
-                      </button>
-                      <button
-                        className="delete-option-button option-3"
-                        onClick={() => deleteAllPastKeepFuture(todoToDelete)}
-                      >
-                        새로 이월
-                      </button>
-                    </div>
-                  </div>
+                <div className="delete-options-simple">
+                  <button
+                    className="delete-option-button-simple option-hide"
+                    onClick={() => hideOnThisDateOnly(todoToDelete)}
+                  >
+                    <span className="option-icon">👁️‍🗨️</span>
+                    <span className="option-title">이 날짜에서만 숨김</span>
+                    <span className="option-desc">다른 날짜에서는 계속 보입니다</span>
+                  </button>
+                  <button
+                    className="delete-option-button-simple option-delete"
+                    onClick={() => deleteCompletely(todoToDelete)}
+                  >
+                    <span className="option-icon">🗑️</span>
+                    <span className="option-title">완전 삭제</span>
+                    <span className="option-desc">모든 날짜에서 삭제됩니다</span>
+                  </button>
                 </div>
               </div>
             </div>
