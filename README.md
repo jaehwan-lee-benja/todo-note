@@ -53,3 +53,13 @@ GitHub Release는 별도로 요청 시에만 수행합니다.
 - 이월 로직: 과거 투두를 복사 방식으로 이월 (이동 X)
 - 원본 투두 추적: `original_todo_id` 컬럼 사용
 - 완료 날짜 추적: `completed_at` 컬럼으로 미래 완료 표시
+
+## 🔄 리팩토링 계획
+
+**중요**: 다음 세션에서 작업할 대규모 리팩토링 계획이 있습니다.
+**참고 문서**: [REFACTORING-PLAN.md](./REFACTORING-PLAN.md)
+
+### 개요
+- 이월 시스템을 복사 기반에서 JSON 기반으로 전환
+- 데이터 중복 제거 및 로직 단순화
+- 작업 전 반드시 REFACTORING-PLAN.md 읽어볼 것
