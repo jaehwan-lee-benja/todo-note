@@ -243,6 +243,132 @@ ALTER TABLE todos RENAME COLUMN date TO created_date;
 10. ⏳ PR 생성 및 리뷰
 11. ⏳ 메인 브랜치 병합 및 배포
 
+## 🔄 루틴 투두도 JSON 방식으로 전환 (2025-11-23 추가)
+
+### 현재 루틴 방식 (복사 기반)
+```javascript
+// 매일 새로운 투두 레코드를 생성
+// 월요일 루틴이 있으면
+2025-11-18: { id: 1, text: "운동하기", routine_id: 1, date: "2025-11-18" }
+2025-11-25: { id: 2, text: "운동하기", routine_id: 1, date: "2025-11-25" }
+2025-12-02: { id: 3, text: "운동하기", routine_id: 1, date: "2025-12-02" }
+// 매주 새 레코드 생성됨
+```
+
+**문제점:**
+- ❌ 루틴이 반복될 때마다 새 레코드 생성 → 무한정 증가
+- ❌ 루틴 통계 조회 시 모든 레코드를 다 가져와야 함
+- ❌ 데이터 정합성 문제 (루틴 이름 변경 시 과거 레코드 불일치)
+
+### 제안 방식 (JSON 기반)
+```javascript
+// 하나의 레코드로 모든 날짜 관리
+{
+  id: 1,
+  text: "운동하기",
+  routine_id: 1,
+  created_date: "2025-11-18",
+  completed: false,
+  visible_dates: ["2025-11-18", "2025-11-25", "2025-12-02", ...], // 자동으로 추가됨
+  hidden_dates: [], // 특정 날짜에 숨김 가능
+}
+```
+
+**장점:**
+- ✅ 루틴당 1개의 투두만 유지 → 데이터 최소화
+- ✅ 루틴 통계는 visible_dates 배열 길이로 즉시 계산 가능
+- ✅ 루틴 이름 변경 시 한 번만 업데이트
+- ✅ 일반 투두와 동일한 방식으로 관리 (일관성)
+
+### 수정 필요 항목
+
+#### 1. 루틴 투두 생성 로직 (`createRoutineTodosForDate`)
+**현재**: 매번 새 레코드 INSERT
+```javascript
+await supabase.from('todos').insert([{
+  text: `${routine.text}-for ${dateDisplay}`,
+  date: dateStr,
+  routine_id: routine.id
+}])
+```
+
+**변경 후**: 기존 투두에 날짜만 추가
+```javascript
+// 1. 해당 루틴의 기존 투두 찾기
+const existingTodo = await supabase
+  .from('todos')
+  .select('*')
+  .eq('routine_id', routine.id)
+  .eq('deleted', false)
+  .single()
+
+if (existingTodo) {
+  // 2. visible_dates에 날짜 추가
+  await supabase
+    .from('todos')
+    .update({
+      visible_dates: [...existingTodo.visible_dates, dateStr]
+    })
+    .eq('id', existingTodo.id)
+} else {
+  // 3. 첫 루틴 투두 생성
+  await supabase.from('todos').insert([{
+    text: routine.text,
+    date: dateStr,
+    visible_dates: [dateStr],
+    hidden_dates: [],
+    routine_id: routine.id
+  }])
+}
+```
+
+#### 2. 루틴 통계 조회 (`fetchRoutineHistory`)
+**현재**: 모든 루틴 투두 레코드 조회
+```javascript
+const { data } = await supabase
+  .from('todos')
+  .select('*')
+  .eq('routine_id', routine.id)
+  .eq('deleted', false)
+```
+
+**변경 후**: 1개 투두의 visible_dates로 통계 계산
+```javascript
+const { data } = await supabase
+  .from('todos')
+  .select('*')
+  .eq('routine_id', routine.id)
+  .eq('deleted', false)
+  .single()
+
+if (data) {
+  // visible_dates 배열을 날짜별 객체 배열로 변환
+  const historyData = data.visible_dates.map(date => ({
+    date,
+    completed: data.completed && data.completed_at?.split('T')[0] === date
+  }))
+  setRoutineHistoryData(historyData)
+}
+```
+
+#### 3. UI 날짜 태그 표시
+- 텍스트에서 "-for 날짜" 제거
+- 대신 `.routine-date-badge` 클래스로 태그 표시
+- 예: "운동하기" [for 11/23(토)]
+
+### 마이그레이션 전략
+
+**기존 루틴 투두 정리:**
+```sql
+-- 기존 루틴 투두 모두 삭제 (깔끔하게 시작)
+DELETE FROM todos WHERE routine_id IS NOT NULL;
+```
+
+**이유:**
+- 루틴은 반복되므로 과거 데이터 보존 불필요
+- 새 방식으로 자동 재생성됨
+- 마이그레이션 복잡도 제거
+
 ## 💬 토론 필요 사항
 
 1. **삭제 옵션**: 2개로 충분한가? 아니면 추가 옵션 필요?
@@ -252,4 +378,8 @@ ALTER TABLE todos RENAME COLUMN date TO created_date;
 ---
 
 **작성자**: Claude Code
-**다음 세션 참고사항**: 이 문서를 먼저 읽고 리팩토링 작업 진행
+**최종 수정**: 2025-11-23 (루틴 투두 JSON 방식 추가)
+**다음 세션 참고사항**:
+- 일반 투두는 JSON 방식 적용 완료
+- 루틴 투두는 다음 세션에서 JSON 방식으로 전환 예정
+- 기존 루틴 투두는 Supabase에서 수동 삭제 완료

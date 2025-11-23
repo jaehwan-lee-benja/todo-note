@@ -53,7 +53,7 @@ const DEFAULT_SPEC_CONTENT = `# Todo Note 간단 기획서
 - **개발 서버**: \`npm run dev\` → http://localhost:5173/todo-note/`
 
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -395,7 +395,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
         {(() => {
           const hasCompletedDateBadge = todo.completed && todo.completed_at &&
             new Date(todo.completed_at).toISOString().split('T')[0] !== todo.date
-          return (subtodos.length > 0 || hasCompletedDateBadge) && (
+          const hasRoutineBadge = todo.routine_id && currentRoutine
+          return (subtodos.length > 0 || hasCompletedDateBadge || hasRoutineBadge) && (
             <div className="todo-badges">
               {hasCompletedDateBadge && (() => {
                 const completedDate = new Date(todo.completed_at).toISOString().split('T')[0]
@@ -403,6 +404,19 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 return (
                   <span className="completed-date-badge" title={`${completedDate}에 완료됨`}>
                     {completedDay}일✓
+                  </span>
+                )
+              })()}
+              {hasRoutineBadge && (() => {
+                const todoDate = new Date(todo.date + 'T00:00:00')
+                const month = todoDate.getMonth() + 1
+                const date = todoDate.getDate()
+                const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+                const dayName = dayNames[todoDate.getDay()]
+                const dateDisplay = `${month}/${date}(${dayName})`
+                return (
+                  <span className="routine-date-badge" title={`${currentRoutine.text} 루틴`}>
+                    for {dateDisplay}
                   </span>
                 )
               })()}
@@ -475,16 +489,13 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   <span className="action-text">나노투두</span>
                 </button>
                 <button
-                  className={`action-button-with-text ${showRoutineSetup ? 'active' : ''}`}
+                  className="action-button-with-text"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (showRoutineSetup) {
-                      setShowRoutineSetup(false)
+                    if (onOpenRoutineSetupModal) {
+                      onOpenRoutineSetupModal(todo)
                     } else {
-                      setShowRoutineSetup(true)
-                      setShowNanotodos(false)
-                      setIsAddingSubTodo(false)
-                      setShowHistory(false)
+                      console.log('onOpenRoutineSetupModal is not defined')
                     }
                   }}
                   title="이 작업을 루틴으로 설정"
@@ -493,16 +504,13 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   <span className="action-text">루틴설정</span>
                 </button>
                 <button
-                  className={`action-button-with-text ${showHistory ? 'active' : ''}`}
+                  className="action-button-with-text"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (showHistory) {
-                      setShowHistory(false)
+                    if (onOpenHistoryModal) {
+                      onOpenHistoryModal(todo)
                     } else {
-                      handleToggleHistory()
-                      setShowNanotodos(false)
-                      setIsAddingSubTodo(false)
-                      setShowRoutineSetup(false)
+                      console.log('onOpenHistoryModal is not defined')
                     }
                   }}
                   title="히스토리 보기"
@@ -536,173 +544,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 </button>
               </div>
             )}
-            {showHistory && (
-              <div className="todo-history">
-                <div className="history-item">
-                  <span className="history-label">생성일:</span>
-                  <span className="history-value">{formatDate(todo.created_at)}</span>
-                </div>
-                <div className="history-item">
-                  <span className="history-label">원본 페이지:</span>
-                  <span className="history-value">
-                    {originalDate ? formatDateOnly(new Date(originalDate + 'T00:00:00')) : formatDateOnly(new Date(todo.date + 'T00:00:00'))}
-                  </span>
-                </div>
-                {carryOverPath.length > 0 && (
-                  <div className="history-item">
-                    <span className="history-label">이월 경로:</span>
-                    <span className="history-value">
-                      {carryOverPath.map((path, idx) => {
-                        const isCurrentPage = path.date === todo.date
-                        const dateStr = formatDateOnly(new Date(path.date + 'T00:00:00'))
-                        return (
-                          <span key={path.id}>
-                            {idx > 0 && ' → '}
-                            <span style={isCurrentPage ? { fontWeight: 'bold', color: '#4CAF50' } : {}}>
-                              {dateStr.split('(')[0]}{isCurrentPage ? '(여기)' : ''}
-                            </span>
-                          </span>
-                        )
-                      })}
-                    </span>
-                  </div>
-                )}
-                {(() => {
-                  // created_at의 날짜와 현재 date가 다른지 확인 (이월된 경우)
-                  const createdDate = new Date(todo.created_at).toISOString().split('T')[0]
-                  const currentDate = todo.date
-                  if (createdDate !== currentDate && carryOverPath.length === 0) {
-                    return (
-                      <div className="history-item">
-                        <span className="history-label">현재 페이지:</span>
-                        <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
-                      </div>
-                    )
-                  }
-                  return null
-                })()}
-                {historyRecords.length > 0 && (
-                  <div className="history-changes-list">
-                    <div className="history-changes-header">변경 이력 ({historyRecords.length})</div>
-                    {historyRecords.map((record) => (
-                      <div key={record.id} className="history-record-compact">
-                        <div className="history-record-summary">
-                          <div className="history-change-time">
-                            {formatDate(record.changed_at)}
-                            {record.changed_on_date && (
-                              <span className="history-page-info"> (페이지: {formatDateOnly(new Date(record.changed_on_date + 'T00:00:00'))})</span>
-                            )}
-                          </div>
-                          <button
-                            className="history-detail-button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleHistoryDetail(record.id)
-                            }}
-                          >
-                            {expandedHistoryIds.includes(record.id) ? '숨기기' : '내용보기'}
-                          </button>
-                        </div>
-                        {expandedHistoryIds.includes(record.id) && (
-                          <div className="history-change">
-                            <div className="history-change-item history-before">
-                              <span className="change-badge">이전</span>
-                              <span className="change-text">{record.previous_text}</span>
-                            </div>
-                            <div className="history-change-arrow">→</div>
-                            <div className="history-change-item history-after">
-                              <span className="change-badge">이후</span>
-                              <span className="change-text">{record.new_text}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            {showRoutineSetup && !todo.parent_id && (
-              <div className="routine-setup-inline" onClick={(e) => e.stopPropagation()}>
-                {currentRoutine && !isEditingRoutine ? (
-                  // 이미 루틴이 설정된 경우 - 현재 설정 표시
-                  <>
-                    <div className="routine-current-info">
-                      <div className="routine-info-title">설정된 루틴:</div>
-                      <div className="routine-days-display">
-                        {DAYS.filter(day => currentRoutine.days.includes(day.key)).map(day => (
-                          <span key={day.key} className="routine-day-badge">
-                            {day.label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="routine-setup-actions">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleStartEditRoutine()
-                        }}
-                        className="routine-confirm-button"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveRoutine()
-                        }}
-                        className="routine-remove-button"
-                      >
-                        제거
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  // 루틴이 없거나 수정 모드인 경우 - 요일 선택
-                  <>
-                    <div className="routine-setup-title">
-                      {isEditingRoutine ? '루틴 수정:' : '반복할 요일 선택:'}
-                    </div>
-                    <div className="day-selector-inline">
-                      {DAYS.map(day => (
-                        <button
-                          key={day.key}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleToggleRoutineDay(day.key)
-                          }}
-                          className={`day-button-inline ${routineDays.includes(day.key) ? 'selected' : ''}`}
-                        >
-                          {day.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="routine-setup-actions">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          isEditingRoutine ? handleUpdateRoutine() : handleCreateRoutine()
-                        }}
-                        className="routine-confirm-button"
-                        disabled={routineDays.length === 0}
-                      >
-                        확인
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleCancelRoutineSetup()
-                        }}
-                        className="routine-cancel-button"
-                      >
-                        취소
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            {/* 히스토리와 루틴 설정은 이제 모달로 표시됨 */}
           </>
         )}
         {showNanotodos && !todo.parent_id && (
@@ -724,6 +566,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 level={level + 1}
                 routines={routines}
                 onShowRoutineHistory={onShowRoutineHistory}
+                onOpenRoutineSetupModal={onOpenRoutineSetupModal}
+                onOpenHistoryModal={onOpenHistoryModal}
               />
             ))}
             {isAddingSubTodo && (
@@ -782,6 +626,17 @@ const DAYS = [
   { key: 'sun', label: '일' },
 ]
 
+// 시간대 옵션 (선택사항)
+const TIME_SLOTS = [
+  { value: '', label: '시간대 없음' },
+  { value: 'morning', label: '🌅 아침 (6-9시)' },
+  { value: 'late-morning', label: '☀️ 오전 (9-12시)' },
+  { value: 'lunch', label: '🍽️ 점심 (12-14시)' },
+  { value: 'afternoon', label: '🌤️ 오후 (14-18시)' },
+  { value: 'evening', label: '🌆 저녁 (18-21시)' },
+  { value: 'night', label: '🌙 밤 (21-24시)' },
+]
+
 // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
 const getDayKey = (dayNumber) => {
   const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -804,6 +659,7 @@ function App() {
   const [routines, setRoutines] = useState([])
   const [routineInput, setRoutineInput] = useState('')
   const [selectedDays, setSelectedDays] = useState([])
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState('')
   const [isAddingRoutine, setIsAddingRoutine] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
   const recentlyEditedIds = useRef(new Set())
@@ -833,6 +689,14 @@ function App() {
   const [editingEncouragementText, setEditingEncouragementText] = useState('')
   const [showEncouragementEmoji, setShowEncouragementEmoji] = useState(false)
   const [currentEncouragementMessage, setCurrentEncouragementMessage] = useState('')
+  const [showTodoHistoryModal, setShowTodoHistoryModal] = useState(false)
+  const [showTodoRoutineSetupModal, setShowTodoRoutineSetupModal] = useState(false)
+  const [selectedTodoForModal, setSelectedTodoForModal] = useState(null)
+  const [todoHistory, setTodoHistory] = useState({}) // todo_id를 키로 하는 히스토리 객체
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState([]) // 펼쳐진 히스토리 항목 ID 목록
+  const [routineDaysForModal, setRoutineDaysForModal] = useState([]) // 모달에서 사용할 루틴 요일
+  const [isEditingRoutineInModal, setIsEditingRoutineInModal] = useState(false) // 모달에서 루틴 편집 중인지
+  const [routineTimeSlotForModal, setRoutineTimeSlotForModal] = useState('') // 모달에서 사용할 루틴 시간대
   const [viewMode, setViewMode] = useState(() => {
     // 로컬스토리지에서 뷰 모드 불러오기
     const saved = localStorage.getItem('viewMode')
@@ -1488,9 +1352,19 @@ function App() {
     try {
       setIsAddingRoutine(true)
 
+      const routineData = {
+        text: routineInput,
+        days: selectedDays,
+      }
+
+      // 시간대가 선택되었으면 추가
+      if (selectedTimeSlot) {
+        routineData.time_slot = selectedTimeSlot
+      }
+
       const { data, error } = await supabase
         .from('routines')
-        .insert([{ text: routineInput, days: selectedDays }])
+        .insert([routineData])
         .select()
 
       if (error) throw error
@@ -1498,6 +1372,7 @@ function App() {
       setRoutines([data[0], ...routines])
       setRoutineInput('')
       setSelectedDays([])
+      setSelectedTimeSlot('')
     } catch (error) {
       console.error('루틴 추가 오류:', error.message)
     } finally {
@@ -1506,7 +1381,7 @@ function App() {
   }
 
   // 투두에서 루틴 생성/수정/제거
-  const handleCreateRoutineFromTodo = async (todoId, text, days, routineId = null, remove = false) => {
+  const handleCreateRoutineFromTodo = async (todoId, text, days, routineId = null, remove = false, timeSlot = '') => {
     try {
       if (remove) {
         // 루틴 제거 - routine_id를 null로
@@ -1530,7 +1405,7 @@ function App() {
         // 기존 루틴 수정
         const { error } = await supabase
           .from('routines')
-          .update({ days })
+          .update({ days, time_slot: timeSlot })
           .eq('id', routineId)
 
         if (error) throw error
@@ -1538,13 +1413,13 @@ function App() {
 
         // 로컬 루틴 목록 업데이트
         setRoutines(prevRoutines =>
-          prevRoutines.map(r => r.id === routineId ? { ...r, days } : r)
+          prevRoutines.map(r => r.id === routineId ? { ...r, days, time_slot: timeSlot } : r)
         )
       } else {
         // 새 루틴 생성
         const { data, error } = await supabase
           .from('routines')
-          .insert([{ text, days }])
+          .insert([{ text, days, time_slot: timeSlot }])
           .select()
 
         if (error) throw error
@@ -1675,13 +1550,6 @@ function App() {
       const targetDate = new Date(dateStr)
       const dayKey = getDayKey(targetDate.getDay())
 
-      // 날짜 표시 형식: "11/17(월)"
-      const month = targetDate.getMonth() + 1
-      const date = targetDate.getDate()
-      const dayNames = ['일', '월', '화', '수', '목', '금', '토']
-      const dayName = dayNames[targetDate.getDay()]
-      const dateDisplay = `${month}/${date}(${dayName})`
-
       const { data: allRoutines, error: routineError } = await supabase
         .from('routines')
         .select('*')
@@ -1697,7 +1565,7 @@ function App() {
       if (matchingRoutines.length === 0) return
 
       for (const routine of matchingRoutines) {
-        const todoText = `${routine.text}-for ${dateDisplay}`
+        const todoText = routine.text // 날짜 붙이지 않고 원본 텍스트만 사용
 
         // 1차 체크: routine_id로 확인
         const { data: existingByRoutineId, error: checkError1 } = await supabase
@@ -2751,6 +2619,84 @@ function App() {
     setGanttData([])
   }
 
+  // 투두 히스토리 모달
+  const handleOpenTodoHistoryModal = async (todo) => {
+    setSelectedTodoForModal(todo)
+
+    // 히스토리 데이터 가져오기
+    try {
+      const { data, error } = await supabase
+        .from('todo_history')
+        .select('*')
+        .eq('todo_id', todo.id)
+        .order('changed_at', { ascending: false })
+
+      if (error) throw error
+
+      // todoHistory 객체 업데이트
+      setTodoHistory(prev => ({
+        ...prev,
+        [todo.id]: data || []
+      }))
+    } catch (error) {
+      console.error('Error fetching history:', error)
+    }
+
+    setShowTodoHistoryModal(true)
+  }
+
+  const handleCloseTodoHistoryModal = () => {
+    setShowTodoHistoryModal(false)
+    setSelectedTodoForModal(null)
+    setExpandedHistoryIds([]) // 펼쳐진 항목 초기화
+  }
+
+  // 히스토리 세부 내용 토글
+  const toggleHistoryDetail = (historyId) => {
+    setExpandedHistoryIds(prev =>
+      prev.includes(historyId)
+        ? prev.filter(id => id !== historyId)
+        : [...prev, historyId]
+    )
+  }
+
+  // 투두 루틴 설정 모달
+  const handleOpenTodoRoutineSetupModal = (todo) => {
+    setSelectedTodoForModal(todo)
+
+    // 기존 루틴이 있으면 요일과 시간대 설정
+    const currentRoutine = routines.find(r => r.id === todo.routine_id)
+    if (currentRoutine) {
+      setRoutineDaysForModal(currentRoutine.days || [])
+      setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
+      setIsEditingRoutineInModal(false) // 처음엔 보기 모드
+    } else {
+      setRoutineDaysForModal([])
+      setRoutineTimeSlotForModal('')
+      setIsEditingRoutineInModal(true) // 새로 만들 때는 편집 모드
+    }
+
+    setShowTodoRoutineSetupModal(true)
+  }
+
+  const handleCloseTodoRoutineSetupModal = () => {
+    setShowTodoRoutineSetupModal(false)
+    setSelectedTodoForModal(null)
+    // 루틴 편집 상태 초기화
+    setRoutineDaysForModal([])
+    setRoutineTimeSlotForModal('')
+    setIsEditingRoutineInModal(false)
+  }
+
+  // 모달에서 루틴 요일 토글
+  const handleToggleRoutineDayInModal = (dayKey) => {
+    setRoutineDaysForModal(prev =>
+      prev.includes(dayKey)
+        ? prev.filter(d => d !== dayKey)
+        : [...prev, dayKey]
+    )
+  }
+
   const fetchGanttData = async () => {
     try {
       const today = new Date()
@@ -3661,7 +3607,9 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                   {/* 루틴 섹션 */}
                   {routineTodos.length > 0 && (
                     <div className="routine-section section-block">
-                      <h3 className="section-title">📌 루틴</h3>
+                      <div className="section-header">
+                        <h3 className="section-title">📌 루틴</h3>
+                      </div>
                       <SortableContext
                         items={routineTodos.map(todo => todo.id)}
                         strategy={verticalListSortingStrategy}
@@ -3686,6 +3634,8 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               onCreateRoutine={handleCreateRoutineFromTodo}
                               routines={routines}
                               onShowRoutineHistory={fetchRoutineHistory}
+                              onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
+                              onOpenHistoryModal={handleOpenTodoHistoryModal}
                             />
                           )
                         })}
@@ -3696,7 +3646,11 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                   {/* 일반 투두 섹션 */}
                   {normalTodos.length > 0 && (
                     <div className="normal-section section-block">
-                      {routineTodos.length > 0 && <h3 className="section-title">📝 일반 투두</h3>}
+                      {routineTodos.length > 0 && (
+                        <div className="section-header">
+                          <h3 className="section-title">📝 일반 투두</h3>
+                        </div>
+                      )}
                       <SortableContext
                         items={normalTodos.map(todo => todo.id)}
                         strategy={verticalListSortingStrategy}
@@ -3741,6 +3695,8 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         onCreateRoutine={handleCreateRoutineFromTodo}
                         routines={routines}
                         onShowRoutineHistory={fetchRoutineHistory}
+                        onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
+                        onOpenHistoryModal={handleOpenTodoHistoryModal}
                       />
                       {showSeparator && (
                         <div className="todo-date-separator">
@@ -3827,6 +3783,245 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
             </div>
           </div>
         )}
+
+        {/* 투두 히스토리 모달 */}
+        {showTodoHistoryModal && selectedTodoForModal && (() => {
+          const todo = selectedTodoForModal
+          const visibleDates = todo.visible_dates && todo.visible_dates.length > 0 ? todo.visible_dates : [todo.date]
+          const originalDate = visibleDates[0]
+          const carryOverPath = visibleDates.map(date => ({ id: `${todo.id}-${date}`, date }))
+          const historyRecords = todoHistory[todo.id] || []
+
+          return (
+            <div className="modal-overlay" onClick={handleCloseTodoHistoryModal}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2>📊 투두 히스토리</h2>
+                  <button onClick={handleCloseTodoHistoryModal} className="modal-close-button">✕</button>
+                </div>
+                <div className="modal-body">
+                  <div className="todo-history">
+                    <div className="history-item">
+                      <span className="history-label">생성일:</span>
+                      <span className="history-value">{formatDate(todo.created_at)}</span>
+                    </div>
+                    <div className="history-item">
+                      <span className="history-label">원본 페이지:</span>
+                      <span className="history-value">
+                        {originalDate ? formatDateOnly(new Date(originalDate + 'T00:00:00')) : formatDateOnly(new Date(todo.date + 'T00:00:00'))}
+                      </span>
+                    </div>
+                    {carryOverPath.length > 0 && (
+                      <div className="history-item">
+                        <span className="history-label">이월 경로:</span>
+                        <span className="history-value">
+                          {carryOverPath.map((path, idx) => {
+                            const isCurrentPage = path.date === todo.date
+                            const dateStr = formatDateOnly(new Date(path.date + 'T00:00:00'))
+                            return (
+                              <span key={path.id}>
+                                {idx > 0 && ' → '}
+                                <span style={isCurrentPage ? { fontWeight: 'bold', color: '#4CAF50' } : {}}>
+                                  {dateStr.split('(')[0]}{isCurrentPage ? '(여기)' : ''}
+                                </span>
+                              </span>
+                            )
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {(() => {
+                      const createdDate = new Date(todo.created_at).toISOString().split('T')[0]
+                      const currentDate = todo.date
+                      if (createdDate !== currentDate && carryOverPath.length === 0) {
+                        return (
+                          <div className="history-item">
+                            <span className="history-label">현재 페이지:</span>
+                            <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
+                    {historyRecords.length > 0 && (
+                      <div className="history-changes-list">
+                        <div className="history-changes-header">변경 이력 ({historyRecords.length})</div>
+                        {historyRecords.map((record) => (
+                          <div key={record.id} className="history-record-compact">
+                            <div className="history-record-summary">
+                              <div className="history-change-time">
+                                {formatDate(record.changed_at)}
+                                {record.changed_on_date && (
+                                  <span className="history-page-info"> (페이지: {formatDateOnly(new Date(record.changed_on_date + 'T00:00:00'))})</span>
+                                )}
+                              </div>
+                              <button
+                                className="history-detail-button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleHistoryDetail(record.id)
+                                }}
+                              >
+                                {expandedHistoryIds.includes(record.id) ? '숨기기' : '내용보기'}
+                              </button>
+                            </div>
+                            {expandedHistoryIds.includes(record.id) && (
+                              <div className="history-change">
+                                <div className="history-change-item history-before">
+                                  <span className="change-badge">이전</span>
+                                  <span className="change-text">{record.previous_text}</span>
+                                </div>
+                                <div className="history-change-arrow">→</div>
+                                <div className="history-change-item history-after">
+                                  <span className="change-badge">이후</span>
+                                  <span className="change-text">{record.new_text}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* 루틴 설정 모달 */}
+        {showTodoRoutineSetupModal && selectedTodoForModal && (() => {
+          const todo = selectedTodoForModal
+          const currentRoutine = routines.find(r => r.id === todo.routine_id)
+
+          return (
+            <div className="modal-overlay" onClick={handleCloseTodoRoutineSetupModal}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2>🔄 루틴 설정</h2>
+                  <button onClick={handleCloseTodoRoutineSetupModal} className="modal-close-button">✕</button>
+                </div>
+                <div className="modal-body">
+                  <div className="routine-setup-inline">
+                    {currentRoutine && !isEditingRoutineInModal ? (
+                      <>
+                        <div className="routine-current-info">
+                          <div className="routine-info-title">설정된 루틴:</div>
+                          <div className="routine-days-display">
+                            {DAYS.filter(day => currentRoutine.days.includes(day.key)).map(day => (
+                              <span key={day.key} className="routine-day-badge">
+                                {day.label}
+                              </span>
+                            ))}
+                          </div>
+                          {currentRoutine.time_slot && (
+                            <div className="routine-time-slot" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                              ⏰ {TIME_SLOTS.find(slot => slot.value === currentRoutine.time_slot)?.label || currentRoutine.time_slot}
+                            </div>
+                          )}
+                        </div>
+                        <div className="routine-setup-actions">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (currentRoutine) {
+                                setRoutineDaysForModal(currentRoutine.days)
+                                setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
+                                setIsEditingRoutineInModal(true)
+                              }
+                            }}
+                            className="routine-confirm-button"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (currentRoutine && todo) {
+                                await handleCreateRoutineFromTodo(todo.id, todo.text, [], null, true)
+                                handleCloseTodoRoutineSetupModal()
+                              }
+                            }}
+                            className="routine-remove-button"
+                          >
+                            제거
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="routine-setup-title">
+                          {isEditingRoutineInModal ? '루틴 수정:' : '반복할 요일 선택:'}
+                        </div>
+                        <div className="day-selector-inline">
+                          {DAYS.map(day => (
+                            <button
+                              key={day.key}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleToggleRoutineDayInModal(day.key)
+                              }}
+                              className={`day-button-inline ${routineDaysForModal.includes(day.key) ? 'selected' : ''}`}
+                            >
+                              {day.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="time-slot-selector" style={{ marginTop: '1rem' }}>
+                          <label style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.5rem', display: 'block' }}>
+                            ⏰ 시간대 (선택사항)
+                          </label>
+                          <select
+                            className="time-slot-select"
+                            value={routineTimeSlotForModal}
+                            onChange={(e) => setRoutineTimeSlotForModal(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {TIME_SLOTS.map(slot => (
+                              <option key={slot.value} value={slot.value}>
+                                {slot.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="routine-setup-actions">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (routineDaysForModal.length > 0 && todo) {
+                                if (isEditingRoutineInModal && currentRoutine) {
+                                  // 루틴 수정
+                                  await handleCreateRoutineFromTodo(todo.id, todo.text, routineDaysForModal, currentRoutine.id, false, routineTimeSlotForModal)
+                                } else {
+                                  // 새 루틴 생성
+                                  await handleCreateRoutineFromTodo(todo.id, todo.text, routineDaysForModal, null, false, routineTimeSlotForModal)
+                                }
+                                handleCloseTodoRoutineSetupModal()
+                              }
+                            }}
+                            className="routine-confirm-button"
+                            disabled={routineDaysForModal.length === 0}
+                          >
+                            확인
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCloseTodoRoutineSetupModal()
+                            }}
+                            className="routine-cancel-button"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {showTrashModal && (
           <div className="modal-overlay" onClick={handleCloseTrash}>
@@ -4240,6 +4435,21 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                     </button>
                   ))}
                 </div>
+                <div className="time-slot-selector">
+                  <label className="time-slot-label">⏰ 시간대 (선택사항)</label>
+                  <select
+                    value={selectedTimeSlot}
+                    onChange={(e) => setSelectedTimeSlot(e.target.value)}
+                    className="time-slot-select"
+                    disabled={isAddingRoutine}
+                  >
+                    {TIME_SLOTS.map(slot => (
+                      <option key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   onClick={handleAddRoutine}
                   className="add-routine-button"
@@ -4299,12 +4509,19 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         <>
                           <div className="routine-item-content">
                             <span className="routine-text">{routine.text}</span>
-                            <div className="routine-days">
-                              {DAYS.filter(day => routine.days.includes(day.key)).map(day => (
-                                <span key={day.key} className="routine-day-badge">
-                                  {day.label}
+                            <div className="routine-meta">
+                              <div className="routine-days">
+                                {DAYS.filter(day => routine.days.includes(day.key)).map(day => (
+                                  <span key={day.key} className="routine-day-badge">
+                                    {day.label}
+                                  </span>
+                                ))}
+                              </div>
+                              {routine.time_slot && (
+                                <span className="routine-time-slot">
+                                  {TIME_SLOTS.find(slot => slot.value === routine.time_slot)?.label || routine.time_slot}
                                 </span>
-                              ))}
+                              )}
                             </div>
                           </div>
                           <div className="routine-item-actions">

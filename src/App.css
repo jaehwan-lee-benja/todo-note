@@ -2288,6 +2288,66 @@ h1 {
   font-weight: 500;
 }
 
+/* 시간대 선택 UI */
+.time-slot-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.time-slot-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.time-slot-select {
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.87);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-slot-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.time-slot-select:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.time-slot-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 루틴 메타 정보 */
+.routine-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.routine-time-slot {
+  font-size: 0.8rem;
+  color: #ffc107;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
 .routine-item-actions {
   display: flex;
   gap: 0.5rem;
@@ -2804,6 +2864,22 @@ h1 {
   flex-shrink: 0;
 }
 
+.routine-date-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.65rem;
+  background: rgba(156, 39, 176, 0.15);
+  color: #ba68c8;
+  border-radius: 6px;
+  font-weight: 600;
+  border: 1px solid rgba(156, 39, 176, 0.25);
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* Routine History Modal */
 .routine-history-modal {
   max-width: 900px;
@@ -3141,7 +3217,10 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 2.5rem;
 }
 
 .memo-edit-button-inline {
@@ -3276,12 +3355,11 @@ h1 {
 }
 
 .section-title {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: #999;
-  margin: 20px 0 15px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0;
+  padding: 0;
+  border: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3289,9 +3367,6 @@ h1 {
 
 .memo-section .section-title {
   color: #FFC107;
-  margin: 0;
-  border: none;
-  padding: 0;
 }
 
 .routine-section .section-title {
