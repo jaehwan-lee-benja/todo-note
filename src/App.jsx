@@ -523,6 +523,17 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                     <span className="action-text">루틴기록</span>
                   </button>
                 )}
+                <button
+                  className="action-button-with-text delete-button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeleteClick()
+                  }}
+                  title="삭제"
+                >
+                  <span className="action-icon">🗑️</span>
+                  <span className="action-text">삭제</span>
+                </button>
               </div>
             )}
             {showHistory && (
@@ -1254,11 +1265,16 @@ function App() {
 
       // 클라이언트 사이드 필터링: fromDateStr에 보이는 미완료 투두
       const incompleteTodos = (allTodos || []).filter(todo => {
+        // hidden_dates 체크 (새 방식, 구 방식 모두 적용)
+        const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(fromDateStr)
+        if (isHidden) {
+          return false // 숨김 처리된 투두는 이월하지 않음
+        }
+
         // 새 방식: visible_dates 사용
         if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
           const isVisible = todo.visible_dates.includes(fromDateStr)
-          const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(fromDateStr)
-          return isVisible && !isHidden
+          return isVisible
         }
         // 구 방식: date 사용
         return todo.date === fromDateStr
@@ -1299,8 +1315,11 @@ function App() {
   const movePastIncompleteTodosToToday = async () => {
     // 이미 실행 중이면 중복 실행 방지
     if (carryOverInProgress.current) {
+      console.log('⏸️ 이월 작업이 이미 실행 중입니다. 중복 실행 방지.')
       return
     }
+
+    console.log('🚀 구 방식 이월 시작 (movePastIncompleteTodosToToday)')
 
     try {
       // 실행 시작 플래그 설정
@@ -1379,6 +1398,10 @@ function App() {
           })
 
           if (todosNeedCarryOver.length > 0) {
+            console.log(`📦 ${fromDateStr} → ${toDateStr}: ${todosNeedCarryOver.length}개 항목 이월 중...`, {
+              todos: todosNeedCarryOver.map(t => ({ id: t.id, text: t.text, original_todo_id: t.original_todo_id }))
+            })
+
             // 원본 투두들의 created_at 조회
             const originalIds = todosNeedCarryOver
               .map(todo => todo.original_todo_id || todo.id)
@@ -1429,12 +1452,16 @@ function App() {
       }
 
       if (totalCarriedOver > 0) {
+        console.log(`✅ 구 방식 이월 완료: ${totalCarriedOver}개 항목 이월됨`)
+      } else {
+        console.log('✅ 구 방식 이월 완료: 이월할 항목 없음')
       }
     } catch (error) {
       console.error('과거 미완료 항목 이월 오류:', error.message)
     } finally {
       // 작업 완료 후 플래그 해제
       carryOverInProgress.current = false
+      console.log('🏁 구 방식 이월 작업 종료 (플래그 해제)')
     }
   }
 
@@ -1824,9 +1851,11 @@ function App() {
   }, [])
 
   // 앱 시작 시 과거 미완료 항목을 오늘로 이월
-  useEffect(() => {
-    movePastIncompleteTodosToToday()
-  }, [])
+  // ⚠️ 구 방식(복사 기반) 이월 로직 - 비활성화됨
+  // 새 방식(JSON 기반)만 사용하도록 변경
+  // useEffect(() => {
+  //   movePastIncompleteTodosToToday()
+  // }, [])
 
   // 격려 메시지가 로드되면 초기 메시지 설정
   useEffect(() => {
@@ -2382,11 +2411,16 @@ function App() {
 
       // 클라이언트 사이드 필터링
       const filteredTodos = (data || []).filter(todo => {
+        // hidden_dates 체크 (새 방식, 구 방식 모두 적용)
+        const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(dateStr)
+        if (isHidden) {
+          return false // 숨김 처리된 투두는 표시하지 않음
+        }
+
         // 새 방식: visible_dates에 현재 날짜가 포함되어 있는지 확인
         if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
           const isVisible = todo.visible_dates.includes(dateStr)
-          const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(dateStr)
-          return isVisible && !isHidden
+          return isVisible
         }
 
         // 구 방식 (하위 호환): visible_dates가 없거나 빈 배열이면 date 컬럼 사용
@@ -2403,13 +2437,12 @@ function App() {
 
   const fetchTrash = async () => {
     try {
-      const dateStr = formatDateForDB(selectedDate)
+      // 모든 삭제된 항목 가져오기 (날짜 구분 없이 통합)
       const { data, error } = await supabase
         .from('todos')
         .select('*')
-        .eq('deleted_date', dateStr)
         .eq('deleted', true)
-        .order('created_at', { ascending: false })
+        .order('deleted_date', { ascending: false })  // 최근 삭제된 순으로 정렬
 
       if (error) throw error
       setTrashedItems(data || [])
@@ -2486,10 +2519,28 @@ function App() {
     if (!todo) return
 
     // visible_dates 확인 (여러 날짜에 보이는 투두인지 체크)
-    const visibleDates = todo.visible_dates || [todo.date]
+    // 빈 배열도 체크해야 함 (빈 배열은 truthy이므로 length 체크 필요)
+    const visibleDates = (todo.visible_dates?.length > 0)
+      ? todo.visible_dates
+      : [todo.date || todo.created_date]
 
-    // 여러 날짜에 보이는 경우 모달 표시
-    if (visibleDates.length > 1) {
+    // 구 방식(복사 기반) 이월 투두인지 확인
+    const isOldStyleCarryover = todo.original_todo_id !== null && todo.original_todo_id !== undefined
+
+    console.log('🔍 삭제 시도:', {
+      id: todo.id,
+      text: todo.text,
+      visible_dates: todo.visible_dates,
+      date: todo.date,
+      created_date: todo.created_date,
+      visibleDates: visibleDates,
+      length: visibleDates.length,
+      original_todo_id: todo.original_todo_id,
+      isOldStyleCarryover: isOldStyleCarryover
+    })
+
+    // 새 방식: 여러 날짜에 보이는 경우 OR 구 방식: 이월된 투두인 경우 → 모달 표시
+    if (visibleDates.length > 1 || isOldStyleCarryover) {
       setTodoToDelete(todo)
       setShowDeleteConfirmModal(true)
     } else {
@@ -2541,12 +2592,22 @@ function App() {
       // hidden_dates에 현재 날짜 추가
       const newHiddenDates = [...currentHiddenDates, dateStr]
 
+      console.log('🔒 이 날짜에서만 숨김:', {
+        id: todo.id,
+        text: todo.text,
+        dateStr: dateStr,
+        before: currentHiddenDates,
+        after: newHiddenDates
+      })
+
       const { error } = await supabase
         .from('todos')
         .update({ hidden_dates: newHiddenDates })
         .eq('id', todo.id)
 
       if (error) throw error
+
+      console.log('✅ 숨김 처리 완료')
 
       // UI에서 제거
       setTodos(todos.filter(t => t.id !== todo.id))
@@ -2637,6 +2698,36 @@ function App() {
       setTrashedItems(trashedItems.filter(item => item.id !== id))
     } catch (error) {
       console.error('영구 삭제 오류:', error.message)
+    }
+  }
+
+  const handleEmptyTrash = async () => {
+    if (trashedItems.length === 0) return
+
+    const confirmed = window.confirm(
+      `⚠️ 정말로 휴지통을 비우시겠습니까?\n\n${trashedItems.length}개의 항목이 영구적으로 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      // 모든 휴지통 항목의 ID 수집
+      const idsToDelete = trashedItems.map(item => item.id)
+
+      // 한 번에 모두 삭제
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .in('id', idsToDelete)
+
+      if (error) throw error
+
+      // UI 업데이트
+      setTrashedItems([])
+      alert(`✅ ${idsToDelete.length}개의 항목이 영구 삭제되었습니다.`)
+    } catch (error) {
+      console.error('휴지통 비우기 오류:', error.message)
+      alert('❌ 휴지통 비우기 실패: ' + error.message)
     }
   }
 
@@ -3728,8 +3819,8 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                     onClick={() => deleteCompletely(todoToDelete)}
                   >
                     <span className="option-icon">🗑️</span>
-                    <span className="option-title">완전 삭제</span>
-                    <span className="option-desc">모든 날짜에서 삭제됩니다</span>
+                    <span className="option-title">휴지통으로 이동</span>
+                    <span className="option-desc">모든 날짜에서 삭제 (복원 가능)</span>
                   </button>
                 </div>
               </div>
@@ -3741,39 +3832,110 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           <div className="modal-overlay" onClick={handleCloseTrash}>
             <div className="modal-content trash-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>🗑️ 휴지통 - {formatDateOnly(selectedDate)}</h2>
-                <button onClick={handleCloseTrash} className="modal-close-button">✕</button>
+                <h2>🗑️ 휴지통</h2>
+                <div className="modal-header-actions">
+                  {trashedItems.length > 0 && (
+                    <button
+                      onClick={handleEmptyTrash}
+                      className="empty-trash-button"
+                      title="휴지통 비우기"
+                    >
+                      전체 비우기
+                    </button>
+                  )}
+                  <button onClick={handleCloseTrash} className="modal-close-button">✕</button>
+                </div>
               </div>
               <div className="trash-list">
                 {trashedItems.length === 0 ? (
                   <p className="empty-message">휴지통이 비어있습니다.</p>
                 ) : (
-                  trashedItems.map(item => (
-                    <div key={item.id} className="trash-item">
-                      <div className="trash-item-content">
-                        <span className={`trash-text ${item.completed ? 'completed' : ''}`}>
-                          {item.text}
-                        </span>
-                        <span className="trash-date">{formatDate(item.created_at)}</span>
+                  trashedItems.map(item => {
+                    // 이월 정보
+                    const visibleDates = item.visible_dates || (item.date ? [item.date] : [])
+                    const hasCarryover = visibleDates.length > 1 || item.original_todo_id
+                    const isOldStyleCarryover = item.original_todo_id !== null && item.original_todo_id !== undefined
+
+                    // 삭제 타입 판단
+                    const hasHiddenDates = item.hidden_dates && item.hidden_dates.length > 0
+                    let deleteType = '알 수 없음'
+
+                    if (isOldStyleCarryover) {
+                      // 구 방식: 개별 레코드 삭제
+                      deleteType = '이 날짜만 삭제 (구 방식)'
+                    } else if (hasHiddenDates) {
+                      // 새 방식: hidden_dates 사용
+                      deleteType = '일부 날짜 숨김'
+                    } else if (item.deleted === true) {
+                      // 새 방식: 완전 삭제
+                      deleteType = visibleDates.length > 1 ? '모든 날짜 삭제' : '삭제'
+                    }
+
+                    return (
+                      <div key={item.id} className="trash-item">
+                        <div className="trash-item-content">
+                          <span className={`trash-text ${item.completed ? 'completed' : ''}`}>
+                            {item.text}
+                          </span>
+                          <div className="trash-metadata">
+                            <span className="trash-date">생성: {formatDate(item.created_at)}</span>
+                            {item.deleted_date && (
+                              <span className="trash-deleted-date">삭제: {item.deleted_date}</span>
+                            )}
+                            <span className={`trash-delete-type ${
+                              isOldStyleCarryover ? 'old-style' : (hasHiddenDates ? 'partial' : 'complete')
+                            }`}>
+                              {deleteType}
+                            </span>
+                          </div>
+
+                          {/* 이월 히스토리 정보 */}
+                          {hasCarryover && (
+                            <div className="trash-carryover-info">
+                              <div className="carryover-label">📅 이월 경로:</div>
+                              <div className="carryover-dates">
+                                {visibleDates.length > 0 ? (
+                                  visibleDates.map((date, idx) => (
+                                    <span key={idx} className="carryover-date-badge">
+                                      {date}
+                                    </span>
+                                  ))
+                                ) : item.original_todo_id ? (
+                                  <span className="carryover-note">구 방식 이월 투두 (original_id: {item.original_todo_id})</span>
+                                ) : null}
+                              </div>
+                              {hasHiddenDates && (
+                                <div className="hidden-dates-info">
+                                  <span className="hidden-label">🚫 숨김 날짜:</span>
+                                  {item.hidden_dates.map((date, idx) => (
+                                    <span key={idx} className="hidden-date-badge">
+                                      {date}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="trash-actions">
+                          <button
+                            onClick={() => handleRestoreFromTrash(item.id)}
+                            className="restore-button"
+                            title="복원"
+                          >
+                            복원
+                          </button>
+                          <button
+                            onClick={() => handlePermanentDelete(item.id)}
+                            className="permanent-delete-button"
+                            title="영구 삭제"
+                          >
+                            영구 삭제
+                          </button>
+                        </div>
                       </div>
-                      <div className="trash-actions">
-                        <button
-                          onClick={() => handleRestoreFromTrash(item.id)}
-                          className="restore-button"
-                          title="복원"
-                        >
-                          복원
-                        </button>
-                        <button
-                          onClick={() => handlePermanentDelete(item.id)}
-                          className="permanent-delete-button"
-                          title="영구 삭제"
-                        >
-                          영구 삭제
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>

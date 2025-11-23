@@ -1521,6 +1521,34 @@ h1 {
   color: rgba(255, 255, 255, 0.9);
 }
 
+.modal-header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.empty-trash-button {
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.empty-trash-button:hover {
+  background: rgba(255, 59, 48, 0.25);
+  border-color: #ff3b30;
+  transform: translateY(-2px);
+}
+
+.empty-trash-button:active {
+  transform: translateY(0);
+}
+
 .modal-close-button {
   background: none;
   border: none;
@@ -1621,6 +1649,109 @@ h1 {
 
 .permanent-delete-button:active {
   transform: scale(0.95);
+}
+
+/* 휴지통 메타데이터 */
+.trash-metadata {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.trash-deleted-date {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.trash-delete-type {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.trash-delete-type.partial {
+  background: rgba(255, 204, 0, 0.15);
+  color: #ffc107;
+  border: 1px solid rgba(255, 204, 0, 0.3);
+}
+
+.trash-delete-type.complete {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.trash-delete-type.old-style {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+/* 이월 히스토리 정보 */
+.trash-carryover-info {
+  background: rgba(100, 108, 255, 0.05);
+  border: 1px solid rgba(100, 108, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.carryover-label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.carryover-dates {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.carryover-date-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(100, 108, 255, 0.2);
+  color: #7d85ff;
+  border-radius: 6px;
+  border: 1px solid rgba(100, 108, 255, 0.3);
+  font-weight: 500;
+}
+
+.carryover-note {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+
+.hidden-dates-info {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hidden-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+}
+
+.hidden-date-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff6b6b;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  font-weight: 500;
 }
 
 /* 라이트 모드 지원 */
