@@ -52,8 +52,146 @@ const DEFAULT_SPEC_CONTENT = `# Todo Note 간단 기획서
 - **배포 URL**: https://jaehwan-lee-benja.github.io/todo-note/
 - **개발 서버**: \`npm run dev\` → http://localhost:5173/todo-note/`
 
+// 애플 스타일 시간 Picker 컴포넌트
+function AppleTimePicker({ value, onChange }) {
+  const hourRef = useRef(null)
+  const minuteRef = useRef(null)
+  const [hour, setHour] = useState('09')
+  const [minute, setMinute] = useState('00')
+
+  // value가 변경되면 hour와 minute 업데이트
+  useEffect(() => {
+    if (value && value.includes(':')) {
+      const [h, m] = value.split(':')
+      setHour(h)
+      setMinute(m)
+    }
+  }, [value])
+
+  // hour 또는 minute가 변경되면 onChange 호출
+  useEffect(() => {
+    if (onChange) {
+      onChange(`${hour}:${minute}`)
+    }
+  }, [hour, minute])
+
+  const handleScroll = (ref, setter, max) => {
+    if (!ref.current) return
+    const scrollTop = ref.current.scrollTop
+    const itemHeight = 40 // 각 아이템 높이
+    const index = Math.round(scrollTop / itemHeight)
+    const value = String(index).padStart(2, '0')
+    setter(value)
+  }
+
+  const scrollToValue = (ref, value) => {
+    if (!ref.current) return
+    const itemHeight = 40
+    const index = parseInt(value, 10)
+    ref.current.scrollTop = index * itemHeight
+  }
+
+  useEffect(() => {
+    scrollToValue(hourRef, hour)
+  }, [])
+
+  useEffect(() => {
+    scrollToValue(minuteRef, minute)
+  }, [])
+
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+
+  const incrementHour = () => {
+    const newHour = (parseInt(hour, 10) + 1) % 24
+    const newHourStr = String(newHour).padStart(2, '0')
+    setHour(newHourStr)
+    scrollToValue(hourRef, newHourStr)
+  }
+
+  const decrementHour = () => {
+    const newHour = (parseInt(hour, 10) - 1 + 24) % 24
+    const newHourStr = String(newHour).padStart(2, '0')
+    setHour(newHourStr)
+    scrollToValue(hourRef, newHourStr)
+  }
+
+  const incrementMinute = () => {
+    const newMinute = (parseInt(minute, 10) + 1) % 60
+    const newMinuteStr = String(newMinute).padStart(2, '0')
+    setMinute(newMinuteStr)
+    scrollToValue(minuteRef, newMinuteStr)
+  }
+
+  const decrementMinute = () => {
+    const newMinute = (parseInt(minute, 10) - 1 + 60) % 60
+    const newMinuteStr = String(newMinute).padStart(2, '0')
+    setMinute(newMinuteStr)
+    scrollToValue(minuteRef, newMinuteStr)
+  }
+
+  return (
+    <div className="apple-time-picker">
+      <div className="picker-arrows-top">
+        <button className="picker-arrow-button" onClick={incrementHour}>▲</button>
+        <div style={{ width: '20px' }} />
+        <button className="picker-arrow-button" onClick={incrementMinute}>▲</button>
+      </div>
+      <div className="picker-container">
+        <div
+          className="picker-column"
+          ref={hourRef}
+          onScroll={() => handleScroll(hourRef, setHour, 24)}
+        >
+          <div className="picker-spacer" />
+          {hours.map((h) => (
+            <div
+              key={h}
+              className={`picker-item ${h === hour ? 'selected' : ''}`}
+              onClick={() => {
+                setHour(h)
+                scrollToValue(hourRef, h)
+              }}
+            >
+              {h}
+            </div>
+          ))}
+          <div className="picker-spacer" />
+        </div>
+        <div className="picker-separator">:</div>
+        <div
+          className="picker-column"
+          ref={minuteRef}
+          onScroll={() => handleScroll(minuteRef, setMinute, 60)}
+        >
+          <div className="picker-spacer" />
+          {minutes.map((m) => (
+            <div
+              key={m}
+              className={`picker-item ${m === minute ? 'selected' : ''}`}
+              onClick={() => {
+                setMinute(m)
+                scrollToValue(minuteRef, m)
+              }}
+            >
+              {m}
+            </div>
+          ))}
+          <div className="picker-spacer" />
+        </div>
+      </div>
+      <div className="picker-arrows-bottom">
+        <button className="picker-arrow-button" onClick={decrementHour}>▼</button>
+        <div style={{ width: '20px' }} />
+        <button className="picker-arrow-button" onClick={decrementMinute}>▼</button>
+      </div>
+      <div className="picker-selection-indicator" />
+    </div>
+  )
+}
+
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -408,7 +546,9 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 )
               })()}
               {hasRoutineBadge && (() => {
-                const todoDate = new Date(todo.date + 'T00:00:00')
+                // JSON 방식: 현재 페이지 날짜 사용
+                const displayDate = currentPageDate || todo.date
+                const todoDate = new Date(displayDate + 'T00:00:00')
                 const month = todoDate.getMonth() + 1
                 const date = todoDate.getDate()
                 const dayNames = ['일', '월', '화', '수', '목', '금', '토']
@@ -568,6 +708,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                 onShowRoutineHistory={onShowRoutineHistory}
                 onOpenRoutineSetupModal={onOpenRoutineSetupModal}
                 onOpenHistoryModal={onOpenHistoryModal}
+                currentPageDate={currentPageDate}
               />
             ))}
             {isAddingSubTodo && (
@@ -626,16 +767,7 @@ const DAYS = [
   { key: 'sun', label: '일' },
 ]
 
-// 시간대 옵션 (선택사항)
-const TIME_SLOTS = [
-  { value: '', label: '시간대 없음' },
-  { value: 'morning', label: '🌅 아침 (6-9시)' },
-  { value: 'late-morning', label: '☀️ 오전 (9-12시)' },
-  { value: 'lunch', label: '🍽️ 점심 (12-14시)' },
-  { value: 'afternoon', label: '🌤️ 오후 (14-18시)' },
-  { value: 'evening', label: '🌆 저녁 (18-21시)' },
-  { value: 'night', label: '🌙 밤 (21-24시)' },
-]
+// 시간 입력은 AppleTimePicker 사용
 
 // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
 const getDayKey = (dayNumber) => {
@@ -1440,9 +1572,8 @@ function App() {
           )
         )
 
-        if (showRoutineModal) {
-          setRoutines([data[0], ...routines])
-        }
+        // 새 루틴을 routines 배열에 추가 (항상)
+        setRoutines(prevRoutines => [data[0], ...prevRoutines])
       }
     } catch (error) {
       console.error('루틴 처리 오류:', error.message)
@@ -1565,48 +1696,55 @@ function App() {
       if (matchingRoutines.length === 0) return
 
       for (const routine of matchingRoutines) {
-        const todoText = routine.text // 날짜 붙이지 않고 원본 텍스트만 사용
+        const todoText = routine.text
 
-        // 1차 체크: routine_id로 확인
-        const { data: existingByRoutineId, error: checkError1 } = await supabase
+        // JSON 방식: 해당 루틴의 기존 투두 찾기
+        const { data: existingTodo, error: checkError } = await supabase
           .from('todos')
-          .select('id')
-          .eq('date', dateStr)
+          .select('*')
           .eq('routine_id', routine.id)
           .eq('deleted', false)
+          .maybeSingle() // 최대 1개만 있어야 함
 
-        if (checkError1) throw checkError1
+        if (checkError) throw checkError
 
-        // 2차 체크: 텍스트로 확인 (동시 실행 경쟁 조건 대비)
-        const { data: existingByText, error: checkError2 } = await supabase
-          .from('todos')
-          .select('id')
-          .eq('date', dateStr)
-          .eq('text', todoText)
-          .eq('deleted', false)
+        if (existingTodo) {
+          // 기존 투두가 있으면 visible_dates에 날짜 추가
+          const currentDates = existingTodo.visible_dates || []
 
-        if (checkError2) throw checkError2
+          // 이미 포함되어 있으면 스킵
+          if (currentDates.includes(dateStr)) {
+            continue
+          }
 
-        // 둘 중 하나라도 존재하면 생성하지 않음
-        if ((existingByRoutineId && existingByRoutineId.length > 0) ||
-            (existingByText && existingByText.length > 0)) {
-          continue
-        }
+          // visible_dates에 날짜 추가 (정렬된 상태 유지)
+          const updatedDates = [...currentDates, dateStr].sort()
 
-        // 투두 생성
-        const { error: insertError } = await supabase
-          .from('todos')
-          .insert([{
-            text: todoText,
-            completed: false,
-            date: dateStr,
-            order_index: 0, // 루틴은 제일 위에
-            routine_id: routine.id
-          }])
+          const { error: updateError } = await supabase
+            .from('todos')
+            .update({ visible_dates: updatedDates })
+            .eq('id', existingTodo.id)
 
-        if (insertError) {
-          // 동시 실행으로 인한 중복은 무시
+          if (updateError) {
+            console.error('루틴 투두 날짜 추가 오류:', updateError.message)
+          }
         } else {
+          // 첫 루틴 투두 생성
+          const { error: insertError } = await supabase
+            .from('todos')
+            .insert([{
+              text: todoText,
+              completed: false,
+              date: dateStr, // created_date 역할
+              visible_dates: [dateStr], // JSON 방식
+              hidden_dates: [],
+              order_index: 0, // 루틴은 제일 위에
+              routine_id: routine.id
+            }])
+
+          if (insertError) {
+            console.error('루틴 투두 생성 오류:', insertError.message)
+          }
         }
       }
     } catch (error) {
@@ -1629,17 +1767,33 @@ function App() {
   // 루틴 히스토리 조회
   const fetchRoutineHistory = async (routine) => {
     try {
-      // 해당 루틴의 모든 투두 조회
-      const { data: routineTodos, error } = await supabase
+      // JSON 방식: 해당 루틴의 1개 투두만 조회
+      const { data: routineTodo, error } = await supabase
         .from('todos')
         .select('*')
         .eq('routine_id', routine.id)
         .eq('deleted', false)
-        .order('date', { ascending: true })
+        .maybeSingle()
 
       if (error) throw error
 
-      setRoutineHistoryData(routineTodos || [])
+      if (routineTodo && routineTodo.visible_dates) {
+        // visible_dates 배열을 날짜별 객체 배열로 변환
+        const historyData = routineTodo.visible_dates
+          .sort() // 날짜 정렬
+          .map(date => ({
+            id: `${routineTodo.id}-${date}`, // 고유 ID 생성
+            date,
+            text: routineTodo.text,
+            completed: routineTodo.completed, // TODO: 날짜별 완료 상태 추적 필요
+            routine_id: routineTodo.routine_id
+          }))
+
+        setRoutineHistoryData(historyData)
+      } else {
+        setRoutineHistoryData([])
+      }
+
       setSelectedRoutineForHistory(routine)
       setShowRoutineHistory(true)
     } catch (error) {
@@ -3636,6 +3790,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               onShowRoutineHistory={fetchRoutineHistory}
                               onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
                               onOpenHistoryModal={handleOpenTodoHistoryModal}
+                              currentPageDate={formatDateForDB(selectedDate)}
                             />
                           )
                         })}
@@ -3697,6 +3852,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         onShowRoutineHistory={fetchRoutineHistory}
                         onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
                         onOpenHistoryModal={handleOpenTodoHistoryModal}
+                        currentPageDate={currentPageDate}
                       />
                       {showSeparator && (
                         <div className="todo-date-separator">
@@ -3916,7 +4072,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                           </div>
                           {currentRoutine.time_slot && (
                             <div className="routine-time-slot" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                              ⏰ {TIME_SLOTS.find(slot => slot.value === currentRoutine.time_slot)?.label || currentRoutine.time_slot}
+                              ⏰ {currentRoutine.time_slot}
                             </div>
                           )}
                         </div>
@@ -3969,20 +4125,12 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         </div>
                         <div className="time-slot-selector" style={{ marginTop: '1rem' }}>
                           <label style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.5rem', display: 'block' }}>
-                            ⏰ 시간대 (선택사항)
+                            ⏰ 시간 (선택사항)
                           </label>
-                          <select
-                            className="time-slot-select"
+                          <AppleTimePicker
                             value={routineTimeSlotForModal}
-                            onChange={(e) => setRoutineTimeSlotForModal(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {TIME_SLOTS.map(slot => (
-                              <option key={slot.value} value={slot.value}>
-                                {slot.label}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(time) => setRoutineTimeSlotForModal(time)}
+                          />
                         </div>
                         <div className="routine-setup-actions">
                           <button
@@ -4436,19 +4584,11 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                   ))}
                 </div>
                 <div className="time-slot-selector">
-                  <label className="time-slot-label">⏰ 시간대 (선택사항)</label>
-                  <select
+                  <label className="time-slot-label">⏰ 시간 (선택사항)</label>
+                  <AppleTimePicker
                     value={selectedTimeSlot}
-                    onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                    className="time-slot-select"
-                    disabled={isAddingRoutine}
-                  >
-                    {TIME_SLOTS.map(slot => (
-                      <option key={slot.value} value={slot.value}>
-                        {slot.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(time) => setSelectedTimeSlot(time)}
+                  />
                 </div>
                 <button
                   onClick={handleAddRoutine}
@@ -4519,7 +4659,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               </div>
                               {routine.time_slot && (
                                 <span className="routine-time-slot">
-                                  {TIME_SLOTS.find(slot => slot.value === routine.time_slot)?.label || routine.time_slot}
+                                  {routine.time_slot}
                                 </span>
                               )}
                             </div>
