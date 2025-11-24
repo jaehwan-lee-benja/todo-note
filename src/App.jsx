@@ -191,7 +191,7 @@ function AppleTimePicker({ value, onChange }) {
 }
 
 // 드래그 가능한 Todo 항목 컴포넌트
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -534,8 +534,14 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
           const hasCompletedDateBadge = todo.completed && todo.completed_at &&
             new Date(todo.completed_at).toISOString().split('T')[0] !== todo.date
           const hasRoutineBadge = todo.routine_id && currentRoutine
-          return (subtodos.length > 0 || hasCompletedDateBadge || hasRoutineBadge) && (
+          const hasPendingRoutineBadge = isPendingRoutine || todo.is_pending_routine
+          return (subtodos.length > 0 || hasCompletedDateBadge || hasRoutineBadge || hasPendingRoutineBadge) && (
             <div className="todo-badges">
+              {hasPendingRoutineBadge && (
+                <span className="pending-routine-badge" title="루틴 설정이 필요합니다">
+                  미정
+                </span>
+              )}
               {hasCompletedDateBadge && (() => {
                 const completedDate = new Date(todo.completed_at).toISOString().split('T')[0]
                 const completedDay = new Date(todo.completed_at).getDate()
@@ -778,6 +784,8 @@ const getDayKey = (dayNumber) => {
 function App() {
   const [todos, setTodos] = useState([])
   const [inputValue, setInputValue] = useState('')
+  const [routineInputValue, setRoutineInputValue] = useState('')
+  const [normalInputValue, setNormalInputValue] = useState('')
   const [loading, setLoading] = useState(true)
   const [isDraggingAny, setIsDraggingAny] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
@@ -1557,10 +1565,10 @@ function App() {
         if (error) throw error
 
 
-        // 해당 투두에 루틴 ID 연결
+        // 해당 투두에 루틴 ID 연결 및 미정 루틴 플래그 제거
         const { error: updateError } = await supabase
           .from('todos')
-          .update({ routine_id: data[0].id })
+          .update({ routine_id: data[0].id, is_pending_routine: false })
           .eq('id', todoId)
 
         if (updateError) throw updateError
@@ -1568,7 +1576,7 @@ function App() {
         // 로컬 상태 업데이트
         setTodos(prevTodos =>
           prevTodos.map(todo =>
-            todo.id === todoId ? { ...todo, routine_id: data[0].id } : todo
+            todo.id === todoId ? { ...todo, routine_id: data[0].id, is_pending_routine: false } : todo
           )
         )
 
@@ -2508,6 +2516,80 @@ function App() {
     }
   }
 
+  const handleAddRoutineTodo = async () => {
+    if (routineInputValue.trim() === '' || isAdding) return
+
+    try {
+      setIsAdding(true)
+
+      // 미정 루틴 투두들의 최대 order_index 찾기
+      const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
+      const newOrderIndex = pendingRoutineTodos.length > 0 ? Math.max(...pendingRoutineTodos.map(t => t.order_index)) + 1 : 1
+
+      // 새 항목을 추가 (JSON 방식) - 미정 루틴으로 표시
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: routineInputValue,
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr],
+          hidden_dates: [],
+          routine_id: null,
+          is_pending_routine: true // 미정 루틴으로 표시
+        }])
+        .select()
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos([...todos, data[0]])
+      setRoutineInputValue('')
+    } catch (error) {
+      console.error('할 일 추가 오류:', error.message)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleAddNormalTodo = async () => {
+    if (normalInputValue.trim() === '' || isAdding) return
+
+    try {
+      setIsAdding(true)
+
+      // 일반 투두들의 최대 order_index 찾기
+      const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null)
+      const newOrderIndex = normalTodos.length > 0 ? Math.max(...normalTodos.map(t => t.order_index)) + 1 : 1
+
+      // 새 항목을 추가 (JSON 방식)
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: normalInputValue,
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr],
+          hidden_dates: []
+        }])
+        .select()
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos([...todos, data[0]])
+      setNormalInputValue('')
+    } catch (error) {
+      console.error('할 일 추가 오류:', error.message)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
   const handleToggleTodo = async (id) => {
     const todo = todos.find(t => t.id === id)
     if (!todo) return
@@ -3387,23 +3469,6 @@ function App() {
 
       <div className={`container ${viewMode === 'horizontal' ? 'container-wide' : ''}`}>
         <div className="header-fixed">
-          <h1>to-do note</h1>
-
-          <div className="input-section">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="새로운 할 일을 입력하세요..."
-              className="todo-input"
-              disabled={isAdding}
-            />
-            <button onClick={handleAddTodo} className="add-button" disabled={isAdding}>
-              추가
-            </button>
-          </div>
-
           <div className="settings-bar">
             {/* 날짜 네비게이션 */}
             <div className="date-nav-section">
@@ -3464,9 +3529,10 @@ function App() {
             ) : todos.length === 0 ? (
               <p className="empty-message">아직 할 일이 없습니다. 새로운 할 일을 추가해보세요!</p>
             ) : (() => {
-              // 루틴 투두와 일반 투두 분리
+              // 루틴 투두, 미정 루틴, 일반 투두 분리
               const routineTodos = todos.filter(t => !t.parent_id && t.routine_id !== null)
-              const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null)
+              const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine && t.routine_id === null)
+              const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine)
 
               return (
                 <div
@@ -3759,11 +3825,28 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                   </div>
 
                   {/* 루틴 섹션 */}
-                  {routineTodos.length > 0 && (
-                    <div className="routine-section section-block">
-                      <div className="section-header">
-                        <h3 className="section-title">📌 루틴</h3>
-                      </div>
+                  <div className="routine-section section-block">
+                    <div className="section-header">
+                      <h3 className="section-title">📌 루틴</h3>
+                    </div>
+                    <div className="section-input">
+                      <input
+                        type="text"
+                        value={routineInputValue}
+                        onChange={(e) => setRoutineInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddRoutineTodo()
+                        }}
+                        placeholder="루틴 할 일 추가..."
+                        className="todo-input"
+                        disabled={isAdding}
+                      />
+                      <button onClick={handleAddRoutineTodo} className="add-button" disabled={isAdding}>
+                        추가
+                      </button>
+                    </div>
+                    {/* 확정 루틴 */}
+                    {routineTodos.length > 0 && (
                       <SortableContext
                         items={routineTodos.map(todo => todo.id)}
                         strategy={verticalListSortingStrategy}
@@ -3795,17 +3878,74 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                           )
                         })}
                       </SortableContext>
-                    </div>
-                  )}
+                    )}
+
+                    {/* 구분선 (확정 루틴과 미정 루틴 사이) */}
+                    {routineTodos.length > 0 && pendingRoutineTodos.length > 0 && (
+                      <div style={{ margin: '1rem 0', padding: '0 1rem' }}>
+                        <div className="separator-line"></div>
+                      </div>
+                    )}
+
+                    {/* 미정 루틴 */}
+                    {pendingRoutineTodos.length > 0 && (
+                      <SortableContext
+                        items={pendingRoutineTodos.map(todo => todo.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {pendingRoutineTodos.map((todo, index) => {
+                          const subtodos = todos.filter(t => t.parent_id === todo.id)
+                          return (
+                            <SortableTodoItem
+                              key={todo.id}
+                              todo={todo}
+                              index={index}
+                              onToggle={handleToggleTodo}
+                              onDelete={handleDeleteTodo}
+                              onEdit={handleEditTodo}
+                              formatDate={formatDate}
+                              formatDateOnly={formatDateOnly}
+                              isFocused={focusedTodoId === todo.id}
+                              onFocus={handleFocusTodo}
+                              onAddSubTodo={handleAddSubTodo}
+                              subtodos={subtodos}
+                              level={0}
+                              onCreateRoutine={handleCreateRoutineFromTodo}
+                              routines={routines}
+                              onShowRoutineHistory={fetchRoutineHistory}
+                              onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
+                              onOpenHistoryModal={handleOpenTodoHistoryModal}
+                              currentPageDate={formatDateForDB(selectedDate)}
+                              isPendingRoutine={true}
+                            />
+                          )
+                        })}
+                      </SortableContext>
+                    )}
+                  </div>
 
                   {/* 일반 투두 섹션 */}
-                  {normalTodos.length > 0 && (
-                    <div className="normal-section section-block">
-                      {routineTodos.length > 0 && (
-                        <div className="section-header">
-                          <h3 className="section-title">📝 일반 투두</h3>
-                        </div>
-                      )}
+                  <div className="normal-section section-block">
+                    <div className="section-header">
+                      <h3 className="section-title">📝 일반 투두</h3>
+                    </div>
+                    <div className="section-input">
+                      <input
+                        type="text"
+                        value={normalInputValue}
+                        onChange={(e) => setNormalInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddNormalTodo()
+                        }}
+                        placeholder="일반 할 일 추가..."
+                        className="todo-input"
+                        disabled={isAdding}
+                      />
+                      <button onClick={handleAddNormalTodo} className="add-button" disabled={isAdding}>
+                        추가
+                      </button>
+                    </div>
+                    {normalTodos.length > 0 && (
                       <SortableContext
                         items={normalTodos.map(todo => todo.id)}
                         strategy={verticalListSortingStrategy}
@@ -3865,8 +4005,8 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                   )
                 })}
                       </SortableContext>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )
             })()}

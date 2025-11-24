@@ -109,6 +109,33 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   width: 100%;
 }
 
+/* 데스크탑: 한 줄 레이아웃 */
+@media (min-width: 769px) {
+  .header-fixed {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem 2rem 0 2rem;
+  }
+
+  .header-fixed > * {
+    max-width: none;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .header-fixed .settings-bar {
+    margin: 0;
+    padding: 0 0 1rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 1rem;
+    flex: 1;
+    justify-content: center;
+  }
+}
+
 .container-wide .header-fixed {
   max-width: 100%;
   align-self: stretch;
@@ -377,6 +404,14 @@ h1 {
   gap: 0.5rem;
   margin-bottom: 1.5rem;
   margin-left: calc(28px + 0.75rem);
+}
+
+/* 섹션 내 입력칸 */
+.section-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0 1rem;
 }
 
 /* 설정바 (날짜/뷰어설정/응원메시지) */
@@ -2875,6 +2910,22 @@ h1 {
   border-radius: 6px;
   font-weight: 600;
   border: 1px solid rgba(156, 39, 176, 0.25);
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pending-routine-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.65rem;
+  background: rgba(255, 152, 0, 0.15);
+  color: #ffb74d;
+  border-radius: 6px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 152, 0, 0.25);
   white-space: nowrap;
   line-height: 1;
   flex-shrink: 0;
