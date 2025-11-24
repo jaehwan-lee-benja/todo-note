@@ -207,6 +207,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [expandedHistoryIds, setExpandedHistoryIds] = useState([])
   const [carryOverPath, setCarryOverPath] = useState([])
   const [originalDate, setOriginalDate] = useState(null)
+  const [showActionsModal, setShowActionsModal] = useState(false)
+  const [selectedAction, setSelectedAction] = useState(null)
 
   // 현재 투두의 루틴 정보 찾기
   const currentRoutine = todo.routine_id ? routines.find(r => r.id === todo.routine_id) : null
@@ -593,105 +595,18 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
             </div>
           )
         })()}
-        <button
-          className="details-toggle-button"
-          onClick={(e) => {
-            e.stopPropagation()
-            const newShowDetails = !showDetails
-            setShowDetails(newShowDetails)
-            // 토글을 닫을 때는 모든 하위 섹션도 닫기
-            if (!newShowDetails) {
-              setShowNanotodos(false)
-              setIsAddingSubTodo(false)
-              setShowRoutineSetup(false)
-              setShowHistory(false)
-            }
-          }}
-          title={showDetails ? "세부정보 숨기기" : "세부정보 보기"}
-        >
-          {showDetails ? '▲' : '▼'}
-        </button>
-        {showDetails && !isEditing && (
-          <>
-            {!todo.parent_id && (
-              <div className="todo-actions-inline">
-                <button
-                  className={`action-button-with-text ${showNanotodos ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (showNanotodos) {
-                      setShowNanotodos(false)
-                      setIsAddingSubTodo(false)
-                    } else {
-                      setShowNanotodos(true)
-                      setIsAddingSubTodo(true)
-                      setShowRoutineSetup(false)
-                      setShowHistory(false)
-                    }
-                  }}
-                  title="나노투두 추가"
-                >
-                  <span className="action-icon">🔬</span>
-                  <span className="action-text">나노투두</span>
-                </button>
-                <button
-                  className="action-button-with-text"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (onOpenRoutineSetupModal) {
-                      onOpenRoutineSetupModal(todo)
-                    } else {
-                      console.log('onOpenRoutineSetupModal is not defined')
-                    }
-                  }}
-                  title="이 작업을 루틴으로 설정"
-                >
-                  <span className="action-icon">📌</span>
-                  <span className="action-text">루틴설정</span>
-                </button>
-                <button
-                  className="action-button-with-text"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (onOpenHistoryModal) {
-                      onOpenHistoryModal(todo)
-                    } else {
-                      console.log('onOpenHistoryModal is not defined')
-                    }
-                  }}
-                  title="히스토리 보기"
-                >
-                  <span className="action-icon">📋</span>
-                  <span className="action-text">히스토리</span>
-                </button>
-                {todo.routine_id && currentRoutine && onShowRoutineHistory && (
-                  <button
-                    className="action-button-with-text"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onShowRoutineHistory(currentRoutine)
-                    }}
-                    title="루틴 통계 보기"
-                  >
-                    <span className="action-icon">📊</span>
-                    <span className="action-text">루틴기록</span>
-                  </button>
-                )}
-                <button
-                  className="action-button-with-text delete-button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDeleteClick()
-                  }}
-                  title="삭제"
-                >
-                  <span className="action-icon">🗑️</span>
-                  <span className="action-text">삭제</span>
-                </button>
-              </div>
-            )}
-            {/* 히스토리와 루틴 설정은 이제 모달로 표시됨 */}
-          </>
+        {!isEditing && !todo.parent_id && (
+          <button
+            className="todo-more-button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowActionsModal(true)
+              setSelectedAction(null)
+            }}
+            title="더보기"
+          >
+            ⋮
+          </button>
         )}
         {showNanotodos && !todo.parent_id && (
           <div className="subtodos-in-item">
@@ -758,6 +673,540 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
         )}
       </div>
       </div>
+
+      {/* 액션 모달 */}
+      {showActionsModal && (
+        <div className="modal-overlay" onClick={() => setShowActionsModal(false)}>
+          <div className="actions-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="actions-modal-header">
+              <h3>작업 선택</h3>
+              <button onClick={() => setShowActionsModal(false)} className="modal-close-button">✕</button>
+            </div>
+            <div className="actions-modal-body">
+              {/* 왼쪽 메뉴 */}
+              <div className="actions-menu">
+                <button
+                  className={`action-menu-item ${selectedAction === 'nanotodo' ? 'active' : ''}`}
+                  onClick={() => setSelectedAction('nanotodo')}
+                >
+                  <span className="action-icon">🔬</span>
+                  <span>나노투두</span>
+                </button>
+                <button
+                  className={`action-menu-item ${selectedAction === 'routine' ? 'active' : ''}`}
+                  onClick={() => setSelectedAction('routine')}
+                >
+                  <span className="action-icon">📌</span>
+                  <span>루틴설정</span>
+                </button>
+                <button
+                  className={`action-menu-item ${selectedAction === 'history' ? 'active' : ''}`}
+                  onClick={() => setSelectedAction('history')}
+                >
+                  <span className="action-icon">📋</span>
+                  <span>히스토리</span>
+                </button>
+                {todo.routine_id && currentRoutine && (
+                  <button
+                    className={`action-menu-item ${selectedAction === 'routine-stats' ? 'active' : ''}`}
+                    onClick={() => setSelectedAction('routine-stats')}
+                  >
+                    <span className="action-icon">📊</span>
+                    <span>루틴기록</span>
+                  </button>
+                )}
+                <button
+                  className={`action-menu-item delete ${selectedAction === 'delete' ? 'active' : ''}`}
+                  onClick={() => setSelectedAction('delete')}
+                >
+                  <span className="action-icon">🗑️</span>
+                  <span>삭제</span>
+                </button>
+              </div>
+
+              {/* 오른쪽 상세 */}
+              <div className="actions-detail">
+                {!selectedAction && (
+                  <div className="actions-detail-empty">
+                    <p>왼쪽에서 작업을 선택하세요</p>
+                  </div>
+                )}
+
+                {selectedAction === 'nanotodo' && (
+                  <div className="actions-detail-content">
+                    <h4>🔬 나노투두</h4>
+                    <div className="nanotodo-section-in-modal">
+                      {subtodos && subtodos.length > 0 && (
+                        <div className="subtodo-list-in-modal">
+                          {subtodos.map((subtodo) => (
+                            <div key={subtodo.id} className="subtodo-item-in-modal">
+                              <input
+                                type="checkbox"
+                                checked={subtodo.completed}
+                                onChange={() => onToggle(subtodo.id)}
+                                className="subtodo-checkbox-modal"
+                              />
+                              <span className={`subtodo-text-modal ${subtodo.completed ? 'completed' : ''}`}>
+                                {subtodo.text}
+                              </span>
+                              <button
+                                onClick={() => onDelete(subtodo.id)}
+                                className="subtodo-delete-modal"
+                                title="삭제"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="subtodo-input-section-modal">
+                        <input
+                          type="text"
+                          value={subTodoText}
+                          onChange={(e) => setSubTodoText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && subTodoText.trim()) {
+                              onAddSubTodo(todo.id, subTodoText.trim())
+                              setSubTodoText('')
+                            }
+                          }}
+                          placeholder="나노투두 입력..."
+                          className="subtodo-input-modal"
+                        />
+                        <button
+                          onClick={() => {
+                            if (subTodoText.trim()) {
+                              onAddSubTodo(todo.id, subTodoText.trim())
+                              setSubTodoText('')
+                            }
+                          }}
+                          className="subtodo-add-button-modal"
+                        >
+                          추가
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedAction === 'routine' && (
+                  <div className="actions-detail-content">
+                    <h4>📌 루틴설정</h4>
+                    <p>루틴을 설정하고 관리합니다.</p>
+                    <button
+                      className="action-execute-button"
+                      onClick={() => {
+                        if (onOpenRoutineSetupModal) {
+                          onOpenRoutineSetupModal(todo)
+                        }
+                        setShowActionsModal(false)
+                      }}
+                    >
+                      루틴 설정 모달 열기
+                    </button>
+                  </div>
+                )}
+
+                {selectedAction === 'history' && (() => {
+                  const visibleDates = todo.visible_dates && todo.visible_dates.length > 0 ? todo.visible_dates : [todo.date]
+                  const originalDate = visibleDates[0]
+                  const carryOverPath = visibleDates.map(date => ({ id: `${todo.id}-${date}`, date }))
+                  const historyRecords = todoHistory[todo.id] || []
+
+                  // 히스토리 데이터 로드 함수
+                  const loadHistory = async () => {
+                    try {
+                      const { data, error } = await supabase
+                        .from('todo_history')
+                        .select('*')
+                        .eq('todo_id', todo.id)
+                        .order('changed_at', { ascending: false })
+
+                      if (error) throw error
+
+                      setTodoHistory(prev => ({
+                        ...prev,
+                        [todo.id]: data || []
+                      }))
+                    } catch (error) {
+                      console.error('Error fetching history:', error)
+                    }
+                  }
+
+                  // 데이터가 없으면 로드 버튼 표시
+                  if (!todoHistory[todo.id]) {
+                    return (
+                      <div className="actions-detail-content">
+                        <h4>📊 투두 히스토리</h4>
+                        <button
+                          className="action-execute-button"
+                          onClick={loadHistory}
+                        >
+                          히스토리 불러오기
+                        </button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="actions-detail-content">
+                      <h4>📊 투두 히스토리</h4>
+                      <div className="todo-history">
+                        <div className="history-item">
+                          <span className="history-label">생성일:</span>
+                          <span className="history-value">{formatDate(todo.created_at)}</span>
+                        </div>
+                        <div className="history-item">
+                          <span className="history-label">원본 페이지:</span>
+                          <span className="history-value">
+                            {originalDate ? formatDateOnly(new Date(originalDate + 'T00:00:00')) : formatDateOnly(new Date(todo.date + 'T00:00:00'))}
+                          </span>
+                        </div>
+                        {carryOverPath.length > 0 && (
+                          <div className="history-item">
+                            <span className="history-label">이월 경로:</span>
+                            <span className="history-value">
+                              {carryOverPath.map((path, idx) => {
+                                const isCurrentPage = path.date === todo.date
+                                const dateStr = formatDateOnly(new Date(path.date + 'T00:00:00'))
+                                return (
+                                  <span key={path.id}>
+                                    {idx > 0 && ' → '}
+                                    <span style={isCurrentPage ? { fontWeight: 'bold', color: '#4CAF50' } : {}}>
+                                      {dateStr.split('(')[0]}{isCurrentPage ? '(여기)' : ''}
+                                    </span>
+                                  </span>
+                                )
+                              })}
+                            </span>
+                          </div>
+                        )}
+                        {(() => {
+                          const createdDate = new Date(todo.created_at).toISOString().split('T')[0]
+                          const currentDate = todo.date
+                          if (createdDate !== currentDate && carryOverPath.length === 0) {
+                            return (
+                              <div className="history-item">
+                                <span className="history-label">현재 페이지:</span>
+                                <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
+                        {historyRecords.length > 0 && (
+                          <div className="history-changes-list">
+                            <div className="history-changes-header">변경 이력 ({historyRecords.length})</div>
+                            {historyRecords.map((record) => (
+                              <div key={record.id} className="history-record-compact">
+                                <div className="history-record-summary">
+                                  <div className="history-change-time">
+                                    {formatDate(record.changed_at)}
+                                    {record.changed_on_date && (
+                                      <span className="history-page-info"> (페이지: {formatDateOnly(new Date(record.changed_on_date + 'T00:00:00'))})</span>
+                                    )}
+                                  </div>
+                                  <button
+                                    className="history-detail-button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleHistoryDetail(record.id)
+                                    }}
+                                  >
+                                    {expandedHistoryIds.includes(record.id) ? '숨기기' : '내용보기'}
+                                  </button>
+                                </div>
+                                {expandedHistoryIds.includes(record.id) && (
+                                  <div className="history-change">
+                                    <div className="history-change-item history-before">
+                                      <span className="change-badge">이전</span>
+                                      <span className="change-text">{record.previous_text}</span>
+                                    </div>
+                                    <div className="history-change-arrow">→</div>
+                                    <div className="history-change-item history-after">
+                                      <span className="change-badge">이후</span>
+                                      <span className="change-text">{record.new_text}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {selectedAction === 'routine-stats' && currentRoutine && (() => {
+                  // 루틴 히스토리 데이터 로드 함수
+                  const loadRoutineHistory = async () => {
+                    try {
+                      const { data: routineTodo, error } = await supabase
+                        .from('todos')
+                        .select('*')
+                        .eq('routine_id', currentRoutine.id)
+                        .eq('deleted', false)
+                        .maybeSingle()
+
+                      if (error) throw error
+
+                      if (routineTodo && routineTodo.visible_dates) {
+                        const historyData = routineTodo.visible_dates
+                          .sort()
+                          .map(date => ({
+                            id: `${routineTodo.id}-${date}`,
+                            date,
+                            text: routineTodo.text,
+                            completed: routineTodo.completed_dates?.includes(date) || false
+                          }))
+
+                        setRoutineHistoryData(historyData)
+                        setSelectedRoutineForHistory(currentRoutine)
+                      }
+                    } catch (error) {
+                      console.error('Error fetching routine history:', error)
+                    }
+                  }
+
+                  // 이 루틴의 데이터가 로드되지 않았거나, 데이터가 비어있는 경우
+                  if (!selectedRoutineForHistory || selectedRoutineForHistory.id !== currentRoutine.id || routineHistoryData.length === 0) {
+                    return (
+                      <div className="actions-detail-content">
+                        <h4>📊 {currentRoutine.text} 히스토리</h4>
+                        <button
+                          className="action-execute-button"
+                          onClick={loadRoutineHistory}
+                        >
+                          루틴 기록 불러오기
+                        </button>
+                      </div>
+                    )
+                  }
+
+                  // 첫 번째 투두 날짜부터 오늘까지의 달력 생성
+                  const firstTodo = routineHistoryData[0]
+                  const firstDate = new Date(firstTodo.date)
+                  const today = new Date()
+
+                  // 날짜별 완료 여부 맵 생성
+                  const completionMap = {}
+                  routineHistoryData.forEach(todo => {
+                    completionMap[todo.date] = todo.completed
+                  })
+
+                  // 월별로 그룹화
+                  const monthGroups = []
+                  let currentDate = new Date(firstDate)
+
+                  while (currentDate <= today) {
+                    const year = currentDate.getFullYear()
+                    const month = currentDate.getMonth()
+                    const monthKey = `${year}-${month + 1}`
+
+                    if (!monthGroups.find(g => g.key === monthKey)) {
+                      monthGroups.push({
+                        key: monthKey,
+                        year,
+                        month,
+                        days: []
+                      })
+                    }
+
+                    const monthGroup = monthGroups.find(g => g.key === monthKey)
+                    const dateStr = formatDateForDB(currentDate)
+                    const dayOfWeek = currentDate.getDay()
+
+                    // 루틴이 해당 요일에 설정되어 있는지 확인
+                    const dayKey = getDayKey(dayOfWeek)
+                    const isRoutineDay = currentRoutine.days.includes(dayKey)
+
+                    monthGroup.days.push({
+                      date: new Date(currentDate),
+                      dateStr,
+                      day: currentDate.getDate(),
+                      dayOfWeek,
+                      isCompleted: completionMap[dateStr] === true,
+                      isRoutineDay,
+                      hasTodo: completionMap[dateStr] !== undefined
+                    })
+
+                    currentDate.setDate(currentDate.getDate() + 1)
+                  }
+
+                  return (
+                    <div className="actions-detail-content">
+                      <h4>📊 {currentRoutine.text} 히스토리</h4>
+                      <div className="routine-history-content">
+                        <div className="routine-history-calendar">
+                          {monthGroups.map(monthGroup => (
+                            <div key={monthGroup.key} className="history-month">
+                              <h3 className="history-month-title">
+                                {monthGroup.year}년 {monthGroup.month + 1}월
+                              </h3>
+                              <div className="history-calendar-grid">
+                                <div className="history-day-header">일</div>
+                                <div className="history-day-header">월</div>
+                                <div className="history-day-header">화</div>
+                                <div className="history-day-header">수</div>
+                                <div className="history-day-header">목</div>
+                                <div className="history-day-header">금</div>
+                                <div className="history-day-header">토</div>
+
+                                {/* 첫 주의 빈 칸 */}
+                                {monthGroup.days.length > 0 && Array(monthGroup.days[0].dayOfWeek).fill(null).map((_, i) => (
+                                  <div key={`empty-${i}`} className="history-day-cell empty"></div>
+                                ))}
+
+                                {/* 날짜 셀 */}
+                                {monthGroup.days.map((dayInfo, index) => {
+                                  // 다음 월의 첫날이면 빈칸 추가
+                                  if (index > 0 && dayInfo.day === 1) {
+                                    const prevDay = monthGroup.days[index - 1]
+                                    const emptyCount = 6 - prevDay.dayOfWeek
+                                    return (
+                                      <React.Fragment key={dayInfo.dateStr}>
+                                        {Array(emptyCount).fill(null).map((_, i) => (
+                                          <div key={`empty-end-${index}-${i}`} className="history-day-cell empty"></div>
+                                        ))}
+                                        <div className="history-day-header">일</div>
+                                        <div className="history-day-header">월</div>
+                                        <div className="history-day-header">화</div>
+                                        <div className="history-day-header">수</div>
+                                        <div className="history-day-header">목</div>
+                                        <div className="history-day-header">금</div>
+                                        <div className="history-day-header">토</div>
+                                        <div className={`history-day-cell ${dayInfo.isCompleted ? 'completed' : ''} ${!dayInfo.isRoutineDay ? 'not-routine-day' : ''}`}>
+                                          <span className="day-number">{dayInfo.day}</span>
+                                          {dayInfo.isCompleted && <span className="check-mark">✓</span>}
+                                        </div>
+                                      </React.Fragment>
+                                    )
+                                  }
+
+                                  return (
+                                    <div
+                                      key={dayInfo.dateStr}
+                                      className={`history-day-cell ${dayInfo.isCompleted ? 'completed' : ''} ${!dayInfo.isRoutineDay ? 'not-routine-day' : ''}`}
+                                      title={`${dayInfo.dateStr}${!dayInfo.isRoutineDay ? ' (루틴 요일 아님)' : ''}${dayInfo.isCompleted ? ' - 완료' : dayInfo.hasTodo ? ' - 미완료' : ''}`}
+                                    >
+                                      <span className="day-number">{dayInfo.day}</span>
+                                      {dayInfo.isCompleted && <span className="check-mark">✓</span>}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="routine-history-stats">
+                          <div className="stat-item">
+                            <span className="stat-label">총 투두:</span>
+                            <span className="stat-value">{routineHistoryData.length}개</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-label">완료:</span>
+                            <span className="stat-value completed">{routineHistoryData.filter(t => t.completed).length}개</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-label">미완료:</span>
+                            <span className="stat-value incomplete">{routineHistoryData.filter(t => !t.completed).length}개</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-label">완료율:</span>
+                            <span className="stat-value">
+                              {routineHistoryData.length > 0
+                                ? Math.round((routineHistoryData.filter(t => t.completed).length / routineHistoryData.length) * 100)
+                                : 0}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {selectedAction === 'delete' && (
+                  <div className="actions-detail-content">
+                    <h4>🗑️ 삭제</h4>
+                    <p className="delete-confirm-text">
+                      <strong>{todo.text}</strong>
+                    </p>
+                    {(() => {
+                      // visible_dates 확인 (여러 날짜에 보이는 투두인지 체크)
+                      const visibleDates = (todo.visible_dates?.length > 0)
+                        ? todo.visible_dates
+                        : [todo.date || todo.created_date]
+
+                      // 구 방식(복사 기반) 이월 투두인지 확인
+                      const isOldStyleCarryover = todo.original_todo_id !== null && todo.original_todo_id !== undefined
+
+                      // 여러 날짜에 보이는 경우 두 가지 옵션 표시
+                      if (visibleDates.length > 1 || isOldStyleCarryover) {
+                        return (
+                          <>
+                            <p className="delete-confirm-description">
+                              이 투두는 여러 날짜에 보입니다. 어떻게 삭제하시겠습니까?
+                            </p>
+                            <div className="delete-options-simple">
+                              <button
+                                className="delete-option-button-simple option-hide"
+                                onClick={async () => {
+                                  await hideOnThisDateOnly(todo)
+                                  setShowActionsModal(false)
+                                }}
+                              >
+                                <span className="option-icon">👁️‍🗨️</span>
+                                <span className="option-title">이 날짜에서만 숨김</span>
+                                <span className="option-desc">다른 날짜에서는 계속 보입니다</span>
+                              </button>
+                              <button
+                                className="delete-option-button-simple option-delete"
+                                onClick={async () => {
+                                  await deleteCompletely(todo)
+                                  setShowActionsModal(false)
+                                }}
+                              >
+                                <span className="option-icon">🗑️</span>
+                                <span className="option-title">휴지통으로 이동</span>
+                                <span className="option-desc">모든 날짜에서 삭제 (복원 가능)</span>
+                              </button>
+                            </div>
+                          </>
+                        )
+                      } else {
+                        // 단일 날짜 투두는 휴지통 이동만 표시
+                        return (
+                          <>
+                            <p className="delete-confirm-description">
+                              이 투두를 휴지통으로 이동하시겠습니까?
+                            </p>
+                            <div className="delete-options-simple">
+                              <button
+                                className="delete-option-button-simple option-delete"
+                                onClick={async () => {
+                                  await deleteCompletely(todo)
+                                  setShowActionsModal(false)
+                                }}
+                              >
+                                <span className="option-icon">🗑️</span>
+                                <span className="option-title">휴지통으로 이동</span>
+                                <span className="option-desc">복원 가능</span>
+                              </button>
+                            </div>
+                          </>
+                        )
+                      }
+                    })()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1053,6 +1502,12 @@ function App() {
 
   // 특정 세션 더미 데이터 삭제
   const handleDeleteDummySession = async (sessionId) => {
+    const confirmed = window.confirm(
+      `⚠️ 정말로 세션 "${sessionId}"의 더미 데이터를 삭제하시겠습니까?\n\n이 세션의 모든 투두가 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.`
+    )
+
+    if (!confirmed) return
+
     try {
       // 먼저 해당 세션의 투두 ID들을 가져오기
       const { data: todosToDelete, error: fetchError } = await supabase
@@ -1097,6 +1552,12 @@ function App() {
 
   // 모든 더미 데이터 삭제
   const handleDeleteAllDummies = async () => {
+    const confirmed = window.confirm(
+      `⚠️ 정말로 모든 더미 데이터를 삭제하시겠습니까?\n\n모든 더미 세션의 투두가 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.`
+    )
+
+    if (!confirmed) return
+
     try {
       // 먼저 모든 더미 투두 ID들을 가져오기
       const { data: todosToDelete, error: fetchError } = await supabase
@@ -1194,7 +1655,7 @@ function App() {
       duplicateList += `\n총 ${todosToDelete.length}개의 중복 투두를 삭제합니다.`
 
       // 확인 받기
-      const confirmDelete = window.confirm(duplicateList + '\n\n삭제하시겠습니까?')
+      const confirmDelete = window.confirm(duplicateList + '\n\n⚠️ 이 투두들은 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.\n\n삭제하시겠습니까?')
 
       if (!confirmDelete) {
         return
@@ -1642,6 +2103,15 @@ function App() {
 
   // 루틴 삭제
   const handleDeleteRoutine = async (id) => {
+    const routine = routines.find(r => r.id === id)
+    const routineName = routine ? routine.text : '이 루틴'
+
+    const confirmed = window.confirm(
+      `⚠️ 정말로 "${routineName}"을(를) 삭제하시겠습니까?\n\n이 루틴은 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.\n(기존에 생성된 투두는 유지됩니다)`
+    )
+
+    if (!confirmed) return
+
     try {
       // 1. 루틴 삭제
       const { error } = await supabase
@@ -2790,6 +3260,12 @@ function App() {
   }
 
   const handlePermanentDelete = async (id) => {
+    const confirmed = window.confirm(
+      '⚠️ 정말로 이 항목을 영구적으로 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.'
+    )
+
+    if (!confirmed) return
+
     try {
       const { error } = await supabase
         .from('todos')
@@ -2802,6 +3278,7 @@ function App() {
       setTrashedItems(trashedItems.filter(item => item.id !== id))
     } catch (error) {
       console.error('영구 삭제 오류:', error.message)
+      alert('❌ 영구 삭제 실패: ' + error.message)
     }
   }
 
@@ -3371,15 +3848,6 @@ function App() {
 
   return (
     <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
-      {/* 햄버거 메뉴 버튼 */}
-      <button
-        className={`hamburger-menu ${showSidebar ? 'hidden' : ''}`}
-        onClick={() => setShowSidebar(!showSidebar)}
-        title="메뉴"
-      >
-        ☰
-      </button>
-
       {/* 사이드바 오버레이 */}
       {showSidebar && (
         <div className="sidebar-overlay" onClick={() => setShowSidebar(false)} />
@@ -3470,9 +3938,21 @@ function App() {
       <div className={`container ${viewMode === 'horizontal' ? 'container-wide' : ''}`}>
         <div className="header-fixed">
           <div className="settings-bar">
+            {/* 햄버거 메뉴 버튼 */}
+            <button
+              className="hamburger-menu"
+              onClick={() => setShowSidebar(!showSidebar)}
+              title="메뉴"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="4" width="16" height="2" rx="1" fill="currentColor"/>
+                <rect x="2" y="9" width="16" height="2" rx="1" fill="currentColor"/>
+                <rect x="2" y="14" width="16" height="2" rx="1" fill="currentColor"/>
+              </svg>
+            </button>
+
             {/* 날짜 네비게이션 */}
             <div className="date-nav-section">
-              <button onClick={handlePrevDay} className="date-nav-button">←</button>
               <div className="date-display-wrapper">
                 <span className="date-display">
                   {formatDateOnly(selectedDate)}
@@ -3484,7 +3964,8 @@ function App() {
                   className="date-picker-input"
                 />
               </div>
-              <button onClick={handleNextDay} className="date-nav-button">→</button>
+              <button onClick={handlePrevDay} className="date-nav-button">◀</button>
+              <button onClick={handleNextDay} className="date-nav-button">▶</button>
             </div>
 
             {/* 응원 메시지 */}
