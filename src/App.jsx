@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
+import ReactMarkdown from 'react-markdown'
 import {
   DndContext,
   closestCenter,
@@ -1197,12 +1198,12 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation()
-                                  if (routineDaysForModal.length > 0 && todo) {
+                                  if (todo) {
                                     if (isEditingRoutineInModal && currentRoutine) {
                                       // 루틴 수정
                                       await onCreateRoutine(todo.id, todo.text, routineDaysForModal, currentRoutine.id, false, routineTimeSlotForModal)
                                     } else {
-                                      // 새 루틴 생성
+                                      // 새 루틴 생성 (요일 없으면 매일 반복)
                                       await onCreateRoutine(todo.id, todo.text, routineDaysForModal, null, false, routineTimeSlotForModal)
                                     }
                                     setIsEditingRoutineInModal(false)
@@ -1210,7 +1211,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                                   }
                                 }}
                                 className="routine-confirm-button"
-                                disabled={routineDaysForModal.length === 0}
                               >
                                 확인
                               </button>
@@ -1799,6 +1799,14 @@ function App() {
   const [memoOriginalContent, setMemoOriginalContent] = useState('')
   const [isEditingMemoInline, setIsEditingMemoInline] = useState(false)
   const memoTextareaRef = useRef(null)
+
+  // 주요 생각정리 관련 상태
+  const [keyThoughtsContent, setKeyThoughtsContent] = useState('')
+  const [isEditingKeyThoughts, setIsEditingKeyThoughts] = useState(false)
+  const [isSavingKeyThoughts, setIsSavingKeyThoughts] = useState(false)
+  const [keyThoughtsOriginalContent, setKeyThoughtsOriginalContent] = useState('')
+  const [isEditingKeyThoughtsInline, setIsEditingKeyThoughtsInline] = useState(false)
+  const keyThoughtsTextareaRef = useRef(null)
   const [showGanttChart, setShowGanttChart] = useState(false)
   const [ganttData, setGanttData] = useState([])
   const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
@@ -2479,14 +2487,15 @@ function App() {
 
   // 루틴 추가
   const handleAddRoutine = async () => {
-    if (routineInput.trim() === '' || selectedDays.length === 0 || isAddingRoutine) return
+    if (routineInput.trim() === '' || isAddingRoutine) return
 
     try {
       setIsAddingRoutine(true)
 
       const routineData = {
         text: routineInput,
-        days: selectedDays,
+        days: selectedDays, // 빈 배열이면 매일 반복
+        start_date: formatDateForDB(selectedDate) // 시작 날짜 추가
       }
 
       // 시간대가 선택되었으면 추가
@@ -2513,7 +2522,7 @@ function App() {
   }
 
   // 투두에서 루틴 생성/수정/제거
-  const handleCreateRoutineFromTodo = async (todoId, text, days, routineId = null, remove = false, timeSlot = '') => {
+  const handleCreateRoutineFromTodo = async (todoId, text, days, routineId = null, remove = false, timeSlot = '', startDate = null) => {
     try {
       if (remove) {
         // 루틴 제거 - routine_id를 null로
@@ -2542,25 +2551,46 @@ function App() {
 
         if (error) throw error
 
+        // 투두의 is_pending_routine 플래그 업데이트
+        // days가 있으면 정식 루틴, 없으면 미정 루틴
+        const { error: updateError } = await supabase
+          .from('todos')
+          .update({ is_pending_routine: days.length === 0 })
+          .eq('id', todoId)
+
+        if (updateError) throw updateError
 
         // 로컬 루틴 목록 업데이트
         setRoutines(prevRoutines =>
           prevRoutines.map(r => r.id === routineId ? { ...r, days, time_slot: timeSlot } : r)
         )
+
+        // 로컬 투두 목록 업데이트
+        setTodos(prevTodos =>
+          prevTodos.map(t => t.id === todoId ? { ...t, is_pending_routine: days.length === 0 } : t)
+        )
       } else {
-        // 새 루틴 생성
+        // 새 루틴 생성 - start_date 추가
+        const routineData = {
+          text,
+          days,
+          time_slot: timeSlot,
+          start_date: startDate || formatDateForDB(selectedDate) // 시작 날짜 설정
+        }
+
         const { data, error } = await supabase
           .from('routines')
-          .insert([{ text, days, time_slot: timeSlot }])
+          .insert([routineData])
           .select()
 
         if (error) throw error
 
 
-        // 해당 투두에 루틴 ID 연결 및 미정 루틴 플래그 제거
+        // 해당 투두에 루틴 ID 연결 및 미정 루틴 플래그 설정
+        // days가 있으면 정식 루틴(false), 없으면 미정 루틴(true)
         const { error: updateError } = await supabase
           .from('todos')
-          .update({ routine_id: data[0].id, is_pending_routine: false })
+          .update({ routine_id: data[0].id, is_pending_routine: days.length === 0 })
           .eq('id', todoId)
 
         if (updateError) throw updateError
@@ -2568,7 +2598,7 @@ function App() {
         // 로컬 상태 업데이트
         setTodos(prevTodos =>
           prevTodos.map(todo =>
-            todo.id === todoId ? { ...todo, routine_id: data[0].id, is_pending_routine: false } : todo
+            todo.id === todoId ? { ...todo, routine_id: data[0].id, is_pending_routine: days.length === 0 } : todo
           )
         )
 
@@ -2766,7 +2796,18 @@ function App() {
 
       const matchingRoutines = allRoutines.filter(routine => {
         const days = routine.days || []
-        return days.includes(dayKey)
+        // days가 비어있으면 매일 반복 (미정 루틴), 아니면 해당 요일만
+        const hasMatchingDay = days.length === 0 || days.includes(dayKey)
+
+        // start_date가 있는 경우, 현재 날짜가 시작일 이후인지 확인
+        if (routine.start_date) {
+          const startDate = new Date(routine.start_date)
+          const isAfterStartDate = targetDate >= startDate
+          return hasMatchingDay && isAfterStartDate
+        }
+
+        // start_date가 없는 경우 (기존 루틴), 요일만 체크
+        return hasMatchingDay
       })
 
       if (matchingRoutines.length === 0) return
@@ -2957,9 +2998,14 @@ function App() {
     fetchEncouragementMessages()
   }, [])
 
-  // 앱 시작 시 기획서 메모 가져오기
+  // 앱 시작 시 생각 메모 가져오기
   useEffect(() => {
     fetchMemoContent()
+  }, [])
+
+  // 앱 시작 시 주요 생각정리 가져오기
+  useEffect(() => {
+    fetchKeyThoughtsContent()
   }, [])
 
   // 앱 시작 시 과거 미완료 항목을 오늘로 이월
@@ -3609,13 +3655,28 @@ function App() {
     try {
       setIsAdding(true)
 
-      // 미정 루틴 투두들의 최대 order_index 찾기
+      const dateStr = formatDateForDB(selectedDate)
+
+      // 1. 빈 배열로 루틴 생성 (매일 반복)
+      const { data: routineData, error: routineError } = await supabase
+        .from('routines')
+        .insert([{
+          text: routineInputValue,
+          days: [], // 빈 배열 = 매일 반복
+          start_date: dateStr
+        }])
+        .select()
+
+      if (routineError) throw routineError
+
+      const newRoutine = routineData[0]
+
+      // 2. 미정 루틴 투두들의 최대 order_index 찾기
       const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
       const newOrderIndex = pendingRoutineTodos.length > 0 ? Math.max(...pendingRoutineTodos.map(t => t.order_index)) + 1 : 1
 
-      // 새 항목을 추가 (JSON 방식) - 미정 루틴으로 표시
-      const dateStr = formatDateForDB(selectedDate)
-      const { data, error } = await supabase
+      // 3. 투두 생성 (루틴 ID 연결, 미정 표시 유지)
+      const { data: todoData, error: todoError } = await supabase
         .from('todos')
         .insert([{
           text: routineInputValue,
@@ -3624,15 +3685,16 @@ function App() {
           date: dateStr,
           visible_dates: [dateStr],
           hidden_dates: [],
-          routine_id: null,
-          is_pending_routine: true // 미정 루틴으로 표시
+          routine_id: newRoutine.id, // 루틴 ID 연결
+          is_pending_routine: true // 미정 루틴으로 표시 (요일 미설정)
         }])
         .select()
 
-      if (error) throw error
+      if (todoError) throw todoError
 
-      // 로컬 상태 업데이트
-      setTodos([...todos, data[0]])
+      // 4. 로컬 상태 업데이트
+      setRoutines([newRoutine, ...routines])
+      setTodos([...todos, todoData[0]])
       setRoutineInputValue('')
     } catch (error) {
       console.error('할 일 추가 오류:', error.message)
@@ -4247,6 +4309,90 @@ function App() {
     }
   }
 
+  // 주요 생각정리 관련 함수들
+  const fetchKeyThoughtsContent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('key_thoughts')
+        .select('content')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (error) throw error
+
+      const content = data && data.length > 0 ? data[0].content : '# 주요 생각정리\n\n여기에 중요한 생각들을 자유롭게 정리하세요.'
+      setKeyThoughtsContent(content)
+      setKeyThoughtsOriginalContent(content)
+    } catch (error) {
+      console.error('주요 생각정리 가져오기 오류:', error.message)
+      setKeyThoughtsContent('# 주요 생각정리\n\n여기에 중요한 생각들을 자유롭게 정리하세요.')
+      setKeyThoughtsOriginalContent('# 주요 생각정리\n\n여기에 중요한 생각들을 자유롭게 정리하세요.')
+    }
+  }
+
+  const handleStartEditKeyThoughtsInline = () => {
+    setIsEditingKeyThoughtsInline(true)
+    setTimeout(() => {
+      if (keyThoughtsTextareaRef.current) {
+        keyThoughtsTextareaRef.current.focus()
+      }
+    }, 0)
+  }
+
+  const handleSaveKeyThoughtsInline = async () => {
+    if (isSavingKeyThoughts) return
+
+    try {
+      setIsSavingKeyThoughts(true)
+
+      // 기존 메모가 있는지 확인
+      const { data: existingThoughts } = await supabase
+        .from('key_thoughts')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (existingThoughts && existingThoughts.length > 0) {
+        // 업데이트
+        await supabase
+          .from('key_thoughts')
+          .update({ content: keyThoughtsContent, updated_at: new Date().toISOString() })
+          .eq('id', existingThoughts[0].id)
+      } else {
+        // 신규 생성
+        await supabase
+          .from('key_thoughts')
+          .insert([{ content: keyThoughtsContent }])
+      }
+
+      setKeyThoughtsOriginalContent(keyThoughtsContent)
+      setIsEditingKeyThoughtsInline(false)
+    } catch (error) {
+      console.error('주요 생각정리 저장 오류:', error.message)
+      alert('주요 생각정리 저장에 실패했습니다.')
+    } finally {
+      setIsSavingKeyThoughts(false)
+    }
+  }
+
+  const handleCancelEditKeyThoughtsInline = () => {
+    setKeyThoughtsContent(keyThoughtsOriginalContent)
+    setIsEditingKeyThoughtsInline(false)
+  }
+
+  const handleKeyThoughtsKeyDown = (e) => {
+    // Cmd/Ctrl+S to save
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault()
+      handleSaveKeyThoughtsInline()
+    }
+    // Esc to cancel
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancelEditKeyThoughtsInline()
+    }
+  }
+
   const handleSaveMemo = async () => {
     if (isSavingMemo) return
 
@@ -4539,7 +4685,21 @@ function App() {
             }}
           >
             <span className="sidebar-icon">📝</span>
-            <span>기획서 메모</span>
+            <span>생각 메모</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              // 주요 생각정리 섹션으로 스크롤
+              const keyThoughtsSection = document.querySelector('.key-thoughts-section')
+              if (keyThoughtsSection) {
+                keyThoughtsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">💡</span>
+            <span>주요 생각정리</span>
           </button>
           <button
             className="sidebar-menu-item"
@@ -4648,8 +4808,8 @@ function App() {
               <p className="empty-message">로딩 중...</p>
             ) : (() => {
               // 루틴 투두, 미정 루틴, 일반 투두 분리
-              const routineTodos = todos.filter(t => !t.parent_id && t.routine_id !== null)
-              const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine && t.routine_id === null)
+              const routineTodos = todos.filter(t => !t.parent_id && t.routine_id !== null && !t.is_pending_routine)
+              const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
               const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine)
 
               return (
@@ -4660,7 +4820,7 @@ function App() {
                   {/* 메모 섹션 */}
                   <div className="memo-section section-block">
                     <div className="section-header">
-                      <h3 className="section-title">📋 기획서 메모</h3>
+                      <h3 className="section-title">📋 생각 메모</h3>
                       <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
                         {!isEditingMemoInline && (
                           <button
@@ -5131,6 +5291,116 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                       </SortableContext>
                     )}
                   </div>
+
+                  {/* 주요 생각정리 섹션 */}
+                  <div className="key-thoughts-section section-block">
+                    <div className="section-header">
+                      <h3 className="section-title">💡 주요 생각정리</h3>
+                      <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
+                        {!isEditingKeyThoughtsInline && (
+                          <button
+                            onClick={handleStartEditKeyThoughtsInline}
+                            className="memo-edit-button-inline"
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              fontSize: '0.85rem',
+                              background: 'rgba(100, 108, 255, 0.1)',
+                              color: '#646cff',
+                              border: '1px solid rgba(100, 108, 255, 0.3)',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            편집
+                          </button>
+                        )}
+                        {isEditingKeyThoughtsInline && (
+                          <>
+                            <button
+                              onClick={handleSaveKeyThoughtsInline}
+                              disabled={isSavingKeyThoughts}
+                              className="memo-save-button-inline"
+                              style={{
+                                padding: '0.4rem 0.75rem',
+                                fontSize: '0.85rem',
+                                background: '#646cff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              {isSavingKeyThoughts ? '저장 중...' : '저장'}
+                            </button>
+                            <button
+                              onClick={handleCancelEditKeyThoughtsInline}
+                              className="memo-cancel-button-inline"
+                              style={{
+                                padding: '0.4rem 0.75rem',
+                                fontSize: '0.85rem',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              취소
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="content-scrollable" style={{
+                      height: '500px',
+                      maxHeight: '70vh',
+                      overflowY: 'auto',
+                      padding: '1rem',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.05)'
+                    }}>
+                      {isEditingKeyThoughtsInline ? (
+                        <textarea
+                          ref={keyThoughtsTextareaRef}
+                          value={keyThoughtsContent}
+                          onChange={(e) => setKeyThoughtsContent(e.target.value)}
+                          onKeyDown={handleKeyThoughtsKeyDown}
+                          placeholder="주요 생각을 정리하세요..."
+                          className="memo-edit-textarea-inline"
+                          style={{
+                            width: '100%',
+                            minHeight: '450px',
+                            padding: '1rem',
+                            fontSize: '0.95rem',
+                            lineHeight: '1.7',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(100, 108, 255, 0.3)',
+                            borderRadius: '8px',
+                            color: 'rgba(255, 255, 255, 0.9)',
+                            fontFamily: 'inherit',
+                            resize: 'vertical',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className="memo-viewer-inline"
+                          style={{
+                            fontSize: '0.95rem',
+                            lineHeight: '1.7',
+                            color: 'rgba(255, 255, 255, 0.85)'
+                          }}
+                        >
+                          <ReactMarkdown>{keyThoughtsContent}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )
             })()}
@@ -5411,19 +5681,18 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                           <button
                             onClick={async (e) => {
                               e.stopPropagation()
-                              if (routineDaysForModal.length > 0 && todo) {
+                              if (todo) {
                                 if (isEditingRoutineInModal && currentRoutine) {
                                   // 루틴 수정
                                   await handleCreateRoutineFromTodo(todo.id, todo.text, routineDaysForModal, currentRoutine.id, false, routineTimeSlotForModal)
                                 } else {
-                                  // 새 루틴 생성
+                                  // 새 루틴 생성 (요일 없으면 매일 반복)
                                   await handleCreateRoutineFromTodo(todo.id, todo.text, routineDaysForModal, null, false, routineTimeSlotForModal)
                                 }
                                 handleCloseTodoRoutineSetupModal()
                               }
                             }}
                             className="routine-confirm-button"
-                            disabled={routineDaysForModal.length === 0}
                           >
                             확인
                           </button>
@@ -5659,7 +5928,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           <div className="modal-overlay" onClick={handleCloseMemo}>
             <div className="modal-content memo-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>📝 기획서 메모</h2>
+                <h2>📝 생각 메모</h2>
                 <button onClick={handleCloseMemo} className="modal-close-button">✕</button>
               </div>
 
@@ -5868,7 +6137,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                 <button
                   onClick={handleAddRoutine}
                   className="add-routine-button"
-                  disabled={isAddingRoutine || routineInput.trim() === '' || selectedDays.length === 0}
+                  disabled={isAddingRoutine || routineInput.trim() === ''}
                 >
                   루틴 추가
                 </button>
