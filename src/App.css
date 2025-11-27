@@ -3463,6 +3463,7 @@ h1 {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+  padding-top: 1.5rem;
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
@@ -3491,7 +3492,7 @@ h1 {
   overflow-x: auto;
   overflow-y: visible;
   scroll-behavior: smooth;
-  padding: 1rem 0 1rem 0;
+  padding: 2rem 0 1rem 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
@@ -3595,7 +3596,8 @@ h1 {
 /* 섹션 공통 스타일 */
 .memo-section,
 .routine-section,
-.normal-section {
+.normal-section,
+.key-thoughts-section {
   margin-bottom: 20px;
   background: #242424;
   border-radius: 12px;
@@ -3609,18 +3611,22 @@ h1 {
 .memo-section::-webkit-scrollbar,
 .routine-section::-webkit-scrollbar,
 .normal-section::-webkit-scrollbar,
+.key-thoughts-section::-webkit-scrollbar,
 .memo-section *::-webkit-scrollbar,
 .routine-section *::-webkit-scrollbar,
-.normal-section *::-webkit-scrollbar {
+.normal-section *::-webkit-scrollbar,
+.key-thoughts-section *::-webkit-scrollbar {
   width: 6px !important;
 }
 
 .memo-section::-webkit-scrollbar-thumb,
 .routine-section::-webkit-scrollbar-thumb,
 .normal-section::-webkit-scrollbar-thumb,
+.key-thoughts-section::-webkit-scrollbar-thumb,
 .memo-section *::-webkit-scrollbar-thumb,
 .routine-section *::-webkit-scrollbar-thumb,
-.normal-section *::-webkit-scrollbar-thumb {
+.normal-section *::-webkit-scrollbar-thumb,
+.key-thoughts-section *::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2) !important;
   border-radius: 3px !important;
   border: none !important;
@@ -3629,9 +3635,11 @@ h1 {
 .memo-section::-webkit-scrollbar-thumb:hover,
 .routine-section::-webkit-scrollbar-thumb:hover,
 .normal-section::-webkit-scrollbar-thumb:hover,
+.key-thoughts-section::-webkit-scrollbar-thumb:hover,
 .memo-section *::-webkit-scrollbar-thumb:hover,
 .routine-section *::-webkit-scrollbar-thumb:hover,
-.normal-section *::-webkit-scrollbar-thumb:hover {
+.normal-section *::-webkit-scrollbar-thumb:hover,
+.key-thoughts-section *::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3) !important;
 }
 

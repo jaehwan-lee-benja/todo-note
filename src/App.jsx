@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
-import ReactMarkdown from 'react-markdown'
 import {
   DndContext,
   closestCenter,
@@ -15,6 +14,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -218,6 +218,184 @@ function AppleTimePicker({ value, onChange }) {
         <button className="picker-arrow-button" onClick={decrementMinute}>▼</button>
       </div>
       <div className="picker-selection-indicator" />
+    </div>
+  )
+}
+
+// 드래그 가능한 섹션 래퍼 컴포넌트
+function SortableSection({ id, children, disabled, onLongPress }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled })
+
+  const longPressTimerRef = useRef(null)
+  const [isPressed, setIsPressed] = useState(false)
+
+  const handlePointerDown = (e) => {
+    if (disabled && onLongPress) {
+      setIsPressed(true)
+      longPressTimerRef.current = setTimeout(() => {
+        onLongPress()
+        setIsPressed(false)
+      }, 500) // 500ms 길게 누르기
+    }
+  }
+
+  const handlePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    setIsPressed(false)
+  }
+
+  const handlePointerCancel = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    setIsPressed(false)
+  }
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : isPressed ? 0.8 : 1,
+    cursor: isDragging ? 'grabbing' : disabled ? 'default' : 'grab',
+  }
+
+  const eventHandlers = disabled
+    ? {
+        onPointerDown: handlePointerDown,
+        onPointerUp: handlePointerUp,
+        onPointerCancel: handlePointerCancel,
+        onPointerLeave: handlePointerCancel,
+      }
+    : { ...attributes, ...listeners }
+
+  return (
+    <div ref={setNodeRef} style={style} {...eventHandlers}>
+      {children}
+    </div>
+  )
+}
+
+// 재사용 가능한 메모 섹션 컴포넌트
+function MemoSection({
+  title,
+  className,
+  content,
+  setContent,
+  isEditing,
+  isSaving,
+  textareaRef,
+  onStartEdit,
+  onSave,
+  onCancel,
+  onKeyDown,
+  placeholder,
+  emptyMessage,
+  children,
+}) {
+  return (
+    <div className={className}>
+      <div className="section-header">
+        <h3 className="section-title">{title}</h3>
+        <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
+          {!isEditing && (
+            <button
+              onClick={onStartEdit}
+              className="memo-edit-button-inline"
+              title="메모 편집"
+            >
+              ✏️ 편집
+            </button>
+          )}
+          {isEditing && (
+            <div className="memo-edit-actions">
+              <button
+                onClick={onSave}
+                className="memo-save-button"
+                disabled={isSaving}
+              >
+                💾 저장
+              </button>
+              <button
+                onClick={onCancel}
+                className="memo-cancel-button"
+                disabled={isSaving}
+              >
+                ✕ 취소
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      {isEditing ? (
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={onKeyDown}
+          className="memo-textarea"
+          placeholder={placeholder}
+        />
+      ) : (
+        <div className="memo-preview" onClick={onStartEdit}>
+          {content ? (
+            <div className="memo-preview-content">
+              {content.split('\n').map((line, idx) => (
+                <div key={idx} className="memo-preview-line">{line || '\u00A0'}</div>
+              ))}
+            </div>
+          ) : (
+            <div className="memo-empty">{emptyMessage}</div>
+          )}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+// 재사용 가능한 투두 섹션 컴포넌트
+function TodoSection({
+  title,
+  className,
+  inputValue,
+  setInputValue,
+  onAddTodo,
+  isAdding,
+  placeholder,
+  children,
+}) {
+  return (
+    <div className={className}>
+      <div className="section-header">
+        <h3 className="section-title">{title}</h3>
+      </div>
+      <div className="section-input">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onAddTodo()
+          }}
+          placeholder={placeholder}
+          className="todo-input"
+          disabled={isAdding}
+        />
+        <button onClick={onAddTodo} className="add-button" disabled={isAdding}>
+          추가
+        </button>
+      </div>
+      {children}
     </div>
   )
 }
@@ -1830,6 +2008,8 @@ function App() {
     const saved = localStorage.getItem('viewMode')
     return saved || 'horizontal' // 기본값: horizontal
   })
+  const [isReorderMode, setIsReorderMode] = useState(false) // 섹션 순서 수정 모드
+  const [sectionOrder, setSectionOrder] = useState(['memo', 'routine', 'normal', 'key-thoughts'])
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
   const carryOverInProgress = useRef(false) // 이월 작업 중 플래그
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
@@ -3006,6 +3186,11 @@ function App() {
   // 앱 시작 시 주요 생각정리 가져오기
   useEffect(() => {
     fetchKeyThoughtsContent()
+  }, [])
+
+  // 앱 시작 시 섹션 순서 가져오기
+  useEffect(() => {
+    fetchSectionOrder()
   }, [])
 
   // 앱 시작 시 과거 미완료 항목을 오늘로 이월
@@ -4393,6 +4578,98 @@ function App() {
     }
   }
 
+  // 섹션 순서 불러오기
+  const fetchSectionOrder = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('setting_value')
+        .eq('setting_key', 'section_order')
+        .single()
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('섹션 순서 불러오기 오류:', error.message)
+        return
+      }
+
+      if (data && data.setting_value) {
+        const order = JSON.parse(data.setting_value)
+        setSectionOrder(order)
+        localStorage.setItem('sectionOrder', JSON.stringify(order))
+      } else {
+        // DB에 없으면 localStorage에서 불러오기
+        const saved = localStorage.getItem('sectionOrder')
+        if (saved) {
+          setSectionOrder(JSON.parse(saved))
+        }
+      }
+    } catch (error) {
+      console.error('섹션 순서 불러오기 오류:', error.message)
+      // 실패하면 localStorage에서 불러오기
+      const saved = localStorage.getItem('sectionOrder')
+      if (saved) {
+        setSectionOrder(JSON.parse(saved))
+      }
+    }
+  }
+
+  // 섹션 순서 저장하기
+  const saveSectionOrder = async (newOrder) => {
+    try {
+      // localStorage에 저장
+      localStorage.setItem('sectionOrder', JSON.stringify(newOrder))
+
+      // Supabase에 저장
+      const { data: existing, error: selectError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('setting_key', 'section_order')
+        .single()
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('섹션 순서 조회 오류:', selectError.message)
+      }
+
+      if (existing) {
+        // 업데이트
+        await supabase
+          .from('user_settings')
+          .update({ setting_value: JSON.stringify(newOrder), updated_at: new Date().toISOString() })
+          .eq('setting_key', 'section_order')
+      } else {
+        // 신규 생성
+        await supabase
+          .from('user_settings')
+          .insert([{ setting_key: 'section_order', setting_value: JSON.stringify(newOrder) }])
+      }
+    } catch (error) {
+      console.error('섹션 순서 저장 오류:', error.message)
+    }
+  }
+
+  // 섹션 이동 핸들러
+  const moveSectionLeft = (sectionId) => {
+    setSectionOrder((prev) => {
+      const index = prev.indexOf(sectionId)
+      if (index <= 0) return prev
+      const newOrder = [...prev]
+      ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
+      saveSectionOrder(newOrder)
+      return newOrder
+    })
+  }
+
+  const moveSectionRight = (sectionId) => {
+    setSectionOrder((prev) => {
+      const index = prev.indexOf(sectionId)
+      if (index === -1 || index >= prev.length - 1) return prev
+      const newOrder = [...prev]
+      ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+      saveSectionOrder(newOrder)
+      return newOrder
+    })
+  }
+
   const handleSaveMemo = async () => {
     if (isSavingMemo) return
 
@@ -4564,7 +4841,7 @@ function App() {
     }
   }
 
-  // 드래그 앤 드롭 센서 설정
+  // 드래그 앤 드롭 센서 설정 (투두 항목용)
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -4583,6 +4860,39 @@ function App() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+
+  // 섹션 드래그 앤 드롭 센서 설정 (더 빠른 반응)
+  const sectionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // 섹션 드래그 종료 핸들러
+  const handleSectionDragEnd = (event) => {
+    const { active, over } = event
+
+    if (active.id !== over?.id) {
+      setSectionOrder((items) => {
+        const oldIndex = items.indexOf(active.id)
+        const newIndex = items.indexOf(over.id)
+        const newOrder = arrayMove(items, oldIndex, newIndex)
+        saveSectionOrder(newOrder)
+        return newOrder
+      })
+    }
+  }
 
   // 드래그 시작 핸들러
   const handleDragStart = () => {
@@ -4750,6 +5060,38 @@ function App() {
               </svg>
             </button>
 
+            {/* 섹션 순서 수정 모드 */}
+            {isReorderMode && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                color: '#60a5fa'
+              }}>
+                <span>📌 섹션 순서 수정 중</span>
+                <button
+                  onClick={() => setIsReorderMode(false)}
+                  style={{
+                    padding: '0.25rem 0.75rem',
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.4)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: '500'
+                  }}
+                >
+                  완료
+                </button>
+              </div>
+            )}
+
             {/* 날짜 네비게이션 */}
             <div className="date-nav-section">
               <div className="date-display-wrapper">
@@ -4813,67 +5155,43 @@ function App() {
               const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine)
 
               return (
-                <div
-                  ref={sectionsContainerRef}
-                  className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+                <DndContext
+                  sensors={sectionSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleSectionDragEnd}
                 >
-                  {/* 메모 섹션 */}
-                  <div className="memo-section section-block">
-                    <div className="section-header">
-                      <h3 className="section-title">📋 생각 메모</h3>
-                      <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
-                        {!isEditingMemoInline && (
-                          <button
-                            onClick={handleStartEditMemoInline}
-                            className="memo-edit-button-inline"
-                            title="메모 편집"
-                          >
-                            ✏️ 편집
-                          </button>
-                        )}
-                        {isEditingMemoInline && (
-                          <div className="memo-edit-actions">
-                            <button
-                              onClick={handleSaveMemoInline}
-                              className="memo-save-button"
-                              disabled={isSavingMemo}
+                  <SortableContext
+                    items={sectionOrder}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div
+                      ref={sectionsContainerRef}
+                      className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+                    >
+                      {sectionOrder.map((sectionId) => {
+                        if (sectionId === 'memo') {
+                          return (
+                            <SortableSection
+                              key="memo"
+                              id="memo"
+                              disabled={!isReorderMode}
+                              onLongPress={() => setIsReorderMode(true)}
                             >
-                              💾 저장
-                            </button>
-                            <button
-                              onClick={handleCancelEditMemoInline}
-                              className="memo-cancel-button"
-                              disabled={isSavingMemo}
-                            >
-                              ✕ 취소
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {isEditingMemoInline ? (
-                      <textarea
-                        ref={memoTextareaRef}
-                        value={memoContent}
-                        onChange={(e) => setMemoContent(e.target.value)}
-                        onKeyDown={handleMemoKeyDown}
-                        className="memo-textarea"
-                        placeholder="메모를 작성해보세요..."
-                      />
-                    ) : (
-                      <div className="memo-preview" onClick={handleStartEditMemoInline}>
-                        {memoContent ? (
-                          <div className="memo-preview-content">
-                            {memoContent.split('\n').map((line, idx) => (
-                              <div key={idx} className="memo-preview-line">{line || '\u00A0'}</div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="memo-empty">메모를 작성해보세요</div>
-                        )}
-                      </div>
-                    )}
-
+                              <MemoSection
+                                title="📋 생각 메모"
+                                className="memo-section section-block"
+                                content={memoContent}
+                                setContent={setMemoContent}
+                                isEditing={isEditingMemoInline}
+                                isSaving={isSavingMemo}
+                                textareaRef={memoTextareaRef}
+                                onStartEdit={handleStartEditMemoInline}
+                                onSave={handleSaveMemoInline}
+                                onCancel={handleCancelEditMemoInline}
+                                onKeyDown={handleMemoKeyDown}
+                                placeholder="메모를 작성해보세요..."
+                                emptyMessage="메모를 작성해보세요"
+                              >
                     {/* SQL 버튼 */}
                     {!isEditingMemoInline && (
                       <div style={{marginTop: '1rem'}}>
@@ -5100,29 +5418,26 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* 루틴 섹션 */}
-                  <div className="routine-section section-block">
-                    <div className="section-header">
-                      <h3 className="section-title">📌 루틴</h3>
-                    </div>
-                    <div className="section-input">
-                      <input
-                        type="text"
-                        value={routineInputValue}
-                        onChange={(e) => setRoutineInputValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAddRoutineTodo()
-                        }}
-                        placeholder="루틴 할 일 추가..."
-                        className="todo-input"
-                        disabled={isAdding}
-                      />
-                      <button onClick={handleAddRoutineTodo} className="add-button" disabled={isAdding}>
-                        추가
-                      </button>
-                    </div>
+                              </MemoSection>
+                            </SortableSection>
+                          )
+                        } else if (sectionId === 'routine') {
+                          return (
+                            <SortableSection
+                              key="routine"
+                              id="routine"
+                              disabled={!isReorderMode}
+                              onLongPress={() => setIsReorderMode(true)}
+                            >
+                              <TodoSection
+                                title="📌 루틴"
+                                className="routine-section section-block"
+                                inputValue={routineInputValue}
+                                setInputValue={setRoutineInputValue}
+                                onAddTodo={handleAddRoutineTodo}
+                                isAdding={isAdding}
+                                placeholder="루틴 할 일 추가..."
+                              >
                     {/* 확정 루틴 */}
                     {routineTodos.length > 0 && (
                       <SortableContext
@@ -5204,29 +5519,26 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         })}
                       </SortableContext>
                     )}
-                  </div>
-
-                  {/* 일반 투두 섹션 */}
-                  <div className="normal-section section-block">
-                    <div className="section-header">
-                      <h3 className="section-title">📝 일반 투두</h3>
-                    </div>
-                    <div className="section-input">
-                      <input
-                        type="text"
-                        value={normalInputValue}
-                        onChange={(e) => setNormalInputValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAddNormalTodo()
-                        }}
-                        placeholder="일반 할 일 추가..."
-                        className="todo-input"
-                        disabled={isAdding}
-                      />
-                      <button onClick={handleAddNormalTodo} className="add-button" disabled={isAdding}>
-                        추가
-                      </button>
-                    </div>
+                              </TodoSection>
+                            </SortableSection>
+                          )
+                        } else if (sectionId === 'normal') {
+                          return (
+                            <SortableSection
+                              key="normal"
+                              id="normal"
+                              disabled={!isReorderMode}
+                              onLongPress={() => setIsReorderMode(true)}
+                            >
+                              <TodoSection
+                                title="📝 일반 투두"
+                                className="normal-section section-block"
+                                inputValue={normalInputValue}
+                                setInputValue={setNormalInputValue}
+                                onAddTodo={handleAddNormalTodo}
+                                isAdding={isAdding}
+                                placeholder="일반 할 일 추가..."
+                              >
                     {normalTodos.length > 0 && (
                       <SortableContext
                         items={normalTodos.map(todo => todo.id)}
@@ -5287,121 +5599,43 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                       )}
                     </React.Fragment>
                   )
-                })}
-                      </SortableContext>
-                    )}
-                  </div>
-
-                  {/* 주요 생각정리 섹션 */}
-                  <div className="key-thoughts-section section-block">
-                    <div className="section-header">
-                      <h3 className="section-title">💡 주요 생각정리</h3>
-                      <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
-                        {!isEditingKeyThoughtsInline && (
-                          <button
-                            onClick={handleStartEditKeyThoughtsInline}
-                            className="memo-edit-button-inline"
-                            style={{
-                              padding: '0.4rem 0.75rem',
-                              fontSize: '0.85rem',
-                              background: 'rgba(100, 108, 255, 0.1)',
-                              color: '#646cff',
-                              border: '1px solid rgba(100, 108, 255, 0.3)',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            편집
-                          </button>
-                        )}
-                        {isEditingKeyThoughtsInline && (
-                          <>
-                            <button
-                              onClick={handleSaveKeyThoughtsInline}
-                              disabled={isSavingKeyThoughts}
-                              className="memo-save-button-inline"
-                              style={{
-                                padding: '0.4rem 0.75rem',
-                                fontSize: '0.85rem',
-                                background: '#646cff',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                              }}
+                              })}
+                            </SortableContext>
+                          )}
+                              </TodoSection>
+                            </SortableSection>
+                          )
+                        } else if (sectionId === 'key-thoughts') {
+                          return (
+                            <SortableSection
+                              key="key-thoughts"
+                              id="key-thoughts"
+                              disabled={!isReorderMode}
+                              onLongPress={() => setIsReorderMode(true)}
                             >
-                              {isSavingKeyThoughts ? '저장 중...' : '저장'}
-                            </button>
-                            <button
-                              onClick={handleCancelEditKeyThoughtsInline}
-                              className="memo-cancel-button-inline"
-                              style={{
-                                padding: '0.4rem 0.75rem',
-                                fontSize: '0.85rem',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                border: '1px solid rgba(255, 255, 255, 0.1)',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                              }}
-                            >
-                              취소
-                            </button>
-                          </>
-                        )}
-                      </div>
+                              <MemoSection
+                                title="💡 주요 생각정리"
+                                className="key-thoughts-section section-block"
+                                content={keyThoughtsContent}
+                                setContent={setKeyThoughtsContent}
+                                isEditing={isEditingKeyThoughtsInline}
+                                isSaving={isSavingKeyThoughts}
+                                textareaRef={keyThoughtsTextareaRef}
+                                onStartEdit={handleStartEditKeyThoughtsInline}
+                                onSave={handleSaveKeyThoughtsInline}
+                                onCancel={handleCancelEditKeyThoughtsInline}
+                                onKeyDown={handleKeyThoughtsKeyDown}
+                                placeholder="주요 생각을 정리하세요..."
+                                emptyMessage="주요 생각을 정리하세요"
+                              />
+                            </SortableSection>
+                          )
+                        }
+                        return null
+                      })}
                     </div>
-                    <div className="content-scrollable" style={{
-                      height: '500px',
-                      maxHeight: '70vh',
-                      overflowY: 'auto',
-                      padding: '1rem',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)'
-                    }}>
-                      {isEditingKeyThoughtsInline ? (
-                        <textarea
-                          ref={keyThoughtsTextareaRef}
-                          value={keyThoughtsContent}
-                          onChange={(e) => setKeyThoughtsContent(e.target.value)}
-                          onKeyDown={handleKeyThoughtsKeyDown}
-                          placeholder="주요 생각을 정리하세요..."
-                          className="memo-edit-textarea-inline"
-                          style={{
-                            width: '100%',
-                            minHeight: '450px',
-                            padding: '1rem',
-                            fontSize: '0.95rem',
-                            lineHeight: '1.7',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(100, 108, 255, 0.3)',
-                            borderRadius: '8px',
-                            color: 'rgba(255, 255, 255, 0.9)',
-                            fontFamily: 'inherit',
-                            resize: 'vertical',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      ) : (
-                        <div
-                          className="memo-viewer-inline"
-                          style={{
-                            fontSize: '0.95rem',
-                            lineHeight: '1.7',
-                            color: 'rgba(255, 255, 255, 0.85)'
-                          }}
-                        >
-                          <ReactMarkdown>{keyThoughtsContent}</ReactMarkdown>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  </SortableContext>
+                </DndContext>
               )
             })()}
           </div>
