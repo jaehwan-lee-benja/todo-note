@@ -278,8 +278,11 @@ function SortableSection({ id, children, disabled, onLongPress }) {
       }
     : { ...attributes, ...listeners }
 
+  // 순서 수정 모드일 때 클래스 추가
+  const className = !disabled ? 'reorder-mode' : ''
+
   return (
-    <div ref={setNodeRef} style={style} {...eventHandlers}>
+    <div ref={setNodeRef} style={style} className={className} {...eventHandlers}>
       {children}
     </div>
   )
@@ -359,6 +362,413 @@ function MemoSection({
         </div>
       )}
       {children}
+    </div>
+  )
+}
+
+// 주요 생각정리 - 노션 스타일 블록 에디터
+function KeyThoughtsSection({
+  blocks,
+  setBlocks,
+  expandedBlocks,
+  setExpandedBlocks,
+  onSave,
+}) {
+  const inputRefs = useRef({})
+
+  const parseLineToBlock = (line, id) => {
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)/)
+    if (headingMatch) {
+      return {
+        id,
+        type: 'heading',
+        level: headingMatch[1].length,
+        content: headingMatch[2],
+        indent: 0
+      }
+    }
+    return {
+      id,
+      type: 'text',
+      content: line,
+      indent: 0
+    }
+  }
+
+  const addBlock = (index) => {
+    const newBlock = {
+      id: Date.now().toString(),
+      type: 'text',
+      content: '',
+      indent: blocks[index]?.indent || 0
+    }
+    const newBlocks = [
+      ...blocks.slice(0, index + 1),
+      newBlock,
+      ...blocks.slice(index + 1)
+    ]
+    setBlocks(newBlocks)
+    setTimeout(() => {
+      inputRefs.current[newBlock.id]?.focus()
+    }, 0)
+  }
+
+  const deleteBlock = (index) => {
+    if (blocks.length === 1) {
+      setBlocks([{ id: Date.now().toString(), type: 'text', content: '', indent: 0 }])
+    } else {
+      const newBlocks = blocks.filter((_, i) => i !== index)
+      setBlocks(newBlocks)
+      if (index > 0) {
+        setTimeout(() => {
+          const prevBlock = newBlocks[index - 1]
+          inputRefs.current[prevBlock.id]?.focus()
+        }, 0)
+      }
+    }
+  }
+
+  const updateBlock = (index, updates, shouldPreserveCursor = false) => {
+    const newBlocks = [...blocks]
+    newBlocks[index] = { ...newBlocks[index], ...updates }
+
+    // # 감지하여 헤딩으로 변환 (텍스트 블록인 경우만)
+    const content = newBlocks[index].content
+    const headingMatch = content.match(/^(#{1,6})\s+(.+)/)
+    const toggleMatch = content.match(/^>\s+(.+)/)
+
+    if (headingMatch && newBlocks[index].type !== 'heading') {
+      // 텍스트 블록에서 #을 입력하면 헤딩으로 변환
+      newBlocks[index].type = 'heading'
+      newBlocks[index].level = headingMatch[1].length
+      newBlocks[index].content = headingMatch[2]
+    } else if (toggleMatch && newBlocks[index].type !== 'heading') {
+      // > + 스페이스로 헤딩 3 생성 (토글용)
+      newBlocks[index].type = 'heading'
+      newBlocks[index].level = 3
+      newBlocks[index].content = toggleMatch[1]
+    }
+    // 헤딩 블록은 타입 유지 (내용만 편집 가능)
+
+    setBlocks(newBlocks)
+  }
+
+  const indentBlock = (index) => {
+    const newBlocks = [...blocks]
+    newBlocks[index].indent = Math.min((newBlocks[index].indent || 0) + 1, 5)
+    setBlocks(newBlocks)
+  }
+
+  const outdentBlock = (index) => {
+    const newBlocks = [...blocks]
+    newBlocks[index].indent = Math.max((newBlocks[index].indent || 0) - 1, 0)
+    setBlocks(newBlocks)
+  }
+
+  const handleKeyDown = (e, index, block) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // 현재 입력된 내용 저장
+      const currentContent = e.target.textContent
+      updateBlock(index, { content: currentContent })
+      addBlock(index)
+      onSave() // 자동 저장
+    } else if (e.key === 'Backspace') {
+      const currentContent = e.target.textContent
+      if (currentContent === '') {
+        e.preventDefault()
+        deleteBlock(index)
+        onSave() // 자동 저장
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      // 현재 입력된 내용 저장
+      const currentContent = e.target.textContent
+      updateBlock(index, { content: currentContent })
+      if (e.shiftKey) {
+        outdentBlock(index)
+      } else {
+        indentBlock(index)
+      }
+      onSave() // 자동 저장
+    } else if (e.key === 'ArrowUp') {
+      const selection = window.getSelection()
+      if (!selection.rangeCount) return
+
+      if (e.shiftKey) {
+        // Shift + ArrowUp: 선택 확장/축소
+        const focusNode = selection.focusNode
+        const focusOffset = selection.focusOffset
+
+        // focusNode가 현재 블록의 텍스트 노드 또는 블록 자체인지 확인
+        let isInCurrentBlock = false
+        let node = focusNode
+        while (node && node !== document.body) {
+          if (node === e.target) {
+            isInCurrentBlock = true
+            break
+          }
+          node = node.parentNode
+        }
+
+        if (isInCurrentBlock && focusOffset === 0 && index > 0) {
+          // 현재 블록의 시작 부분에서 Shift + ↑ → 이전 블록으로 확장
+          e.preventDefault()
+          const prevBlock = blocks[index - 1]
+          const prevEl = inputRefs.current[prevBlock.id]
+          if (prevEl) {
+            const prevTextNode = prevEl.firstChild || prevEl
+            const prevTextLength = prevEl.textContent.length
+
+            // extend 메서드로 focus만 이동
+            try {
+              const range = document.createRange()
+              range.setStart(selection.anchorNode, selection.anchorOffset)
+              range.setEnd(prevTextNode, prevTextLength)
+              selection.removeAllRanges()
+              selection.addRange(range)
+            } catch (e) {
+              // fallback
+            }
+          }
+        }
+        // 블록 내에서는 기본 동작 허용
+        return
+      }
+
+      // Shift 없이 ArrowUp: 커서가 맨 앞에 있으면 이전 블록으로 이동
+      const range = selection.getRangeAt(0)
+      if (range.collapsed && range.startOffset === 0) {
+        e.preventDefault()
+        const currentContent = e.target.textContent
+        updateBlock(index, { content: currentContent })
+        if (index > 0) {
+          const prevBlock = blocks[index - 1]
+          const prevEl = inputRefs.current[prevBlock.id]
+          if (prevEl) {
+            prevEl.focus()
+            const range = document.createRange()
+            const sel = window.getSelection()
+            const textNode = prevEl.firstChild || prevEl
+            range.setStart(textNode, prevEl.textContent.length)
+            range.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(range)
+          }
+        }
+      }
+    } else if (e.key === 'ArrowDown') {
+      const selection = window.getSelection()
+      if (!selection.rangeCount) return
+      const textLength = e.target.textContent.length
+
+      if (e.shiftKey) {
+        // Shift + ArrowDown: 선택 확장/축소
+        const focusNode = selection.focusNode
+        const focusOffset = selection.focusOffset
+
+        // focusNode가 현재 블록의 텍스트 노드 또는 블록 자체인지 확인
+        let isInCurrentBlock = false
+        let node = focusNode
+        while (node && node !== document.body) {
+          if (node === e.target) {
+            isInCurrentBlock = true
+            break
+          }
+          node = node.parentNode
+        }
+
+        if (isInCurrentBlock && focusOffset >= textLength && index < blocks.length - 1) {
+          // 현재 블록의 끝 부분에서 Shift + ↓ → 다음 블록으로 확장
+          e.preventDefault()
+          const nextBlock = blocks[index + 1]
+          const nextEl = inputRefs.current[nextBlock.id]
+          if (nextEl) {
+            const nextTextNode = nextEl.firstChild || nextEl
+
+            // extend 메서드로 focus만 이동
+            try {
+              const range = document.createRange()
+              range.setStart(selection.anchorNode, selection.anchorOffset)
+              range.setEnd(nextTextNode, 0)
+              selection.removeAllRanges()
+              selection.addRange(range)
+            } catch (e) {
+              // fallback
+            }
+          }
+        }
+        // 블록 내에서는 기본 동작 허용
+        return
+      }
+
+      // Shift 없이 ArrowDown: 커서가 맨 끝에 있으면 다음 블록으로 이동
+      const range = selection.getRangeAt(0)
+      if (range.collapsed && range.endOffset >= textLength) {
+        e.preventDefault()
+        const currentContent = e.target.textContent
+        updateBlock(index, { content: currentContent })
+        if (index < blocks.length - 1) {
+          const nextBlock = blocks[index + 1]
+          const nextEl = inputRefs.current[nextBlock.id]
+          if (nextEl) {
+            nextEl.focus()
+            const range = document.createRange()
+            const sel = window.getSelection()
+            const textNode = nextEl.firstChild || nextEl
+            range.setStart(textNode, 0)
+            range.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(range)
+          }
+        }
+      }
+    }
+  }
+
+  const toggleBlock = (blockId) => {
+    setExpandedBlocks(prev => ({
+      ...prev,
+      [blockId]: !prev[blockId]
+    }))
+  }
+
+  // 블록이 자식을 가지는지 확인
+  const hasChildren = (index) => {
+    if (index >= blocks.length - 1) return false
+    const currentIndent = blocks[index].indent || 0
+    const nextIndent = blocks[index + 1].indent || 0
+    return nextIndent > currentIndent
+  }
+
+  // 자식 블록 가져오기
+  const getChildren = (index) => {
+    const children = []
+    const currentIndent = blocks[index].indent || 0
+
+    for (let i = index + 1; i < blocks.length; i++) {
+      const blockIndent = blocks[i].indent || 0
+      if (blockIndent <= currentIndent) break
+      if (blockIndent === currentIndent + 1) {
+        children.push(i)
+      }
+    }
+
+    return children
+  }
+
+  const renderBlock = (block, index) => {
+    const indent = (block.indent || 0) * 1.5
+    const isHeading = block.type === 'heading'
+    const hasChild = hasChildren(index)
+    const isExpanded = expandedBlocks[block.id] !== false // 기본값 true
+
+    return (
+      <div key={block.id}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginLeft: `${indent}rem`,
+            marginBottom: '0.25rem'
+          }}
+        >
+          {hasChild && isHeading && (
+            <span
+              className="toggle-arrow"
+              onClick={() => toggleBlock(block.id)}
+              style={{ cursor: 'pointer', width: '1rem', textAlign: 'center' }}
+            >
+              {isExpanded ? '▼' : '▶'}
+            </span>
+          )}
+          {(!hasChild || !isHeading) && <span style={{ width: '1rem' }}></span>}
+
+          <div
+            ref={el => {
+              if (el && inputRefs.current[block.id] !== el) {
+                inputRefs.current[block.id] = el
+                // 초기 내용 설정
+                if (el.textContent !== block.content) {
+                  el.textContent = block.content
+                }
+              }
+            }}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => {
+              // 실시간 업데이트는 하지 않음 - 커서 위치 유지를 위해
+              const content = e.target.textContent
+              // # 또는 > 패턴 감지만 수행
+              const headingMatch = content.match(/^(#{1,6})\s+(.+)/)
+              const toggleMatch = content.match(/^>\s+(.+)/)
+
+              if ((headingMatch || toggleMatch) && block.type !== 'heading') {
+                // 패턴 감지 시에만 업데이트
+                updateBlock(index, { content })
+              }
+            }}
+            onBlur={(e) => {
+              // blur 시 최종 업데이트
+              updateBlock(index, { content: e.target.textContent })
+              onSave()
+            }}
+            onKeyDown={(e) => handleKeyDown(e, index, block)}
+            data-placeholder={block.content === '' ? "입력하거나 '/'를 눌러 명령어를 확인하세요" : ''}
+            className="notion-block-input"
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              padding: '0.25rem 0.5rem',
+              color: 'inherit',
+              fontSize: isHeading ? (block.level === 1 ? '1.5em' : block.level === 2 ? '1.3em' : '1.1em') : '1em',
+              fontWeight: isHeading && block.level <= 2 ? 'bold' : 'normal',
+              outline: 'none',
+              borderRadius: '4px',
+              transition: 'background 0.2s',
+              minHeight: '1.5em',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              direction: 'ltr'
+            }}
+          />
+        </div>
+
+        {hasChild && (!isHeading || isExpanded) && (
+          <div>
+            {getChildren(index).map(childIndex => renderBlock(blocks[childIndex], childIndex))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // 최상위 레벨 블록만 렌더링 (indent가 0인 것들)
+  const renderBlocks = () => {
+    const rendered = []
+    for (let i = 0; i < blocks.length; i++) {
+      if ((blocks[i].indent || 0) === 0) {
+        rendered.push(renderBlock(blocks[i], i))
+      }
+    }
+    return rendered
+  }
+
+  return (
+    <div className="key-thoughts-section section-block">
+      <div className="section-header">
+        <h3 className="section-title">💡 주요 생각정리</h3>
+      </div>
+      <div
+        className="notion-blocks-container"
+        style={{ userSelect: 'text' }}
+      >
+        {blocks.length > 0 ? renderBlocks() : (
+          <div className="memo-empty">주요 생각을 정리하세요</div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1979,12 +2389,9 @@ function App() {
   const memoTextareaRef = useRef(null)
 
   // 주요 생각정리 관련 상태
-  const [keyThoughtsContent, setKeyThoughtsContent] = useState('')
-  const [isEditingKeyThoughts, setIsEditingKeyThoughts] = useState(false)
   const [isSavingKeyThoughts, setIsSavingKeyThoughts] = useState(false)
-  const [keyThoughtsOriginalContent, setKeyThoughtsOriginalContent] = useState('')
-  const [isEditingKeyThoughtsInline, setIsEditingKeyThoughtsInline] = useState(false)
-  const keyThoughtsTextareaRef = useRef(null)
+  const [keyThoughtsBlocks, setKeyThoughtsBlocks] = useState([])
+  const [expandedBlocks, setExpandedBlocks] = useState({})
   const [showGanttChart, setShowGanttChart] = useState(false)
   const [ganttData, setGanttData] = useState([])
   const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
@@ -4505,13 +4912,50 @@ function App() {
 
       if (error) throw error
 
-      const content = data && data.length > 0 ? data[0].content : '# 주요 생각정리\n\n여기에 중요한 생각들을 자유롭게 정리하세요.'
-      setKeyThoughtsContent(content)
-      setKeyThoughtsOriginalContent(content)
+      const content = data && data.length > 0 ? data[0].content : ''
+
+      // 컨텐츠를 블록으로 변환
+      if (content) {
+        const lines = content.split('\n')
+        const blocks = lines.map((line, idx) => {
+          const headingMatch = line.match(/^(\s*)(#{1,6})\s+(.+)/)
+          const indent = headingMatch ? Math.floor((headingMatch[1].length) / 2) : 0
+
+          if (headingMatch) {
+            return {
+              id: `${Date.now()}-${idx}`,
+              type: 'heading',
+              level: headingMatch[2].length,
+              content: headingMatch[3],
+              indent
+            }
+          }
+
+          const textIndent = Math.floor(line.search(/\S/) / 2)
+          return {
+            id: `${Date.now()}-${idx}`,
+            type: 'text',
+            content: line.trim(),
+            indent: textIndent >= 0 ? textIndent : 0
+          }
+        })
+        setKeyThoughtsBlocks(blocks.filter(b => b.content !== ''))
+      } else {
+        setKeyThoughtsBlocks([{
+          id: Date.now().toString(),
+          type: 'text',
+          content: '',
+          indent: 0
+        }])
+      }
     } catch (error) {
       console.error('주요 생각정리 가져오기 오류:', error.message)
-      setKeyThoughtsContent('# 주요 생각정리\n\n여기에 중요한 생각들을 자유롭게 정리하세요.')
-      setKeyThoughtsOriginalContent('# 주요 생각정리\n\n여기에 중요한 생각들을 자유롭게 정리하세요.')
+      setKeyThoughtsBlocks([{
+        id: Date.now().toString(),
+        type: 'text',
+        content: '',
+        indent: 0
+      }])
     }
   }
 
@@ -4524,11 +4968,20 @@ function App() {
     }, 0)
   }
 
-  const handleSaveKeyThoughtsInline = async () => {
+  const handleSaveKeyThoughts = async () => {
     if (isSavingKeyThoughts) return
 
     try {
       setIsSavingKeyThoughts(true)
+
+      // 블록을 텍스트로 변환
+      const content = keyThoughtsBlocks.map(block => {
+        const indentStr = '  '.repeat(block.indent || 0)
+        if (block.type === 'heading') {
+          return `${indentStr}${'#'.repeat(block.level)} ${block.content}`
+        }
+        return `${indentStr}${block.content}`
+      }).join('\n')
 
       // 기존 메모가 있는지 확인
       const { data: existingThoughts } = await supabase
@@ -4541,40 +4994,19 @@ function App() {
         // 업데이트
         await supabase
           .from('key_thoughts')
-          .update({ content: keyThoughtsContent, updated_at: new Date().toISOString() })
+          .update({ content, updated_at: new Date().toISOString() })
           .eq('id', existingThoughts[0].id)
       } else {
         // 신규 생성
         await supabase
           .from('key_thoughts')
-          .insert([{ content: keyThoughtsContent }])
+          .insert([{ content }])
       }
 
-      setKeyThoughtsOriginalContent(keyThoughtsContent)
-      setIsEditingKeyThoughtsInline(false)
     } catch (error) {
       console.error('주요 생각정리 저장 오류:', error.message)
-      alert('주요 생각정리 저장에 실패했습니다.')
     } finally {
       setIsSavingKeyThoughts(false)
-    }
-  }
-
-  const handleCancelEditKeyThoughtsInline = () => {
-    setKeyThoughtsContent(keyThoughtsOriginalContent)
-    setIsEditingKeyThoughtsInline(false)
-  }
-
-  const handleKeyThoughtsKeyDown = (e) => {
-    // Cmd/Ctrl+S to save
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault()
-      handleSaveKeyThoughtsInline()
-    }
-    // Esc to cancel
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      handleCancelEditKeyThoughtsInline()
     }
   }
 
@@ -4894,6 +5326,14 @@ function App() {
     }
   }
 
+  // 섹션 외부 더블클릭으로 순서 수정 모드 종료
+  const handleSectionsContainerDoubleClick = (e) => {
+    // 섹션 외부(빈 공간)를 더블클릭했을 때만 반응
+    if (isReorderMode && e.target === e.currentTarget) {
+      setIsReorderMode(false)
+    }
+  }
+
   // 드래그 시작 핸들러
   const handleDragStart = () => {
     setIsDraggingAny(true)
@@ -5060,38 +5500,6 @@ function App() {
               </svg>
             </button>
 
-            {/* 섹션 순서 수정 모드 */}
-            {isReorderMode && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.5rem 1rem',
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '8px',
-                fontSize: '0.9rem',
-                color: '#60a5fa'
-              }}>
-                <span>📌 섹션 순서 수정 중</span>
-                <button
-                  onClick={() => setIsReorderMode(false)}
-                  style={{
-                    padding: '0.25rem 0.75rem',
-                    background: 'rgba(59, 130, 246, 0.2)',
-                    color: '#60a5fa',
-                    border: '1px solid rgba(59, 130, 246, 0.4)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: '500'
-                  }}
-                >
-                  완료
-                </button>
-              </div>
-            )}
-
             {/* 날짜 네비게이션 */}
             <div className="date-nav-section">
               <div className="date-display-wrapper">
@@ -5133,6 +5541,38 @@ function App() {
                 </button>
               )}
             </div>
+
+            {/* 섹션 순서 수정 모드 */}
+            {isReorderMode && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                color: '#60a5fa'
+              }}>
+                <span>📌 섹션 순서 수정 중</span>
+                <button
+                  onClick={() => setIsReorderMode(false)}
+                  style={{
+                    padding: '0.25rem 0.75rem',
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    color: '#60a5fa',
+                    border: '1px solid rgba(59, 130, 246, 0.4)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: '500'
+                  }}
+                >
+                  완료
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -5167,6 +5607,7 @@ function App() {
                     <div
                       ref={sectionsContainerRef}
                       className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+                      onDoubleClick={handleSectionsContainerDoubleClick}
                     >
                       {sectionOrder.map((sectionId) => {
                         if (sectionId === 'memo') {
@@ -5613,20 +6054,12 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               disabled={!isReorderMode}
                               onLongPress={() => setIsReorderMode(true)}
                             >
-                              <MemoSection
-                                title="💡 주요 생각정리"
-                                className="key-thoughts-section section-block"
-                                content={keyThoughtsContent}
-                                setContent={setKeyThoughtsContent}
-                                isEditing={isEditingKeyThoughtsInline}
-                                isSaving={isSavingKeyThoughts}
-                                textareaRef={keyThoughtsTextareaRef}
-                                onStartEdit={handleStartEditKeyThoughtsInline}
-                                onSave={handleSaveKeyThoughtsInline}
-                                onCancel={handleCancelEditKeyThoughtsInline}
-                                onKeyDown={handleKeyThoughtsKeyDown}
-                                placeholder="주요 생각을 정리하세요..."
-                                emptyMessage="주요 생각을 정리하세요"
+                              <KeyThoughtsSection
+                                blocks={keyThoughtsBlocks}
+                                setBlocks={setKeyThoughtsBlocks}
+                                expandedBlocks={expandedBlocks}
+                                setExpandedBlocks={setExpandedBlocks}
+                                onSave={handleSaveKeyThoughts}
                               />
                             </SortableSection>
                           )

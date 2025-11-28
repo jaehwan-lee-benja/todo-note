@@ -3487,7 +3487,7 @@ h1 {
 
 .sections-container.horizontal-layout {
   flex-direction: row;
-  gap: 1.5rem;
+  gap: 0;
   align-items: flex-start;
   overflow-x: auto;
   overflow-y: visible;
@@ -3589,7 +3589,7 @@ h1 {
 }
 
 .sections-container.horizontal-layout .section-block:last-child {
-  margin-right: 2rem;
+  margin-right: 0;
 }
 
 
@@ -3598,7 +3598,7 @@ h1 {
 .routine-section,
 .normal-section,
 .key-thoughts-section {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   background: #242424;
   border-radius: 12px;
   padding: 1.25rem;
@@ -3606,6 +3606,24 @@ h1 {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+/* 순서 수정 모드일 때 시각적 강조 */
+.reorder-mode .memo-section,
+.reorder-mode .routine-section,
+.reorder-mode .normal-section,
+.reorder-mode .key-thoughts-section {
+  border: 3px solid #007aff;
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.reorder-mode .memo-section:hover,
+.reorder-mode .routine-section:hover,
+.reorder-mode .normal-section:hover,
+.reorder-mode .key-thoughts-section:hover {
+  border-color: #0a84ff;
+  background: rgba(0, 122, 255, 0.08);
 }
 
 .memo-section::-webkit-scrollbar,
@@ -3786,6 +3804,88 @@ h1 {
   height: 150px;
   color: rgba(255, 255, 255, 0.4);
   font-style: italic;
+}
+
+/* 토글 방식 스타일 */
+.toggle-view {
+  padding: 0.5rem 0;
+}
+
+.toggle-section {
+  margin-bottom: 1rem;
+}
+
+.toggle-arrow {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8em;
+  transition: transform 0.2s;
+  user-select: none;
+}
+
+.toggle-title-editable {
+  transition: background 0.2s;
+  border-radius: 4px;
+}
+
+.toggle-title-editable:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.toggle-title-input {
+  font-family: inherit;
+}
+
+.toggle-content {
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+}
+
+.toggle-content:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.toggle-content-textarea {
+  font-family: inherit;
+}
+
+/* 노션 스타일 블록 에디터 */
+.notion-blocks-container {
+  padding: 0.5rem 0;
+}
+
+.notion-block-input {
+  font-family: inherit;
+}
+
+.notion-block-input:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.notion-block-input:focus {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.notion-block-input:empty:before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+
+.view-style-toggle-button {
+  padding: 0.25rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.view-style-toggle-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .section-title {
