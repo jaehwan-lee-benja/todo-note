@@ -246,6 +246,15 @@ function SortableSection({ id, children, disabled, onLongPress }) {
     }
   }
 
+  const handlePointerMove = () => {
+    // 포인터가 움직이면 long press 취소 (텍스트 선택 중)
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+      setIsPressed(false)
+    }
+  }
+
   const handlePointerUp = () => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current)
@@ -272,6 +281,7 @@ function SortableSection({ id, children, disabled, onLongPress }) {
   const eventHandlers = disabled
     ? {
         onPointerDown: handlePointerDown,
+        onPointerMove: handlePointerMove,
         onPointerUp: handlePointerUp,
         onPointerCancel: handlePointerCancel,
         onPointerLeave: handlePointerCancel,
@@ -366,22 +376,280 @@ function MemoSection({
   )
 }
 
-// 주요 생각정리 - 기본 섹션 (초기화됨)
-function KeyThoughtsSection({ onSave }) {
+// 노션 스타일 블록 컴포넌트
+function NotionBlock({
+  block,
+  blocks,
+  setBlocks,
+  focusedBlockId,
+  setFocusedBlockId,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast
+}) {
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (focusedBlockId === block.id && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [focusedBlockId, block.id])
+
+  const updateBlockInTree = (blocks, blockId, updater) => {
+    return blocks.map(b => {
+      if (b.id === blockId) {
+        return updater(b)
+      }
+      if (b.children && b.children.length > 0) {
+        return { ...b, children: updateBlockInTree(b.children, blockId, updater) }
+      }
+      return b
+    })
+  }
+
+  const updateBlockContent = (content) => {
+    setBlocks(prevBlocks =>
+      updateBlockInTree(prevBlocks, block.id, (b) => ({ ...b, content }))
+    )
+  }
+
+  const updateChildBlocks = (newChildren) => {
+    setBlocks(prevBlocks =>
+      updateBlockInTree(prevBlocks, block.id, (b) => ({ ...b, children: newChildren }))
+    )
+  }
+
+  const handleBlockControlClick = () => {
+    // 토글 열기/닫기
+    setBlocks(prevBlocks =>
+      updateBlockInTree(prevBlocks, block.id, (b) => ({ ...b, isOpen: !b.isOpen }))
+    )
+  }
+
+  const addChildBlock = () => {
+    const newChildBlock = {
+      id: Date.now() + Math.random(),
+      type: 'toggle',
+      content: '',
+      children: [],
+      isOpen: true
+    }
+    setBlocks(prevBlocks =>
+      updateBlockInTree(prevBlocks, block.id, (b) => ({
+        ...b,
+        children: [...b.children, newChildBlock],
+        isOpen: true // 자식 추가 시 자동으로 열기
+      }))
+    )
+    setTimeout(() => setFocusedBlockId(newChildBlock.id), 0)
+  }
+
+  const handleKeyDown = (e) => {
+    // Tab: 자식 블록 추가
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      addChildBlock()
+    }
+    // Enter: 새 블록 추가
+    else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      const currentIndex = blocks.findIndex(b => b.id === block.id)
+      const newBlock = {
+        id: Date.now() + Math.random(),
+        type: 'toggle',
+        content: '',
+        children: [],
+        isOpen: true
+      }
+      const newBlocks = [...blocks]
+      newBlocks.splice(currentIndex + 1, 0, newBlock)
+      setBlocks(newBlocks)
+      setTimeout(() => setFocusedBlockId(newBlock.id), 0)
+    }
+    // Backspace: 빈 블록 삭제
+    else if (e.key === 'Backspace' && block.content === '' && blocks.length > 1) {
+      e.preventDefault()
+      e.stopPropagation()
+      const currentIndex = blocks.findIndex(b => b.id === block.id)
+      const newBlocks = blocks.filter(b => b.id !== block.id)
+      setBlocks(newBlocks)
+      if (currentIndex > 0) {
+        setFocusedBlockId(newBlocks[currentIndex - 1].id)
+      } else if (newBlocks.length > 0) {
+        setFocusedBlockId(newBlocks[0].id)
+      }
+    }
+    // ArrowUp: 위 블록으로 이동
+    else if (e.key === 'ArrowUp' && !e.shiftKey) {
+      const currentIndex = blocks.findIndex(b => b.id === block.id)
+      if (currentIndex > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+        setFocusedBlockId(blocks[currentIndex - 1].id)
+      }
+    }
+    // ArrowDown: 아래 블록으로 이동
+    else if (e.key === 'ArrowDown' && !e.shiftKey) {
+      const currentIndex = blocks.findIndex(b => b.id === block.id)
+      if (currentIndex < blocks.length - 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        setFocusedBlockId(blocks[currentIndex + 1].id)
+      }
+    }
+    // Cmd/Ctrl + Shift + ArrowUp: 블록 위로 이동
+    else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'ArrowUp') {
+      e.preventDefault()
+      e.stopPropagation()
+      onMoveUp()
+    }
+    // Cmd/Ctrl + Shift + ArrowDown: 블록 아래로 이동
+    else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'ArrowDown') {
+      e.preventDefault()
+      e.stopPropagation()
+      onMoveDown()
+    }
+  }
+
+  return (
+    <div className="notion-block">
+      <div className="notion-block-controls">
+        <button
+          className="block-type-button"
+          onClick={handleBlockControlClick}
+          title="클릭: 열기/닫기"
+          style={{
+            transform: block.isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s'
+          }}
+        >
+          ▶
+        </button>
+      </div>
+      <div className="notion-block-content">
+        {block.isOpen ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={block.content}
+            onChange={(e) => updateBlockContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setFocusedBlockId(block.id)}
+            placeholder="입력하세요..."
+            className="notion-block-input"
+          />
+        ) : (
+          <div
+            className="notion-block-preview"
+            onClick={handleBlockControlClick}
+          >
+            {block.content || '비어있음'}
+          </div>
+        )}
+      </div>
+      {!isFirst && (
+        <button
+          className="move-block-button move-up"
+          onClick={onMoveUp}
+          title="위로 이동 (Cmd/Ctrl + Shift + ↑)"
+        >
+          ↑
+        </button>
+      )}
+      {!isLast && (
+        <button
+          className="move-block-button move-down"
+          onClick={onMoveDown}
+          title="아래로 이동 (Cmd/Ctrl + Shift + ↓)"
+        >
+          ↓
+        </button>
+      )}
+
+      {/* 자식 블록들 렌더링 */}
+      {block.isOpen && block.children && block.children.length > 0 && (
+        <div className="notion-block-children">
+          {block.children.map((childBlock, index) => (
+            <NotionBlock
+              key={childBlock.id}
+              block={childBlock}
+              blocks={block.children}
+              setBlocks={updateChildBlocks}
+              focusedBlockId={focusedBlockId}
+              setFocusedBlockId={setFocusedBlockId}
+              onMoveUp={() => {
+                if (index > 0) {
+                  const newChildren = [...block.children]
+                  const temp = newChildren[index]
+                  newChildren[index] = newChildren[index - 1]
+                  newChildren[index - 1] = temp
+                  updateChildBlocks(newChildren)
+                }
+              }}
+              onMoveDown={() => {
+                if (index < block.children.length - 1) {
+                  const newChildren = [...block.children]
+                  const temp = newChildren[index]
+                  newChildren[index] = newChildren[index + 1]
+                  newChildren[index + 1] = temp
+                  updateChildBlocks(newChildren)
+                }
+              }}
+              isFirst={index === 0}
+              isLast={index === block.children.length - 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 주요 생각정리 - 블록 에디터
+function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId, onSave }) {
+  const moveBlockUp = (index) => {
+    if (index > 0) {
+      const newBlocks = [...blocks]
+      const temp = newBlocks[index]
+      newBlocks[index] = newBlocks[index - 1]
+      newBlocks[index - 1] = temp
+      setBlocks(newBlocks)
+    }
+  }
+
+  const moveBlockDown = (index) => {
+    if (index < blocks.length - 1) {
+      const newBlocks = [...blocks]
+      const temp = newBlocks[index]
+      newBlocks[index] = newBlocks[index + 1]
+      newBlocks[index + 1] = temp
+      setBlocks(newBlocks)
+    }
+  }
+
   return (
     <div className="key-thoughts-section section-block">
       <div className="section-header">
         <h3 className="section-title">💡 주요 생각정리</h3>
       </div>
-      <div
-        className="key-thoughts-content"
-        style={{
-          padding: '1rem',
-          minHeight: '200px',
-          color: 'rgba(255, 255, 255, 0.5)'
-        }}
-      >
-        여기에 노션 스타일 에디터가 들어갑니다
+      <div className="key-thoughts-content notion-editor">
+        {blocks.map((block, index) => (
+          <NotionBlock
+            key={block.id}
+            block={block}
+            blocks={blocks}
+            setBlocks={setBlocks}
+            focusedBlockId={focusedBlockId}
+            setFocusedBlockId={setFocusedBlockId}
+            onMoveUp={() => moveBlockUp(index)}
+            onMoveDown={() => moveBlockDown(index)}
+            isFirst={index === 0}
+            isLast={index === blocks.length - 1}
+          />
+        ))}
       </div>
     </div>
   )
@@ -2004,6 +2272,10 @@ function App() {
 
   // 주요 생각정리 관련 상태
   const [isSavingKeyThoughts, setIsSavingKeyThoughts] = useState(false)
+  const [keyThoughtsBlocks, setKeyThoughtsBlocks] = useState([
+    { id: Date.now() + Math.random(), type: 'toggle', content: '', children: [], isOpen: true }
+  ])
+  const [focusedBlockId, setFocusedBlockId] = useState(null)
   const [showGanttChart, setShowGanttChart] = useState(false)
   const [ganttData, setGanttData] = useState([])
   const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
@@ -3206,6 +3478,17 @@ function App() {
   useEffect(() => {
     fetchKeyThoughtsContent()
   }, [])
+
+  // 주요 생각정리 블록 변경 시 자동 저장
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (keyThoughtsBlocks.length > 0) {
+        handleSaveKeyThoughts()
+      }
+    }, 1000) // 1초 디바운스
+
+    return () => clearTimeout(timer)
+  }, [keyThoughtsBlocks])
 
   // 앱 시작 시 섹션 순서 가져오기
   useEffect(() => {
@@ -4515,11 +4798,65 @@ function App() {
 
   // 주요 생각정리 관련 함수들
   const fetchKeyThoughtsContent = async () => {
-    // 초기화됨 - 나중에 노션 스타일 에디터 데이터 로드 로직 구현 예정
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('setting_value')
+        .eq('setting_key', 'key_thoughts_blocks')
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('주요 생각정리 불러오기 오류:', error.message)
+        return
+      }
+
+      if (data && data.setting_value) {
+        const blocks = JSON.parse(data.setting_value)
+        setKeyThoughtsBlocks(blocks)
+        localStorage.setItem('keyThoughtsBlocks', JSON.stringify(blocks))
+      } else {
+        const saved = localStorage.getItem('keyThoughtsBlocks')
+        if (saved) {
+          setKeyThoughtsBlocks(JSON.parse(saved))
+        }
+      }
+    } catch (error) {
+      console.error('주요 생각정리 불러오기 오류:', error.message)
+      const saved = localStorage.getItem('keyThoughtsBlocks')
+      if (saved) {
+        setKeyThoughtsBlocks(JSON.parse(saved))
+      }
+    }
   }
 
   const handleSaveKeyThoughts = async () => {
-    // 초기화됨 - 나중에 노션 스타일 에디터 저장 로직 구현 예정
+    try {
+      localStorage.setItem('keyThoughtsBlocks', JSON.stringify(keyThoughtsBlocks))
+
+      const { data: existing, error: selectError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('setting_key', 'key_thoughts_blocks')
+        .single()
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        console.error('주요 생각정리 조회 오류:', selectError.message)
+        return
+      }
+
+      if (existing) {
+        await supabase
+          .from('user_settings')
+          .update({ setting_value: JSON.stringify(keyThoughtsBlocks) })
+          .eq('setting_key', 'key_thoughts_blocks')
+      } else {
+        await supabase
+          .from('user_settings')
+          .insert([{ setting_key: 'key_thoughts_blocks', setting_value: JSON.stringify(keyThoughtsBlocks) }])
+      }
+    } catch (error) {
+      console.error('주요 생각정리 저장 오류:', error.message)
+    }
   }
 
   // 섹션 순서 불러오기
@@ -5038,7 +5375,7 @@ function App() {
                   title="클릭하면 다른 격려 문구가 나와요!"
                 >
                   {showEncouragementEmoji ? (
-                    <span className="encouragement-emoji">😊 🥰 😄</span>
+                    <span className="encouragement-emoji">🔥 🔥 🔥</span>
                   ) : (
                     currentEncouragementMessage || getRandomEncouragement()
                   )}
@@ -5567,6 +5904,10 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               onLongPress={() => setIsReorderMode(true)}
                             >
                               <KeyThoughtsSection
+                                blocks={keyThoughtsBlocks}
+                                setBlocks={setKeyThoughtsBlocks}
+                                focusedBlockId={focusedBlockId}
+                                setFocusedBlockId={setFocusedBlockId}
                                 onSave={handleSaveKeyThoughts}
                               />
                             </SortableSection>

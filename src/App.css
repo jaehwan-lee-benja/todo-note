@@ -606,15 +606,15 @@ h1 {
 @keyframes emojiPop {
   0% {
     opacity: 0;
-    transform: scale(0.5) rotate(-10deg);
+    transform: scale(0.5);
   }
   50% {
     opacity: 1;
-    transform: scale(1.2) rotate(5deg);
+    transform: scale(1.2);
   }
   100% {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
+    transform: scale(1);
   }
 }
 
@@ -4728,5 +4728,145 @@ h1 {
 .picker-arrow-button:active {
   transform: scale(0.95);
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* 노션 스타일 블록 에디터 */
+.notion-editor {
+  padding: 1rem;
+  min-height: 200px;
+}
+
+.notion-block {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.notion-block:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.notion-block:hover .move-block-button {
+  opacity: 1;
+}
+
+.notion-block-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  padding-top: 0.5rem;
+}
+
+.block-type-button {
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 3px;
+}
+
+.block-type-button:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.notion-block-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notion-block-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.notion-block-input:focus {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.notion-block-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.notion-block-preview {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notion-block-preview:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.move-block-button {
+  position: absolute;
+  right: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.move-block-button.move-up {
+  top: 0.25rem;
+}
+
+.move-block-button.move-down {
+  top: 2rem;
+}
+
+.move-block-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.move-block-button:active {
+  transform: scale(0.95);
+}
+
+.notion-block-children {
+  margin-left: 1.5rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 0.5rem;
+  margin-top: 0.25rem;
 }
 
