@@ -3848,24 +3848,24 @@ h1 {
   font-family: inherit;
 }
 
-/* 노션 스타일 블록 에디터 */
+/* 노션 스타일 블록 에디터 (단일 contentEditable) */
 .notion-blocks-container {
   padding: 0.5rem 0;
+  outline: none;
+  min-height: 100px;
 }
 
-.notion-block-input {
+.notion-block-content {
   font-family: inherit;
+  outline: none;
+  transition: background 0.2s;
 }
 
-.notion-block-input:hover {
+.notion-block-content:hover {
   background-color: rgba(255, 255, 255, 0.03);
 }
 
-.notion-block-input:focus {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.notion-block-input:empty:before {
+.notion-block-content:empty:before {
   content: attr(data-placeholder);
   color: rgba(255, 255, 255, 0.3);
   pointer-events: none;

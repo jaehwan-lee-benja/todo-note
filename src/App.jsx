@@ -366,7 +366,7 @@ function MemoSection({
   )
 }
 
-// 주요 생각정리 - 노션 스타일 블록 에디터
+// 주요 생각정리 - 노션 스타일 블록 에디터 (단일 contentEditable)
 function KeyThoughtsSection({
   blocks,
   setBlocks,
@@ -374,27 +374,90 @@ function KeyThoughtsSection({
   setExpandedBlocks,
   onSave,
 }) {
-  const inputRefs = useRef({})
+  const editorRef = useRef(null)
+  const blockRefs = useRef({})
 
-  const parseLineToBlock = (line, id) => {
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)/)
-    if (headingMatch) {
-      return {
-        id,
-        type: 'heading',
-        level: headingMatch[1].length,
-        content: headingMatch[2],
-        indent: 0
+  // 커서 위치에서 현재 블록 찾기
+  const getCurrentBlock = () => {
+    const selection = window.getSelection()
+    if (!selection.rangeCount) return null
+
+    let node = selection.focusNode
+    // focusNode가 텍스트 노드일 수 있으므로 부모를 확인
+    while (node) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute('data-block-id')) {
+        const blockId = node.getAttribute('data-block-id')
+        const index = blocks.findIndex(b => b.id === blockId)
+        return { node, blockId, index }
       }
+      if (node === editorRef.current) break
+      node = node.parentNode
     }
-    return {
-      id,
-      type: 'text',
-      content: line,
-      indent: 0
+    return null
+  }
+
+  // 커서 위치 저장/복원
+  const saveCursor = () => {
+    const selection = window.getSelection()
+    if (!selection.rangeCount) return null
+
+    const currentBlock = getCurrentBlock()
+    if (!currentBlock) return null
+
+    const range = selection.getRangeAt(0)
+    const preCaretRange = range.cloneRange()
+    preCaretRange.selectNodeContents(currentBlock.node)
+    preCaretRange.setEnd(range.endContainer, range.endOffset)
+    const offset = preCaretRange.toString().length
+
+    return { blockId: currentBlock.blockId, offset }
+  }
+
+  const restoreCursor = (saved) => {
+    if (!saved) return
+
+    const blockEl = blockRefs.current[saved.blockId]
+    if (!blockEl) return
+
+    try {
+      const range = document.createRange()
+      const selection = window.getSelection()
+
+      let charCount = 0
+      let found = false
+
+      const findOffset = (node) => {
+        if (found) return
+
+        if (node.nodeType === Node.TEXT_NODE) {
+          const nextCharCount = charCount + node.textContent.length
+          if (saved.offset <= nextCharCount) {
+            range.setStart(node, saved.offset - charCount)
+            range.collapse(true)
+            found = true
+            return
+          }
+          charCount = nextCharCount
+        } else {
+          for (let child of node.childNodes) {
+            findOffset(child)
+            if (found) return
+          }
+        }
+      }
+
+      findOffset(blockEl)
+
+      if (found) {
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+    } catch (e) {
+      console.error('Cursor restore failed:', e)
     }
   }
 
+  // 블록 추가
   const addBlock = (index) => {
     const newBlock = {
       id: Date.now().toString(),
@@ -408,51 +471,69 @@ function KeyThoughtsSection({
       ...blocks.slice(index + 1)
     ]
     setBlocks(newBlocks)
+
     setTimeout(() => {
-      inputRefs.current[newBlock.id]?.focus()
+      const blockEl = blockRefs.current[newBlock.id]
+      if (blockEl) {
+        const range = document.createRange()
+        const selection = window.getSelection()
+        range.selectNodeContents(blockEl)
+        range.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
     }, 0)
   }
 
+  // 블록 삭제
   const deleteBlock = (index) => {
     if (blocks.length === 1) {
       setBlocks([{ id: Date.now().toString(), type: 'text', content: '', indent: 0 }])
     } else {
       const newBlocks = blocks.filter((_, i) => i !== index)
       setBlocks(newBlocks)
+
       if (index > 0) {
         setTimeout(() => {
           const prevBlock = newBlocks[index - 1]
-          inputRefs.current[prevBlock.id]?.focus()
+          const prevEl = blockRefs.current[prevBlock.id]
+          if (prevEl) {
+            const range = document.createRange()
+            const selection = window.getSelection()
+            range.selectNodeContents(prevEl)
+            range.collapse(false)
+            selection.removeAllRanges()
+            selection.addRange(range)
+          }
         }, 0)
       }
     }
   }
 
-  const updateBlock = (index, updates, shouldPreserveCursor = false) => {
+  // 블록 업데이트
+  const updateBlock = (index, updates) => {
     const newBlocks = [...blocks]
     newBlocks[index] = { ...newBlocks[index], ...updates }
 
-    // # 감지하여 헤딩으로 변환 (텍스트 블록인 경우만)
+    // # 감지하여 헤딩으로 변환
     const content = newBlocks[index].content
     const headingMatch = content.match(/^(#{1,6})\s+(.+)/)
     const toggleMatch = content.match(/^>\s+(.+)/)
 
     if (headingMatch && newBlocks[index].type !== 'heading') {
-      // 텍스트 블록에서 #을 입력하면 헤딩으로 변환
       newBlocks[index].type = 'heading'
       newBlocks[index].level = headingMatch[1].length
       newBlocks[index].content = headingMatch[2]
     } else if (toggleMatch && newBlocks[index].type !== 'heading') {
-      // > + 스페이스로 헤딩 3 생성 (토글용)
       newBlocks[index].type = 'heading'
       newBlocks[index].level = 3
       newBlocks[index].content = toggleMatch[1]
     }
-    // 헤딩 블록은 타입 유지 (내용만 편집 가능)
 
     setBlocks(newBlocks)
   }
 
+  // 들여쓰기
   const indentBlock = (index) => {
     const newBlocks = [...blocks]
     newBlocks[index].indent = Math.min((newBlocks[index].indent || 0) + 1, 5)
@@ -465,167 +546,93 @@ function KeyThoughtsSection({
     setBlocks(newBlocks)
   }
 
-  const handleKeyDown = (e, index, block) => {
+  // input 이벤트 - 블록 내용 업데이트
+  const handleInput = () => {
+    const currentBlock = getCurrentBlock()
+    if (!currentBlock) return
+
+    const blockEl = blockRefs.current[currentBlock.blockId]
+    if (!blockEl) return
+
+    const content = blockEl.textContent
+    const cursorPos = saveCursor()
+
+    updateBlock(currentBlock.index, { content })
+
+    setTimeout(() => {
+      restoreCursor(cursorPos)
+    }, 0)
+  }
+
+  // 키보드 이벤트 처리
+  const handleKeyDown = (e) => {
+    const currentBlock = getCurrentBlock()
+    if (!currentBlock) return
+
+    const { index } = currentBlock
+    const blockEl = blockRefs.current[currentBlock.blockId]
+
     if (e.key === 'Enter') {
       e.preventDefault()
-      // 현재 입력된 내용 저장
-      const currentContent = e.target.textContent
-      updateBlock(index, { content: currentContent })
+      const content = blockEl.textContent
+      updateBlock(index, { content })
       addBlock(index)
-      onSave() // 자동 저장
+      onSave()
     } else if (e.key === 'Backspace') {
-      const currentContent = e.target.textContent
-      if (currentContent === '') {
+      const selection = window.getSelection()
+      const content = blockEl.textContent
+
+      // 블록이 비어있으면 블록 삭제
+      if (content === '') {
         e.preventDefault()
         deleteBlock(index)
-        onSave() // 자동 저장
+        onSave()
+        return
+      }
+
+      // 커서가 블록의 시작 부분에 있고, 이전 블록이 있으면
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        if (range.collapsed && range.startOffset === 0) {
+          // 블록 시작에서 Backspace - 이전 블록과 병합하거나 삭제
+          const textNode = blockEl.firstChild
+          if (textNode && selection.anchorNode === textNode && selection.anchorOffset === 0) {
+            e.preventDefault()
+            if (index > 0) {
+              // 이전 블록의 끝으로 이동
+              const prevBlock = blocks[index - 1]
+              const prevEl = blockRefs.current[prevBlock.id]
+              if (prevEl) {
+                const range = document.createRange()
+                const sel = window.getSelection()
+                range.selectNodeContents(prevEl)
+                range.collapse(false)
+                sel.removeAllRanges()
+                sel.addRange(range)
+              }
+            }
+            return
+          }
+        }
       }
     } else if (e.key === 'Tab') {
       e.preventDefault()
-      // 현재 입력된 내용 저장
-      const currentContent = e.target.textContent
-      updateBlock(index, { content: currentContent })
+      const content = blockEl.textContent
+      updateBlock(index, { content })
       if (e.shiftKey) {
         outdentBlock(index)
       } else {
         indentBlock(index)
       }
-      onSave() // 자동 저장
-    } else if (e.key === 'ArrowUp') {
-      const selection = window.getSelection()
-      if (!selection.rangeCount) return
-
-      if (e.shiftKey) {
-        // Shift + ArrowUp: 선택 확장/축소
-        const focusNode = selection.focusNode
-        const focusOffset = selection.focusOffset
-
-        // focusNode가 현재 블록의 텍스트 노드 또는 블록 자체인지 확인
-        let isInCurrentBlock = false
-        let node = focusNode
-        while (node && node !== document.body) {
-          if (node === e.target) {
-            isInCurrentBlock = true
-            break
-          }
-          node = node.parentNode
-        }
-
-        if (isInCurrentBlock && focusOffset === 0 && index > 0) {
-          // 현재 블록의 시작 부분에서 Shift + ↑ → 이전 블록으로 확장
-          e.preventDefault()
-          const prevBlock = blocks[index - 1]
-          const prevEl = inputRefs.current[prevBlock.id]
-          if (prevEl) {
-            const prevTextNode = prevEl.firstChild || prevEl
-            const prevTextLength = prevEl.textContent.length
-
-            // extend 메서드로 focus만 이동
-            try {
-              const range = document.createRange()
-              range.setStart(selection.anchorNode, selection.anchorOffset)
-              range.setEnd(prevTextNode, prevTextLength)
-              selection.removeAllRanges()
-              selection.addRange(range)
-            } catch (e) {
-              // fallback
-            }
-          }
-        }
-        // 블록 내에서는 기본 동작 허용
-        return
-      }
-
-      // Shift 없이 ArrowUp: 커서가 맨 앞에 있으면 이전 블록으로 이동
-      const range = selection.getRangeAt(0)
-      if (range.collapsed && range.startOffset === 0) {
-        e.preventDefault()
-        const currentContent = e.target.textContent
-        updateBlock(index, { content: currentContent })
-        if (index > 0) {
-          const prevBlock = blocks[index - 1]
-          const prevEl = inputRefs.current[prevBlock.id]
-          if (prevEl) {
-            prevEl.focus()
-            const range = document.createRange()
-            const sel = window.getSelection()
-            const textNode = prevEl.firstChild || prevEl
-            range.setStart(textNode, prevEl.textContent.length)
-            range.collapse(true)
-            sel.removeAllRanges()
-            sel.addRange(range)
-          }
-        }
-      }
-    } else if (e.key === 'ArrowDown') {
-      const selection = window.getSelection()
-      if (!selection.rangeCount) return
-      const textLength = e.target.textContent.length
-
-      if (e.shiftKey) {
-        // Shift + ArrowDown: 선택 확장/축소
-        const focusNode = selection.focusNode
-        const focusOffset = selection.focusOffset
-
-        // focusNode가 현재 블록의 텍스트 노드 또는 블록 자체인지 확인
-        let isInCurrentBlock = false
-        let node = focusNode
-        while (node && node !== document.body) {
-          if (node === e.target) {
-            isInCurrentBlock = true
-            break
-          }
-          node = node.parentNode
-        }
-
-        if (isInCurrentBlock && focusOffset >= textLength && index < blocks.length - 1) {
-          // 현재 블록의 끝 부분에서 Shift + ↓ → 다음 블록으로 확장
-          e.preventDefault()
-          const nextBlock = blocks[index + 1]
-          const nextEl = inputRefs.current[nextBlock.id]
-          if (nextEl) {
-            const nextTextNode = nextEl.firstChild || nextEl
-
-            // extend 메서드로 focus만 이동
-            try {
-              const range = document.createRange()
-              range.setStart(selection.anchorNode, selection.anchorOffset)
-              range.setEnd(nextTextNode, 0)
-              selection.removeAllRanges()
-              selection.addRange(range)
-            } catch (e) {
-              // fallback
-            }
-          }
-        }
-        // 블록 내에서는 기본 동작 허용
-        return
-      }
-
-      // Shift 없이 ArrowDown: 커서가 맨 끝에 있으면 다음 블록으로 이동
-      const range = selection.getRangeAt(0)
-      if (range.collapsed && range.endOffset >= textLength) {
-        e.preventDefault()
-        const currentContent = e.target.textContent
-        updateBlock(index, { content: currentContent })
-        if (index < blocks.length - 1) {
-          const nextBlock = blocks[index + 1]
-          const nextEl = inputRefs.current[nextBlock.id]
-          if (nextEl) {
-            nextEl.focus()
-            const range = document.createRange()
-            const sel = window.getSelection()
-            const textNode = nextEl.firstChild || nextEl
-            range.setStart(textNode, 0)
-            range.collapse(true)
-            sel.removeAllRanges()
-            sel.addRange(range)
-          }
-        }
-      }
+      const cursorPos = saveCursor()
+      setTimeout(() => {
+        restoreCursor(cursorPos)
+      }, 0)
+      onSave()
     }
   }
 
+  // 토글 기능
   const toggleBlock = (blockId) => {
     setExpandedBlocks(prev => ({
       ...prev,
@@ -657,87 +664,71 @@ function KeyThoughtsSection({
     return children
   }
 
+  // 블록 렌더링 (단일 contentEditable 방식)
   const renderBlock = (block, index) => {
     const indent = (block.indent || 0) * 1.5
     const isHeading = block.type === 'heading'
     const hasChild = hasChildren(index)
-    const isExpanded = expandedBlocks[block.id] !== false // 기본값 true
+    const isExpanded = expandedBlocks[block.id] !== false
 
     return (
-      <div key={block.id}>
+      <div key={block.id} style={{ marginBottom: '0.25rem' }}>
         <div
+          contentEditable={false}
+          suppressContentEditableWarning
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            marginLeft: `${indent}rem`,
-            marginBottom: '0.25rem'
+            marginLeft: `${indent}rem`
           }}
         >
-          {hasChild && isHeading && (
-            <span
-              className="toggle-arrow"
-              onClick={() => toggleBlock(block.id)}
-              style={{ cursor: 'pointer', width: '1rem', textAlign: 'center' }}
-            >
-              {isExpanded ? '▼' : '▶'}
-            </span>
-          )}
-          {(!hasChild || !isHeading) && <span style={{ width: '1rem' }}></span>}
+          <span
+            onClick={hasChild && isHeading ? () => toggleBlock(block.id) : undefined}
+            className={hasChild && isHeading ? "toggle-arrow" : ""}
+            style={{
+              cursor: hasChild && isHeading ? 'pointer' : 'default',
+              width: '1rem',
+              textAlign: 'center',
+              userSelect: 'none',
+              pointerEvents: hasChild && isHeading ? 'auto' : 'none'
+            }}
+          >
+            {hasChild && isHeading ? (isExpanded ? '▼' : '▶') : ''}
+          </span>
 
           <div
             ref={el => {
-              if (el && inputRefs.current[block.id] !== el) {
-                inputRefs.current[block.id] = el
-                // 초기 내용 설정
+              if (el) {
+                blockRefs.current[block.id] = el
                 if (el.textContent !== block.content) {
                   el.textContent = block.content
                 }
               }
             }}
-            contentEditable
+            contentEditable={true}
             suppressContentEditableWarning
-            onInput={(e) => {
-              // 실시간 업데이트는 하지 않음 - 커서 위치 유지를 위해
-              const content = e.target.textContent
-              // # 또는 > 패턴 감지만 수행
-              const headingMatch = content.match(/^(#{1,6})\s+(.+)/)
-              const toggleMatch = content.match(/^>\s+(.+)/)
-
-              if ((headingMatch || toggleMatch) && block.type !== 'heading') {
-                // 패턴 감지 시에만 업데이트
-                updateBlock(index, { content })
-              }
-            }}
-            onBlur={(e) => {
-              // blur 시 최종 업데이트
-              updateBlock(index, { content: e.target.textContent })
-              onSave()
-            }}
-            onKeyDown={(e) => handleKeyDown(e, index, block)}
+            data-block-id={block.id}
             data-placeholder={block.content === '' ? "입력하거나 '/'를 눌러 명령어를 확인하세요" : ''}
-            className="notion-block-input"
+            className="notion-block-content"
             style={{
               flex: 1,
-              background: 'transparent',
-              border: 'none',
               padding: '0.25rem 0.5rem',
-              color: 'inherit',
               fontSize: isHeading ? (block.level === 1 ? '1.5em' : block.level === 2 ? '1.3em' : '1.1em') : '1em',
               fontWeight: isHeading && block.level <= 2 ? 'bold' : 'normal',
-              outline: 'none',
               borderRadius: '4px',
-              transition: 'background 0.2s',
               minHeight: '1.5em',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              direction: 'ltr'
+              outline: 'none'
             }}
-          />
+          >
+            {block.content}
+          </div>
         </div>
 
         {hasChild && (!isHeading || isExpanded) && (
-          <div>
+          <div contentEditable={false} suppressContentEditableWarning>
             {getChildren(index).map(childIndex => renderBlock(blocks[childIndex], childIndex))}
           </div>
         )}
@@ -745,7 +736,7 @@ function KeyThoughtsSection({
     )
   }
 
-  // 최상위 레벨 블록만 렌더링 (indent가 0인 것들)
+  // 최상위 레벨 블록만 렌더링
   const renderBlocks = () => {
     const rendered = []
     for (let i = 0; i < blocks.length; i++) {
@@ -762,8 +753,24 @@ function KeyThoughtsSection({
         <h3 className="section-title">💡 주요 생각정리</h3>
       </div>
       <div
+        ref={editorRef}
         className="notion-blocks-container"
         style={{ userSelect: 'text' }}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onBlur={onSave}
+        onDragStart={(e) => {
+          // contentEditable 영역에서는 섹션 드래그 방지
+          e.stopPropagation()
+        }}
+        onPointerDown={(e) => {
+          // 텍스트 선택 중 섹션의 longPress 방지
+          e.stopPropagation()
+        }}
+        onMouseDown={(e) => {
+          // 텍스트 선택은 허용하되, 섹션 드래그는 방지
+          e.stopPropagation()
+        }}
       >
         {blocks.length > 0 ? renderBlocks() : (
           <div className="memo-empty">주요 생각을 정리하세요</div>
