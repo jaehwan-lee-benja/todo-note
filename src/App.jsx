@@ -384,6 +384,8 @@ function SortableNotionBlock({
   setBlocks,
   focusedBlockId,
   setFocusedBlockId,
+  parentBlock,
+  rootSetBlocks,
 }) {
   const {
     attributes,
@@ -409,6 +411,8 @@ function SortableNotionBlock({
         focusedBlockId={focusedBlockId}
         setFocusedBlockId={setFocusedBlockId}
         dragHandleProps={{ ...attributes, ...listeners }}
+        parentBlock={parentBlock}
+        rootSetBlocks={rootSetBlocks}
       />
     </div>
   )
@@ -422,21 +426,40 @@ function NotionBlock({
   focusedBlockId,
   setFocusedBlockId,
   dragHandleProps,
+  parentBlock,
+  rootSetBlocks,
 }) {
   const inputRef = useRef(null)
+  const isProcessingEnter = useRef(false)
 
   useEffect(() => {
     if (focusedBlockId === block.id && inputRef.current) {
       inputRef.current.focus()
+      // 커서를 끝으로 이동
+      const length = inputRef.current.value.length
+      inputRef.current.setSelectionRange(length, length)
     }
   }, [focusedBlockId, block.id])
+
+  // textarea 높이 자동 조정
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+      inputRef.current.style.height = inputRef.current.scrollHeight + 'px'
+    }
+  }, [block.content])
 
   const updateBlockInTree = (blocks, blockId, updater) => {
     return blocks.map(b => {
       if (b.id === blockId) {
-        return updater(b)
+        const updated = updater(b)
+        // children이 없거나 배열이 아니면 빈 배열로 초기화 (불변성 유지)
+        return {
+          ...updated,
+          children: Array.isArray(updated.children) ? updated.children : []
+        }
       }
-      if (b.children && b.children.length > 0) {
+      if (Array.isArray(b.children) && b.children.length > 0) {
         return { ...b, children: updateBlockInTree(b.children, blockId, updater) }
       }
       return b
@@ -451,20 +474,21 @@ function NotionBlock({
 
   const updateChildBlocks = (newChildren) => {
     setBlocks(prevBlocks =>
-      updateBlockInTree(prevBlocks, block.id, (b) => ({ ...b, children: newChildren }))
+      updateBlockInTree(prevBlocks, block.id, (b) => ({
+        ...b,
+        children: typeof newChildren === 'function' ? newChildren(b.children) : newChildren
+      }))
     )
   }
 
   const handleBlockControlClick = () => {
     // 토글 열기/닫기
-    console.log('토글 클릭:', block.id, '현재 상태:', block.isOpen, '→', !block.isOpen)
-
     setBlocks(prevBlocks =>
       updateBlockInTree(prevBlocks, block.id, (b) => {
         const newIsOpen = !b.isOpen
 
         // 토글을 열 때 자식이 없으면 자동으로 1개 생성
-        if (newIsOpen && (!b.children || b.children.length === 0)) {
+        if (newIsOpen && (!Array.isArray(b.children) || b.children.length === 0)) {
           const newChildBlock = {
             id: Date.now() + Math.random(),
             type: 'toggle',
@@ -475,7 +499,7 @@ function NotionBlock({
           return { ...b, isOpen: newIsOpen, children: [newChildBlock] }
         }
 
-        return { ...b, isOpen: newIsOpen }
+        return { ...b, isOpen: newIsOpen, children: Array.isArray(b.children) ? b.children : [] }
       })
     )
   }
@@ -491,25 +515,137 @@ function NotionBlock({
     setBlocks(prevBlocks =>
       updateBlockInTree(prevBlocks, block.id, (b) => ({
         ...b,
-        children: [...b.children, newChildBlock],
+        children: [...(Array.isArray(b.children) ? b.children : []), newChildBlock],
         isOpen: true // 자식 추가 시 자동으로 열기
       }))
     )
     setTimeout(() => setFocusedBlockId(newChildBlock.id), 0)
   }
 
+  // 블록을 들여쓰기 (Tab) - 바로 위 형제 블록의 자식으로 이동
+  const indentBlock = () => {
+    const currentIndex = blocks.findIndex(b => b.id === block.id)
+    if (currentIndex <= 0) return // 첫 번째 블록이면 들여쓰기 불가
+
+    const prevSibling = blocks[currentIndex - 1]
+
+    setBlocks(prevBlocks => {
+      const newBlocks = [...prevBlocks]
+      // 현재 블록을 현재 레벨에서 제거
+      newBlocks.splice(currentIndex, 1)
+      // 이전 형제 블록의 children에 추가
+      const updatedPrevSibling = {
+        ...prevSibling,
+        children: [...(Array.isArray(prevSibling.children) ? prevSibling.children : []), block],
+        isOpen: true // 자동으로 열기
+      }
+      newBlocks[currentIndex - 1] = updatedPrevSibling
+      return newBlocks
+    })
+  }
+
+  // 블록을 상위 레벨로 이동 (Shift+Tab)
+  const outdentBlock = () => {
+    if (!parentBlock || !rootSetBlocks) return
+
+    rootSetBlocks(prevBlocks => {
+      const outdentInTree = (blocks, targetParentId, childToMove) => {
+        const result = []
+
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i]
+
+          // 부모 블록을 찾았을 때
+          if (b.id === targetParentId) {
+            // 부모의 children에서 현재 블록 제거
+            const newChildren = b.children.filter(c => c.id !== childToMove.id)
+            const updatedParent = { ...b, children: newChildren }
+            result.push(updatedParent)
+            // 부모 다음에 현재 블록 추가
+            result.push(childToMove)
+          } else {
+            // 자식들을 재귀적으로 처리
+            if (Array.isArray(b.children) && b.children.length > 0) {
+              const newChildren = outdentInTree(b.children, targetParentId, childToMove)
+              // children이 변경되었는지 확인
+              if (newChildren !== b.children) {
+                result.push({ ...b, children: newChildren })
+              } else {
+                result.push(b)
+              }
+            } else {
+              result.push(b)
+            }
+          }
+        }
+
+        return result
+      }
+
+      // 자식이 없는 블록은 자동으로 닫기
+      const autoCloseEmptyBlocks = (blockList) => {
+        return blockList.map(block => {
+          const hasChildren = Array.isArray(block.children) && block.children.length > 0
+          if (!hasChildren && block.isOpen) {
+            return { ...block, isOpen: false }
+          }
+          if (hasChildren) {
+            return { ...block, children: autoCloseEmptyBlocks(block.children) }
+          }
+          return block
+        })
+      }
+
+      const updated = outdentInTree(prevBlocks, parentBlock.id, block)
+      return autoCloseEmptyBlocks(updated)
+    })
+  }
+
+  // 보이는 블록들을 평탄화 (열려있는 블록의 자식들만 포함)
+  const getFlattenedVisibleBlocks = (blocks) => {
+    const result = []
+    const traverse = (blockList) => {
+      for (const b of blockList) {
+        result.push(b)
+        if (b.isOpen && Array.isArray(b.children) && b.children.length > 0) {
+          traverse(b.children)
+        }
+      }
+    }
+    traverse(blocks)
+    return result
+  }
+
   const handleKeyDown = (e) => {
-    // Tab: 자식 블록 추가
-    if (e.key === 'Tab' && !e.shiftKey) {
+    // Shift+Enter: 줄바꿈 (기본 동작 허용)
+    if (e.key === 'Enter' && e.shiftKey) {
+      // textarea의 기본 줄바꿈 동작 허용
+      return
+    }
+    // Shift+Tab: 상위 레벨로 이동 (outdent)
+    else if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault()
       e.stopPropagation()
-      addChildBlock()
+      if (parentBlock && rootSetBlocks) {
+        outdentBlock()
+      }
+    }
+    // Tab: 바로 위 블록의 자식으로 들여쓰기 (indent)
+    else if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      indentBlock()
     }
     // Enter: 새 블록 추가
     else if (e.key === 'Enter' && !e.shiftKey) {
+      // 중복 실행 방지
+      if (isProcessingEnter.current) return
+
       e.preventDefault()
       e.stopPropagation()
-      const currentIndex = blocks.findIndex(b => b.id === block.id)
+
+      isProcessingEnter.current = true
+
       const newBlock = {
         id: Date.now() + Math.random(),
         type: 'toggle',
@@ -517,10 +653,22 @@ function NotionBlock({
         children: [],
         isOpen: true
       }
-      const newBlocks = [...blocks]
-      newBlocks.splice(currentIndex + 1, 0, newBlock)
-      setBlocks(newBlocks)
-      setTimeout(() => setFocusedBlockId(newBlock.id), 0)
+
+      setBlocks(prevBlocks => {
+        const currentIndex = prevBlocks.findIndex(b => b.id === block.id)
+        if (currentIndex === -1) return prevBlocks
+        const newBlocks = [...prevBlocks]
+        newBlocks.splice(currentIndex + 1, 0, newBlock)
+        return newBlocks
+      })
+
+      setTimeout(() => {
+        setFocusedBlockId(newBlock.id)
+        // 플래그 초기화
+        setTimeout(() => {
+          isProcessingEnter.current = false
+        }, 100)
+      }, 0)
     }
     // Backspace: 커서가 맨 앞이고 내용이 비어있으면 블록 삭제
     else if (e.key === 'Backspace') {
@@ -529,58 +677,124 @@ function NotionBlock({
       const isAtStart = cursorPosition === 0
 
       // 비어있거나 커서가 맨 앞에 있을 때 삭제
-      if ((isEmpty || isAtStart) && blocks.length > 1) {
-        e.preventDefault()
-        e.stopPropagation()
-        const currentIndex = blocks.findIndex(b => b.id === block.id)
-        const newBlocks = blocks.filter(b => b.id !== block.id)
-        setBlocks(newBlocks)
+      if ((isEmpty || isAtStart)) {
+        // 전체 트리의 루트 블록 가져오기
+        const getRootBlocks = () => {
+          if (rootSetBlocks) {
+            let rootBlocks = []
+            rootSetBlocks(prev => {
+              rootBlocks = prev
+              return prev
+            })
+            return rootBlocks
+          }
+          return blocks
+        }
+        const rootBlocks = getRootBlocks()
+        const visibleBlocks = getFlattenedVisibleBlocks(rootBlocks)
+        const currentIndex = visibleBlocks.findIndex(b => b.id === block.id)
+
+        // 첫 번째 블록이 아닐 때만 삭제
         if (currentIndex > 0) {
-          setFocusedBlockId(newBlocks[currentIndex - 1].id)
-        } else if (newBlocks.length > 0) {
-          setFocusedBlockId(newBlocks[0].id)
+          e.preventDefault()
+          e.stopPropagation()
+
+          // 이전 블록으로 포커스 이동
+          const prevBlock = visibleBlocks[currentIndex - 1]
+
+          // 현재 블록 삭제 - 트리 전체에서 삭제
+          const deleteBlockFromTree = (blocks, blockIdToDelete) => {
+            return blocks
+              .filter(b => b.id !== blockIdToDelete)
+              .map(b => {
+                if (Array.isArray(b.children) && b.children.length > 0) {
+                  return { ...b, children: deleteBlockFromTree(b.children, blockIdToDelete) }
+                }
+                return b
+              })
+          }
+
+          // 자식이 없는 블록은 자동으로 닫기
+          const autoCloseEmptyBlocks = (blockList) => {
+            return blockList.map(block => {
+              const hasChildren = Array.isArray(block.children) && block.children.length > 0
+              if (!hasChildren && block.isOpen) {
+                return { ...block, isOpen: false }
+              }
+              if (hasChildren) {
+                return { ...block, children: autoCloseEmptyBlocks(block.children) }
+              }
+              return block
+            })
+          }
+
+          if (rootSetBlocks) {
+            rootSetBlocks(prevBlocks => {
+              const updated = deleteBlockFromTree(prevBlocks, block.id)
+              return autoCloseEmptyBlocks(updated)
+            })
+          } else {
+            setBlocks(prevBlocks => {
+              const updated = deleteBlockFromTree(prevBlocks, block.id)
+              return autoCloseEmptyBlocks(updated)
+            })
+          }
+
+          // 이전 블록으로 포커스 이동 및 커서를 끝으로
+          setTimeout(() => {
+            setFocusedBlockId(prevBlock.id)
+          }, 0)
         }
       }
     }
-    // ArrowUp: 위 블록으로 이동
+    // ArrowUp: 시각적으로 위에 보이는 블록으로 이동
     else if (e.key === 'ArrowUp' && !e.shiftKey) {
-      const currentIndex = blocks.findIndex(b => b.id === block.id)
+      e.preventDefault()
+      e.stopPropagation()
+      // 전체 트리의 루트 블록 가져오기
+      const getRootBlocks = () => {
+        // rootSetBlocks가 있으면 최상위, 없으면 현재 레벨
+        if (rootSetBlocks) {
+          let rootBlocks = []
+          rootSetBlocks(prev => {
+            rootBlocks = prev
+            return prev
+          })
+          return rootBlocks
+        }
+        return blocks
+      }
+      const rootBlocks = getRootBlocks()
+      const visibleBlocks = getFlattenedVisibleBlocks(rootBlocks)
+      const currentIndex = visibleBlocks.findIndex(b => b.id === block.id)
       if (currentIndex > 0) {
-        e.preventDefault()
-        e.stopPropagation()
-        setFocusedBlockId(blocks[currentIndex - 1].id)
+        setFocusedBlockId(visibleBlocks[currentIndex - 1].id)
       }
     }
-    // ArrowDown: 아래 블록으로 이동
+    // ArrowDown: 시각적으로 아래에 보이는 블록으로 이동
     else if (e.key === 'ArrowDown' && !e.shiftKey) {
-      const currentIndex = blocks.findIndex(b => b.id === block.id)
-      if (currentIndex < blocks.length - 1) {
-        e.preventDefault()
-        e.stopPropagation()
-        setFocusedBlockId(blocks[currentIndex + 1].id)
+      e.preventDefault()
+      e.stopPropagation()
+      // 전체 트리의 루트 블록 가져오기
+      const getRootBlocks = () => {
+        if (rootSetBlocks) {
+          let rootBlocks = []
+          rootSetBlocks(prev => {
+            rootBlocks = prev
+            return prev
+          })
+          return rootBlocks
+        }
+        return blocks
+      }
+      const rootBlocks = getRootBlocks()
+      const visibleBlocks = getFlattenedVisibleBlocks(rootBlocks)
+      const currentIndex = visibleBlocks.findIndex(b => b.id === block.id)
+      if (currentIndex < visibleBlocks.length - 1) {
+        setFocusedBlockId(visibleBlocks[currentIndex + 1].id)
       }
     }
   }
-
-  // 자식 블록 드래그 핸들러
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px 이동 후 드래그 시작
-      },
-    })
-  )
-
-  const handleChildDragEnd = (event) => {
-    const { active, over } = event
-    if (active.id !== over?.id) {
-      const oldIndex = block.children.findIndex(b => b.id === active.id)
-      const newIndex = block.children.findIndex(b => b.id === over.id)
-      updateChildBlocks(arrayMove(block.children, oldIndex, newIndex))
-    }
-  }
-
-  console.log('NotionBlock 렌더링:', block.id, 'isOpen:', block.isOpen, 'content:', block.content, 'children:', block.children?.length || 0)
 
   return (
     <div className="notion-block">
@@ -605,42 +819,33 @@ function NotionBlock({
         </button>
       </div>
       <div className="notion-block-content">
-        <input
+        <textarea
           ref={inputRef}
-          type="text"
           value={block.content}
           onChange={(e) => updateBlockContent(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setFocusedBlockId(block.id)}
-          placeholder="입력하세요..."
+          placeholder=""
           className="notion-block-input"
+          rows={1}
         />
       </div>
 
       {/* 자식 블록들 렌더링 */}
-      {block.isOpen && block.children && block.children.length > 0 && (
+      {block.isOpen && Array.isArray(block.children) && block.children.length > 0 && (
         <div className="notion-block-children">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleChildDragEnd}
-          >
-            <SortableContext
-              items={block.children.map(b => b.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {block.children.map((childBlock) => (
-                <SortableNotionBlock
-                  key={childBlock.id}
-                  block={childBlock}
-                  blocks={block.children}
-                  setBlocks={updateChildBlocks}
-                  focusedBlockId={focusedBlockId}
-                  setFocusedBlockId={setFocusedBlockId}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
+          {block.children.map((childBlock) => (
+            <SortableNotionBlock
+              key={childBlock.id}
+              block={childBlock}
+              blocks={block.children}
+              setBlocks={updateChildBlocks}
+              focusedBlockId={focusedBlockId}
+              setFocusedBlockId={setFocusedBlockId}
+              parentBlock={block}
+              rootSetBlocks={rootSetBlocks || setBlocks}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -660,28 +865,104 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
     })
   )
 
+  // 자식이 없는 블록은 자동으로 닫기
+  const autoCloseEmptyBlocks = (blockList) => {
+    return blockList.map(block => {
+      const hasChildren = Array.isArray(block.children) && block.children.length > 0
+      if (!hasChildren && block.isOpen) {
+        return { ...block, isOpen: false }
+      }
+      if (hasChildren) {
+        return { ...block, children: autoCloseEmptyBlocks(block.children) }
+      }
+      return block
+    })
+  }
+
+  // 모든 블록을 평탄화 (시각적으로 보이는 순서대로)
+  const flattenBlocks = (blockList) => {
+    const result = []
+    const traverse = (blocks) => {
+      for (const block of blocks) {
+        result.push(block)
+        if (block.isOpen && Array.isArray(block.children) && block.children.length > 0) {
+          traverse(block.children)
+        }
+      }
+    }
+    traverse(blockList)
+    return result
+  }
+
   const handleDragEnd = (event) => {
     const { active, over } = event
-    if (active.id !== over?.id) {
-      const oldIndex = blocks.findIndex(b => b.id === active.id)
-      const newIndex = blocks.findIndex(b => b.id === over.id)
-      setBlocks(arrayMove(blocks, oldIndex, newIndex))
+    if (!over || active.id === over.id) return
+
+    const flatBlocks = flattenBlocks(blocks)
+    const activeBlock = flatBlocks.find(b => b.id === active.id)
+    const overBlock = flatBlocks.find(b => b.id === over.id)
+
+    if (!activeBlock || !overBlock) return
+
+    // 트리에서 블록 제거
+    const removeBlockFromTree = (tree, blockId) => {
+      return tree
+        .filter(b => b.id !== blockId)
+        .map(b => ({
+          ...b,
+          children: Array.isArray(b.children) ? removeBlockFromTree(b.children, blockId) : []
+        }))
     }
+
+    // 트리에서 블록 삽입 (특정 블록 다음에)
+    const insertBlockAfter = (tree, targetId, blockToInsert) => {
+      const result = []
+      for (const block of tree) {
+        result.push(block)
+        if (block.id === targetId) {
+          result.push(blockToInsert)
+        } else if (Array.isArray(block.children) && block.children.length > 0) {
+          const newChildren = insertBlockAfter(block.children, targetId, blockToInsert)
+          if (newChildren !== block.children) {
+            result[result.length - 1] = { ...block, children: newChildren }
+          }
+        }
+      }
+      return result
+    }
+
+    // 1. 기존 위치에서 제거
+    let newTree = removeBlockFromTree(blocks, activeBlock.id)
+
+    // 2. 새 위치에 삽입
+    newTree = insertBlockAfter(newTree, overBlock.id, activeBlock)
+
+    // 3. 자식이 없는 블록은 자동으로 닫기
+    newTree = autoCloseEmptyBlocks(newTree)
+
+    setBlocks(newTree)
   }
+
+  const allBlockIds = flattenBlocks(blocks).map(b => b.id)
 
   return (
     <div className="key-thoughts-section section-block">
       <div className="section-header">
         <h3 className="section-title">💡 주요 생각정리</h3>
       </div>
-      <div className="key-thoughts-content notion-editor">
+      <div
+        className="key-thoughts-content notion-editor"
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={blocks.map(b => b.id)}
+            items={allBlockIds}
             strategy={verticalListSortingStrategy}
           >
             {blocks.map((block) => (
@@ -692,6 +973,7 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
                 setBlocks={setBlocks}
                 focusedBlockId={focusedBlockId}
                 setFocusedBlockId={setFocusedBlockId}
+                rootSetBlocks={setBlocks}
               />
             ))}
           </SortableContext>
@@ -2836,11 +3118,8 @@ function App() {
   const movePastIncompleteTodosToToday = async () => {
     // 이미 실행 중이면 중복 실행 방지
     if (carryOverInProgress.current) {
-      console.log('⏸️ 이월 작업이 이미 실행 중입니다. 중복 실행 방지.')
       return
     }
-
-    console.log('🚀 구 방식 이월 시작 (movePastIncompleteTodosToToday)')
 
     try {
       // 실행 시작 플래그 설정
@@ -2919,10 +3198,6 @@ function App() {
           })
 
           if (todosNeedCarryOver.length > 0) {
-            console.log(`📦 ${fromDateStr} → ${toDateStr}: ${todosNeedCarryOver.length}개 항목 이월 중...`, {
-              todos: todosNeedCarryOver.map(t => ({ id: t.id, text: t.text, original_todo_id: t.original_todo_id }))
-            })
-
             // 원본 투두들의 created_at 조회
             const originalIds = todosNeedCarryOver
               .map(todo => todo.original_todo_id || todo.id)
@@ -2973,16 +3248,12 @@ function App() {
       }
 
       if (totalCarriedOver > 0) {
-        console.log(`✅ 구 방식 이월 완료: ${totalCarriedOver}개 항목 이월됨`)
-      } else {
-        console.log('✅ 구 방식 이월 완료: 이월할 항목 없음')
       }
     } catch (error) {
       console.error('과거 미완료 항목 이월 오류:', error.message)
     } finally {
       // 작업 완료 후 플래그 해제
       carryOverInProgress.current = false
-      console.log('🏁 구 방식 이월 작업 종료 (플래그 해제)')
     }
   }
 
@@ -4318,18 +4589,6 @@ function App() {
     // 구 방식(복사 기반) 이월 투두인지 확인
     const isOldStyleCarryover = todo.original_todo_id !== null && todo.original_todo_id !== undefined
 
-    console.log('🔍 삭제 시도:', {
-      id: todo.id,
-      text: todo.text,
-      visible_dates: todo.visible_dates,
-      date: todo.date,
-      created_date: todo.created_date,
-      visibleDates: visibleDates,
-      length: visibleDates.length,
-      original_todo_id: todo.original_todo_id,
-      isOldStyleCarryover: isOldStyleCarryover
-    })
-
     // 새 방식: 여러 날짜에 보이는 경우 OR 구 방식: 이월된 투두인 경우 → 모달 표시
     if (visibleDates.length > 1 || isOldStyleCarryover) {
       setTodoToDelete(todo)
@@ -4383,22 +4642,12 @@ function App() {
       // hidden_dates에 현재 날짜 추가
       const newHiddenDates = [...currentHiddenDates, dateStr]
 
-      console.log('🔒 이 날짜에서만 숨김:', {
-        id: todo.id,
-        text: todo.text,
-        dateStr: dateStr,
-        before: currentHiddenDates,
-        after: newHiddenDates
-      })
-
       const { error } = await supabase
         .from('todos')
         .update({ hidden_dates: newHiddenDates })
         .eq('id', todo.id)
 
       if (error) throw error
-
-      console.log('✅ 숨김 처리 완료')
 
       // UI에서 제거
       setTodos(todos.filter(t => t.id !== todo.id))
@@ -4843,6 +5092,15 @@ function App() {
   }
 
   // 주요 생각정리 관련 함수들
+  // 블록 데이터를 정규화하여 children이 항상 배열이 되도록 보장
+  const normalizeBlocks = (blocks) => {
+    if (!Array.isArray(blocks)) return []
+    return blocks.map(block => ({
+      ...block,
+      children: Array.isArray(block.children) ? normalizeBlocks(block.children) : []
+    }))
+  }
+
   const fetchKeyThoughtsContent = async () => {
     try {
       const { data, error } = await supabase
@@ -4857,20 +5115,20 @@ function App() {
       }
 
       if (data && data.setting_value) {
-        const blocks = JSON.parse(data.setting_value)
+        const blocks = normalizeBlocks(JSON.parse(data.setting_value))
         setKeyThoughtsBlocks(blocks)
         localStorage.setItem('keyThoughtsBlocks', JSON.stringify(blocks))
       } else {
         const saved = localStorage.getItem('keyThoughtsBlocks')
         if (saved) {
-          setKeyThoughtsBlocks(JSON.parse(saved))
+          setKeyThoughtsBlocks(normalizeBlocks(JSON.parse(saved)))
         }
       }
     } catch (error) {
       console.error('주요 생각정리 불러오기 오류:', error.message)
       const saved = localStorage.getItem('keyThoughtsBlocks')
       if (saved) {
-        setKeyThoughtsBlocks(JSON.parse(saved))
+        setKeyThoughtsBlocks(normalizeBlocks(JSON.parse(saved)))
       }
     }
   }
