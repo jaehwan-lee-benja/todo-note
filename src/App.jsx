@@ -377,16 +377,51 @@ function MemoSection({
 }
 
 // 노션 스타일 블록 컴포넌트
+// 드래그 가능한 Notion 블록 (Sortable 래퍼)
+function SortableNotionBlock({
+  block,
+  blocks,
+  setBlocks,
+  focusedBlockId,
+  setFocusedBlockId,
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <NotionBlock
+        block={block}
+        blocks={blocks}
+        setBlocks={setBlocks}
+        focusedBlockId={focusedBlockId}
+        setFocusedBlockId={setFocusedBlockId}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  )
+}
+
+// Notion 블록 컴포넌트
 function NotionBlock({
   block,
   blocks,
   setBlocks,
   focusedBlockId,
   setFocusedBlockId,
-  onMoveUp,
-  onMoveDown,
-  isFirst,
-  isLast
+  dragHandleProps,
 }) {
   const inputRef = useRef(null)
 
@@ -422,8 +457,26 @@ function NotionBlock({
 
   const handleBlockControlClick = () => {
     // 토글 열기/닫기
+    console.log('토글 클릭:', block.id, '현재 상태:', block.isOpen, '→', !block.isOpen)
+
     setBlocks(prevBlocks =>
-      updateBlockInTree(prevBlocks, block.id, (b) => ({ ...b, isOpen: !b.isOpen }))
+      updateBlockInTree(prevBlocks, block.id, (b) => {
+        const newIsOpen = !b.isOpen
+
+        // 토글을 열 때 자식이 없으면 자동으로 1개 생성
+        if (newIsOpen && (!b.children || b.children.length === 0)) {
+          const newChildBlock = {
+            id: Date.now() + Math.random(),
+            type: 'toggle',
+            content: '',
+            children: [],
+            isOpen: true
+          }
+          return { ...b, isOpen: newIsOpen, children: [newChildBlock] }
+        }
+
+        return { ...b, isOpen: newIsOpen }
+      })
     )
   }
 
@@ -469,17 +522,24 @@ function NotionBlock({
       setBlocks(newBlocks)
       setTimeout(() => setFocusedBlockId(newBlock.id), 0)
     }
-    // Backspace: 빈 블록 삭제
-    else if (e.key === 'Backspace' && block.content === '' && blocks.length > 1) {
-      e.preventDefault()
-      e.stopPropagation()
-      const currentIndex = blocks.findIndex(b => b.id === block.id)
-      const newBlocks = blocks.filter(b => b.id !== block.id)
-      setBlocks(newBlocks)
-      if (currentIndex > 0) {
-        setFocusedBlockId(newBlocks[currentIndex - 1].id)
-      } else if (newBlocks.length > 0) {
-        setFocusedBlockId(newBlocks[0].id)
+    // Backspace: 커서가 맨 앞이고 내용이 비어있으면 블록 삭제
+    else if (e.key === 'Backspace') {
+      const cursorPosition = e.target.selectionStart
+      const isEmpty = block.content === ''
+      const isAtStart = cursorPosition === 0
+
+      // 비어있거나 커서가 맨 앞에 있을 때 삭제
+      if ((isEmpty || isAtStart) && blocks.length > 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        const currentIndex = blocks.findIndex(b => b.id === block.id)
+        const newBlocks = blocks.filter(b => b.id !== block.id)
+        setBlocks(newBlocks)
+        if (currentIndex > 0) {
+          setFocusedBlockId(newBlocks[currentIndex - 1].id)
+        } else if (newBlocks.length > 0) {
+          setFocusedBlockId(newBlocks[0].id)
+        }
       }
     }
     // ArrowUp: 위 블록으로 이동
@@ -500,22 +560,37 @@ function NotionBlock({
         setFocusedBlockId(blocks[currentIndex + 1].id)
       }
     }
-    // Cmd/Ctrl + Shift + ArrowUp: 블록 위로 이동
-    else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'ArrowUp') {
-      e.preventDefault()
-      e.stopPropagation()
-      onMoveUp()
-    }
-    // Cmd/Ctrl + Shift + ArrowDown: 블록 아래로 이동
-    else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'ArrowDown') {
-      e.preventDefault()
-      e.stopPropagation()
-      onMoveDown()
+  }
+
+  // 자식 블록 드래그 핸들러
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px 이동 후 드래그 시작
+      },
+    })
+  )
+
+  const handleChildDragEnd = (event) => {
+    const { active, over } = event
+    if (active.id !== over?.id) {
+      const oldIndex = block.children.findIndex(b => b.id === active.id)
+      const newIndex = block.children.findIndex(b => b.id === over.id)
+      updateChildBlocks(arrayMove(block.children, oldIndex, newIndex))
     }
   }
 
+  console.log('NotionBlock 렌더링:', block.id, 'isOpen:', block.isOpen, 'content:', block.content, 'children:', block.children?.length || 0)
+
   return (
     <div className="notion-block">
+      {/* 드래그 핸들 */}
+      {dragHandleProps && (
+        <div className="notion-drag-handle" {...dragHandleProps} title="드래그하여 이동">
+          ∷
+        </div>
+      )}
+
       <div className="notion-block-controls">
         <button
           className="block-type-button"
@@ -530,78 +605,42 @@ function NotionBlock({
         </button>
       </div>
       <div className="notion-block-content">
-        {block.isOpen ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={block.content}
-            onChange={(e) => updateBlockContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setFocusedBlockId(block.id)}
-            placeholder="입력하세요..."
-            className="notion-block-input"
-          />
-        ) : (
-          <div
-            className="notion-block-preview"
-            onClick={handleBlockControlClick}
-          >
-            {block.content || '비어있음'}
-          </div>
-        )}
+        <input
+          ref={inputRef}
+          type="text"
+          value={block.content}
+          onChange={(e) => updateBlockContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setFocusedBlockId(block.id)}
+          placeholder="입력하세요..."
+          className="notion-block-input"
+        />
       </div>
-      {!isFirst && (
-        <button
-          className="move-block-button move-up"
-          onClick={onMoveUp}
-          title="위로 이동 (Cmd/Ctrl + Shift + ↑)"
-        >
-          ↑
-        </button>
-      )}
-      {!isLast && (
-        <button
-          className="move-block-button move-down"
-          onClick={onMoveDown}
-          title="아래로 이동 (Cmd/Ctrl + Shift + ↓)"
-        >
-          ↓
-        </button>
-      )}
 
       {/* 자식 블록들 렌더링 */}
       {block.isOpen && block.children && block.children.length > 0 && (
         <div className="notion-block-children">
-          {block.children.map((childBlock, index) => (
-            <NotionBlock
-              key={childBlock.id}
-              block={childBlock}
-              blocks={block.children}
-              setBlocks={updateChildBlocks}
-              focusedBlockId={focusedBlockId}
-              setFocusedBlockId={setFocusedBlockId}
-              onMoveUp={() => {
-                if (index > 0) {
-                  const newChildren = [...block.children]
-                  const temp = newChildren[index]
-                  newChildren[index] = newChildren[index - 1]
-                  newChildren[index - 1] = temp
-                  updateChildBlocks(newChildren)
-                }
-              }}
-              onMoveDown={() => {
-                if (index < block.children.length - 1) {
-                  const newChildren = [...block.children]
-                  const temp = newChildren[index]
-                  newChildren[index] = newChildren[index + 1]
-                  newChildren[index + 1] = temp
-                  updateChildBlocks(newChildren)
-                }
-              }}
-              isFirst={index === 0}
-              isLast={index === block.children.length - 1}
-            />
-          ))}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleChildDragEnd}
+          >
+            <SortableContext
+              items={block.children.map(b => b.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {block.children.map((childBlock) => (
+                <SortableNotionBlock
+                  key={childBlock.id}
+                  block={childBlock}
+                  blocks={block.children}
+                  setBlocks={updateChildBlocks}
+                  focusedBlockId={focusedBlockId}
+                  setFocusedBlockId={setFocusedBlockId}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </div>
       )}
     </div>
@@ -609,24 +648,24 @@ function NotionBlock({
 }
 
 // 주요 생각정리 - 블록 에디터
-function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId, onSave }) {
-  const moveBlockUp = (index) => {
-    if (index > 0) {
-      const newBlocks = [...blocks]
-      const temp = newBlocks[index]
-      newBlocks[index] = newBlocks[index - 1]
-      newBlocks[index - 1] = temp
-      setBlocks(newBlocks)
-    }
-  }
+function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px 이동 후 드래그 시작 (입력 필드 클릭과 구분)
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
-  const moveBlockDown = (index) => {
-    if (index < blocks.length - 1) {
-      const newBlocks = [...blocks]
-      const temp = newBlocks[index]
-      newBlocks[index] = newBlocks[index + 1]
-      newBlocks[index + 1] = temp
-      setBlocks(newBlocks)
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+    if (active.id !== over?.id) {
+      const oldIndex = blocks.findIndex(b => b.id === active.id)
+      const newIndex = blocks.findIndex(b => b.id === over.id)
+      setBlocks(arrayMove(blocks, oldIndex, newIndex))
     }
   }
 
@@ -636,20 +675,27 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
         <h3 className="section-title">💡 주요 생각정리</h3>
       </div>
       <div className="key-thoughts-content notion-editor">
-        {blocks.map((block, index) => (
-          <NotionBlock
-            key={block.id}
-            block={block}
-            blocks={blocks}
-            setBlocks={setBlocks}
-            focusedBlockId={focusedBlockId}
-            setFocusedBlockId={setFocusedBlockId}
-            onMoveUp={() => moveBlockUp(index)}
-            onMoveDown={() => moveBlockDown(index)}
-            isFirst={index === 0}
-            isLast={index === blocks.length - 1}
-          />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={blocks.map(b => b.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {blocks.map((block) => (
+              <SortableNotionBlock
+                key={block.id}
+                block={block}
+                blocks={blocks}
+                setBlocks={setBlocks}
+                focusedBlockId={focusedBlockId}
+                setFocusedBlockId={setFocusedBlockId}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
       </div>
     </div>
   )
@@ -5908,7 +5954,6 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 setBlocks={setKeyThoughtsBlocks}
                                 focusedBlockId={focusedBlockId}
                                 setFocusedBlockId={setFocusedBlockId}
-                                onSave={handleSaveKeyThoughts}
                               />
                             </SortableSection>
                           )
