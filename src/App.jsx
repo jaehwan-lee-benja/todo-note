@@ -8,6 +8,7 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  MeasuringStrategy,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -238,6 +239,13 @@ function SortableSection({ id, children, disabled, onLongPress }) {
 
   const handlePointerDown = (e) => {
     if (disabled && onLongPress) {
+      // section-header 영역인지 확인
+      const isSectionHeader = e.target.closest('.section-header')
+      if (!isSectionHeader) {
+        // 헤더가 아니면 long press 무시
+        return
+      }
+
       setIsPressed(true)
       longPressTimerRef.current = setTimeout(() => {
         onLongPress()
@@ -274,8 +282,6 @@ function SortableSection({ id, children, disabled, onLongPress }) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : isPressed ? 0.8 : 1,
-    cursor: isDragging ? 'grabbing' : disabled ? 'default' : 'grab',
   }
 
   const eventHandlers = disabled
@@ -398,8 +404,8 @@ function SortableNotionBlock({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transition: isDragging ? 'none' : transition,
+    cursor: isDragging ? 'grabbing' : 'grab',
   }
 
   return (
@@ -617,10 +623,75 @@ function NotionBlock({
   }
 
   const handleKeyDown = (e) => {
-    // Shift+Enter: 줄바꿈 (기본 동작 허용)
-    if (e.key === 'Enter' && e.shiftKey) {
-      // textarea의 기본 줄바꿈 동작 허용
-      return
+    // Enter 관련 처리를 먼저 체크
+    if (e.key === 'Enter') {
+      // Shift+Enter: textarea 내 줄바꿈 (기본 동작 허용)
+      if (e.shiftKey) {
+        // textarea의 기본 줄바꿈 동작 허용
+        return
+      }
+      // Enter만: 새 블록 추가 (줄바꿈 방지)
+      else {
+        // 중복 실행 방지
+        if (isProcessingEnter.current) {
+          e.preventDefault()
+          e.stopPropagation()
+          return
+        }
+
+        e.preventDefault()
+        e.stopPropagation()
+
+        isProcessingEnter.current = true
+
+        // 커서 위치 확인
+        const cursorPosition = e.target.selectionStart
+
+        const newBlock = {
+          id: Date.now() + Math.random(),
+          type: 'toggle',
+          content: '',
+          children: [],
+          isOpen: true
+        }
+
+        if (cursorPosition === 0) {
+          // 커서가 맨 앞: 현재 블록 앞에 빈 블록 추가
+          setBlocks(prevBlocks => {
+            const currentIndex = prevBlocks.findIndex(b => b.id === block.id)
+            if (currentIndex === -1) return prevBlocks
+            const newBlocks = [...prevBlocks]
+            newBlocks.splice(currentIndex, 0, newBlock)  // 현재 블록 앞에 삽입
+            return newBlocks
+          })
+
+          // 포커스는 현재 블록 유지 (텍스트가 있는 블록)
+          setTimeout(() => {
+            setFocusedBlockId(block.id)
+            // 플래그 초기화
+            setTimeout(() => {
+              isProcessingEnter.current = false
+            }, 100)
+          }, 0)
+        } else {
+          // 커서가 맨 앞이 아님: 현재 블록 다음에 빈 블록 추가 (기존 로직)
+          setBlocks(prevBlocks => {
+            const currentIndex = prevBlocks.findIndex(b => b.id === block.id)
+            if (currentIndex === -1) return prevBlocks
+            const newBlocks = [...prevBlocks]
+            newBlocks.splice(currentIndex + 1, 0, newBlock)
+            return newBlocks
+          })
+
+          setTimeout(() => {
+            setFocusedBlockId(newBlock.id)
+            // 플래그 초기화
+            setTimeout(() => {
+              isProcessingEnter.current = false
+            }, 100)
+          }, 0)
+        }
+      }
     }
     // Shift+Tab: 상위 레벨로 이동 (outdent)
     else if (e.key === 'Tab' && e.shiftKey) {
@@ -635,40 +706,6 @@ function NotionBlock({
       e.preventDefault()
       e.stopPropagation()
       indentBlock()
-    }
-    // Enter: 새 블록 추가
-    else if (e.key === 'Enter' && !e.shiftKey) {
-      // 중복 실행 방지
-      if (isProcessingEnter.current) return
-
-      e.preventDefault()
-      e.stopPropagation()
-
-      isProcessingEnter.current = true
-
-      const newBlock = {
-        id: Date.now() + Math.random(),
-        type: 'toggle',
-        content: '',
-        children: [],
-        isOpen: true
-      }
-
-      setBlocks(prevBlocks => {
-        const currentIndex = prevBlocks.findIndex(b => b.id === block.id)
-        if (currentIndex === -1) return prevBlocks
-        const newBlocks = [...prevBlocks]
-        newBlocks.splice(currentIndex + 1, 0, newBlock)
-        return newBlocks
-      })
-
-      setTimeout(() => {
-        setFocusedBlockId(newBlock.id)
-        // 플래그 초기화
-        setTimeout(() => {
-          isProcessingEnter.current = false
-        }, 100)
-      }, 0)
     }
     // Backspace: 커서가 맨 앞이고 내용이 비어있으면 블록 삭제
     else if (e.key === 'Backspace') {
@@ -857,7 +894,7 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px 이동 후 드래그 시작 (입력 필드 클릭과 구분)
+        distance: 3, // 3px 이동 후 드래그 시작 (핸들 전용이므로 민감하게)
       },
     }),
     useSensor(KeyboardSensor, {
@@ -878,6 +915,15 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
       return block
     })
   }
+
+  // blocks 변경 시 자식 없는 블록 자동 닫기
+  useEffect(() => {
+    const closedBlocks = autoCloseEmptyBlocks(blocks)
+    // 변경사항이 있을 때만 업데이트 (무한 루프 방지)
+    if (JSON.stringify(closedBlocks) !== JSON.stringify(blocks)) {
+      setBlocks(closedBlocks)
+    }
+  }, [blocks])
 
   // 모든 블록을 평탄화 (시각적으로 보이는 순서대로)
   const flattenBlocks = (blockList) => {
@@ -904,6 +950,9 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
 
     if (!activeBlock || !overBlock) return
 
+    // 깊은 복사로 activeBlock 보존
+    const activeBlockCopy = JSON.parse(JSON.stringify(activeBlock))
+
     // 트리에서 블록 제거
     const removeBlockFromTree = (tree, blockId) => {
       return tree
@@ -916,50 +965,138 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
 
     // 트리에서 블록 삽입 (특정 블록 다음에)
     const insertBlockAfter = (tree, targetId, blockToInsert) => {
+      let inserted = false
       const result = []
+
       for (const block of tree) {
         result.push(block)
         if (block.id === targetId) {
           result.push(blockToInsert)
-        } else if (Array.isArray(block.children) && block.children.length > 0) {
-          const newChildren = insertBlockAfter(block.children, targetId, blockToInsert)
-          if (newChildren !== block.children) {
+          inserted = true
+        }
+
+        if (Array.isArray(block.children) && block.children.length > 0) {
+          const { newChildren, wasInserted } = insertBlockAfterWithFlag(block.children, targetId, blockToInsert)
+          if (wasInserted) {
             result[result.length - 1] = { ...block, children: newChildren }
+            inserted = true
           }
         }
       }
-      return result
+
+      return { newTree: result, inserted }
+    }
+
+    // 삽입 성공 여부를 반환하는 헬퍼 함수
+    const insertBlockAfterWithFlag = (tree, targetId, blockToInsert) => {
+      let inserted = false
+      const result = []
+
+      for (const block of tree) {
+        result.push(block)
+        if (block.id === targetId) {
+          result.push(blockToInsert)
+          inserted = true
+        }
+
+        if (Array.isArray(block.children) && block.children.length > 0) {
+          const { newChildren, wasInserted } = insertBlockAfterWithFlag(block.children, targetId, blockToInsert)
+          if (wasInserted) {
+            result[result.length - 1] = { ...block, children: newChildren }
+            inserted = true
+          }
+        }
+      }
+
+      return { newChildren: result, wasInserted: inserted }
     }
 
     // 1. 기존 위치에서 제거
     let newTree = removeBlockFromTree(blocks, activeBlock.id)
 
     // 2. 새 위치에 삽입
-    newTree = insertBlockAfter(newTree, overBlock.id, activeBlock)
+    // 첫 번째 블록(루트 레벨)인지 확인
+    const isFirstBlock = newTree.length > 0 && newTree[0].id === overBlock.id
 
-    // 3. 자식이 없는 블록은 자동으로 닫기
-    newTree = autoCloseEmptyBlocks(newTree)
+    let finalTree
+    let inserted = false
 
-    setBlocks(newTree)
+    if (isFirstBlock) {
+      // 첫 번째 블록 앞에 삽입
+      finalTree = [activeBlockCopy, ...newTree]
+      inserted = true
+    } else {
+      // 기존 로직: 특정 블록 다음에 삽입
+      const result = insertBlockAfter(newTree, overBlock.id, activeBlockCopy)
+      finalTree = result.newTree
+      inserted = result.inserted
+    }
+
+    // 3. 삽입 실패 시 원래 상태 유지
+    if (!inserted) {
+      console.warn('Failed to insert block, keeping original state')
+      return
+    }
+
+    // 4. 자식이 없는 블록은 자동으로 닫기
+    const resultTree = autoCloseEmptyBlocks(finalTree)
+
+    setBlocks(resultTree)
   }
 
   const allBlockIds = flattenBlocks(blocks).map(b => b.id)
+
+  // 전체 펴기/접기 함수
+  const toggleAllBlocks = (open) => {
+    const toggleRecursively = (blockList) => {
+      return blockList.map(block => ({
+        ...block,
+        isOpen: open,
+        children: Array.isArray(block.children) ? toggleRecursively(block.children) : []
+      }))
+    }
+    setBlocks(toggleRecursively(blocks))
+  }
+
+  // 모든 블록이 열려있는지 확인
+  const checkAllOpen = (blockList) => {
+    for (const block of blockList) {
+      if (!block.isOpen && Array.isArray(block.children) && block.children.length > 0) {
+        return false
+      }
+      if (Array.isArray(block.children) && block.children.length > 0) {
+        if (!checkAllOpen(block.children)) return false
+      }
+    }
+    return true
+  }
+
+  const allOpen = checkAllOpen(blocks)
 
   return (
     <div className="key-thoughts-section section-block">
       <div className="section-header">
         <h3 className="section-title">💡 주요 생각정리</h3>
+        <button
+          className="toggle-all-button"
+          onClick={() => toggleAllBlocks(!allOpen)}
+          title={allOpen ? "전체 접기" : "전체 펴기"}
+        >
+          {allOpen ? "전체 접기" : "전체 펴기"}
+        </button>
       </div>
       <div
         className="key-thoughts-content notion-editor"
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerMove={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()}
       >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
+          measuring={{
+            droppable: {
+              strategy: MeasuringStrategy.Always,
+            },
+          }}
         >
           <SortableContext
             items={allBlockIds}
@@ -1071,7 +1208,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
   }
 
   // 텍스트가 길면 펼치기 버튼 표시
