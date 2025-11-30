@@ -279,8 +279,13 @@ function SortableSection({ id, children, disabled, onLongPress }) {
     setIsPressed(false)
   }
 
+  // translate만 사용 (scale 제거하여 텍스트 렌더링 개선)
+  const transformString = transform
+    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+    : undefined
+
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: transformString,
     transition,
   }
 
@@ -295,10 +300,13 @@ function SortableSection({ id, children, disabled, onLongPress }) {
     : { ...attributes, ...listeners }
 
   // 순서 수정 모드일 때 클래스 추가
-  const className = !disabled ? 'reorder-mode' : ''
+  const classNames = [
+    !disabled && 'reorder-mode',
+    isDragging && 'dragging'
+  ].filter(Boolean).join(' ')
 
   return (
-    <div ref={setNodeRef} style={style} className={className} {...eventHandlers}>
+    <div ref={setNodeRef} style={style} className={classNames} {...eventHandlers}>
       {children}
     </div>
   )
@@ -402,14 +410,19 @@ function SortableNotionBlock({
     isDragging,
   } = useSortable({ id: block.id })
 
+  // translate만 사용 (scale 제거하여 텍스트 렌더링 개선)
+  const transformString = transform
+    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+    : undefined
+
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: transformString,
     transition: isDragging ? 'none' : transition,
     cursor: isDragging ? 'grabbing' : 'grab',
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className={isDragging ? 'dragging' : ''}>
       <NotionBlock
         block={block}
         blocks={blocks}
