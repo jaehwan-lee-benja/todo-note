@@ -9,6 +9,7 @@ import {
   useSensor,
   useSensors,
   MeasuringStrategy,
+  DragOverlay,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -400,6 +401,9 @@ function SortableNotionBlock({
   setFocusedBlockId,
   parentBlock,
   rootSetBlocks,
+  draggingChildIds = [],
+  activeId,
+  overId,
 }) {
   const {
     attributes,
@@ -410,19 +414,22 @@ function SortableNotionBlock({
     isDragging,
   } = useSortable({ id: block.id })
 
-  // translate만 사용 (scale 제거하여 텍스트 렌더링 개선)
-  const transformString = transform
-    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
-    : undefined
+  // 노션 방식: 드래그 중에는 블록들이 움직이지 않음
+  const isActive = block.id === activeId
+  // over 위치인 경우 얇은 선 표시
+  const isOver = block.id === overId && activeId && activeId !== overId
 
   const style = {
-    transform: transformString,
-    transition: isDragging ? 'none' : transition,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    // transform 제거 - 블록이 움직이지 않도록
+    cursor: 'grab',
+    opacity: isActive ? 0.4 : 1, // 드래그 중인 블록은 약간 투명하게
+    borderTop: isOver
+      ? '2px solid rgba(99, 102, 241, 0.8)' // over 시 보라색 선
+      : '2px solid transparent', // 기본은 투명 (공간 확보)
   }
 
   return (
-    <div ref={setNodeRef} style={style} className={isDragging ? 'dragging' : ''}>
+    <div ref={setNodeRef} style={style}>
       <NotionBlock
         block={block}
         blocks={blocks}
@@ -432,6 +439,9 @@ function SortableNotionBlock({
         dragHandleProps={{ ...attributes, ...listeners }}
         parentBlock={parentBlock}
         rootSetBlocks={rootSetBlocks}
+        draggingChildIds={draggingChildIds}
+        activeId={activeId}
+        overId={overId}
       />
     </div>
   )
@@ -447,6 +457,9 @@ function NotionBlock({
   dragHandleProps,
   parentBlock,
   rootSetBlocks,
+  draggingChildIds = [],
+  activeId,
+  overId,
 }) {
   const inputRef = useRef(null)
   const isProcessingEnter = useRef(false)
@@ -894,6 +907,9 @@ function NotionBlock({
               setFocusedBlockId={setFocusedBlockId}
               parentBlock={block}
               rootSetBlocks={rootSetBlocks || setBlocks}
+              draggingChildIds={draggingChildIds}
+              activeId={activeId}
+              overId={overId}
             />
           ))}
         </div>
@@ -904,6 +920,9 @@ function NotionBlock({
 
 // 주요 생각정리 - 블록 에디터
 function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId }) {
+  const [activeBlock, setActiveBlock] = useState(null)
+  const [overId, setOverId] = useState(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -953,8 +972,46 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
     return result
   }
 
+  // 블록의 모든 하위 블록 ID를 재귀적으로 수집
+  const getAllChildIds = (block) => {
+    const childIds = []
+    const traverse = (b) => {
+      if (Array.isArray(b.children) && b.children.length > 0) {
+        for (const child of b.children) {
+          childIds.push(child.id)
+          traverse(child)
+        }
+      }
+    }
+    traverse(block)
+    return childIds
+  }
+
+  const handleDragStart = (event) => {
+    const { active } = event
+    const flatBlocks = flattenBlocks(blocks)
+    const block = flatBlocks.find(b => b.id === active.id)
+    setActiveBlock(block)
+  }
+
+  const handleDragOver = (event) => {
+    const { over } = event
+    setOverId(over?.id || null)
+  }
+
+  // 드래그 중인 블록의 모든 하위 블록 ID 목록
+  const draggingChildIds = React.useMemo(() => {
+    if (!activeBlock) return []
+    return getAllChildIds(activeBlock)
+  }, [activeBlock])
+
   const handleDragEnd = (event) => {
     const { active, over } = event
+
+    // 드래그 종료 시 activeBlock, overId 초기화
+    setActiveBlock(null)
+    setOverId(null)
+
     if (!over || active.id === over.id) return
 
     const flatBlocks = flattenBlocks(blocks)
@@ -962,6 +1019,12 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
     const overBlock = flatBlocks.find(b => b.id === over.id)
 
     if (!activeBlock || !overBlock) return
+
+    // 드래그 중인 블록의 하위 블록으로 드롭하는 것을 방지
+    const childIds = getAllChildIds(activeBlock)
+    if (childIds.includes(over.id)) {
+      return
+    }
 
     // 깊은 복사로 activeBlock 보존
     const activeBlockCopy = JSON.parse(JSON.stringify(activeBlock))
@@ -1057,7 +1120,11 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
     setBlocks(resultTree)
   }
 
-  const allBlockIds = flattenBlocks(blocks).map(b => b.id)
+  // 드래그 중인 블록의 하위 블록들은 sortable 대상에서 제외
+  // (하위 블록들은 상위 블록과 함께 움직이므로 개별적으로 정렬되면 안됨)
+  const allBlockIds = flattenBlocks(blocks)
+    .filter(b => !draggingChildIds.includes(b.id))
+    .map(b => b.id)
 
   // 전체 펴기/접기 함수
   const toggleAllBlocks = (open) => {
@@ -1104,6 +1171,8 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           measuring={{
             droppable: {
@@ -1124,9 +1193,29 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
                 focusedBlockId={focusedBlockId}
                 setFocusedBlockId={setFocusedBlockId}
                 rootSetBlocks={setBlocks}
+                draggingChildIds={draggingChildIds}
+                activeId={activeBlock?.id}
+                overId={overId}
               />
             ))}
           </SortableContext>
+          <DragOverlay>
+            {activeBlock ? (
+              <div className="drag-overlay-block">
+                <NotionBlock
+                  block={activeBlock}
+                  blocks={blocks}
+                  setBlocks={() => {}} // 드래그 중에는 수정 불가
+                  focusedBlockId={null}
+                  setFocusedBlockId={() => {}}
+                  dragHandleProps={{}}
+                  parentBlock={null}
+                  rootSetBlocks={() => {}}
+                  draggingChildIds={[]}
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>

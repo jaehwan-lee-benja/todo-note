@@ -4938,3 +4938,10 @@ h1 {
   }
 }
 
+/* 드래그 오버레이 - 노션 스타일 */
+.drag-overlay-block {
+  opacity: 0.5;
+  cursor: grabbing;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
