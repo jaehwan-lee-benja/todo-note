@@ -2407,6 +2407,11 @@ h1 {
 }
 
 @media (max-width: 768px) {
+  /* 하단 고정 버튼들을 위한 여백 확보 (트렐로 스타일) */
+  .content-scrollable {
+    padding-bottom: 100px;
+  }
+
   .hamburger-menu {
     width: 44px;
     height: 44px;
@@ -4546,6 +4551,14 @@ h1 {
 @media (max-width: 768px) {
   .section-pagination-dots {
     display: flex;
+    justify-content: center;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 16px 32px;
   }
 
   .sections-container.horizontal-layout {
@@ -4557,6 +4570,16 @@ h1 {
     scroll-snap-align: center;
     width: calc(100vw - 32px);
     min-width: calc(100vw - 32px);
+    flex-shrink: 0;
+    /* 섹션 높이를 고정: 화면 높이 - 헤더 - 네비게이션 바 */
+    max-height: calc(100vh - 120px - 64px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 섹션 내부 컨텐츠가 스크롤되도록 */
+  .sections-container.horizontal-layout .section-block > * {
     flex-shrink: 0;
   }
 }

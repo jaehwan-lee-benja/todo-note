@@ -919,7 +919,7 @@ function NotionBlock({
 }
 
 // 주요 생각정리 - 블록 에디터
-function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId }) {
+function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId, onShowHistory }) {
   const [activeBlock, setActiveBlock] = useState(null)
   const [overId, setOverId] = useState(null)
 
@@ -1157,13 +1157,22 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
     <div className="key-thoughts-section section-block">
       <div className="section-header">
         <h3 className="section-title">💡 주요 생각정리</h3>
-        <button
-          className="toggle-all-button"
-          onClick={() => toggleAllBlocks(!allOpen)}
-          title={allOpen ? "전체 접기" : "전체 펴기"}
-        >
-          {allOpen ? "전체 접기" : "전체 펴기"}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            className="toggle-all-button"
+            onClick={() => onShowHistory && onShowHistory()}
+            title="버전 히스토리 보기"
+          >
+            🕐 히스토리
+          </button>
+          <button
+            className="toggle-all-button"
+            onClick={() => toggleAllBlocks(!allOpen)}
+            title={allOpen ? "전체 접기" : "전체 펴기"}
+          >
+            {allOpen ? "전체 접기" : "전체 펴기"}
+          </button>
+        </div>
       </div>
       <div
         className="key-thoughts-content notion-editor"
@@ -2843,6 +2852,8 @@ function App() {
     { id: Date.now() + Math.random(), type: 'toggle', content: '', children: [], isOpen: true }
   ])
   const [focusedBlockId, setFocusedBlockId] = useState(null)
+  const [keyThoughtsHistory, setKeyThoughtsHistory] = useState([])
+  const [showKeyThoughtsHistory, setShowKeyThoughtsHistory] = useState(false)
   const [showGanttChart, setShowGanttChart] = useState(false)
   const [ganttData, setGanttData] = useState([])
   const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
@@ -5397,8 +5408,75 @@ function App() {
           .from('user_settings')
           .insert([{ setting_key: 'key_thoughts_blocks', setting_value: JSON.stringify(keyThoughtsBlocks) }])
       }
+
+      // 버전 히스토리 저장
+      await saveKeyThoughtsVersion(keyThoughtsBlocks)
     } catch (error) {
       console.error('주요 생각정리 저장 오류:', error.message)
+    }
+  }
+
+  // 버전 히스토리 저장
+  const saveKeyThoughtsVersion = async (blocks) => {
+    try {
+      const { error } = await supabase
+        .from('key_thoughts_history')
+        .insert([{
+          content: blocks,
+          description: '자동 저장'
+        }])
+
+      if (error) {
+        console.error('버전 히스토리 저장 오류:', error.message)
+      }
+    } catch (error) {
+      console.error('버전 히스토리 저장 오류:', error.message)
+    }
+  }
+
+  // 버전 히스토리 불러오기
+  const fetchKeyThoughtsHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('key_thoughts_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50) // 최근 50개만
+
+      if (error) {
+        console.error('버전 히스토리 불러오기 오류:', error.message)
+        return
+      }
+
+      setKeyThoughtsHistory(data || [])
+    } catch (error) {
+      console.error('버전 히스토리 불러오기 오류:', error.message)
+    }
+  }
+
+  // 특정 버전으로 복구
+  const restoreKeyThoughtsVersion = async (versionId) => {
+    try {
+      const version = keyThoughtsHistory.find(v => v.id === versionId)
+      if (!version) {
+        alert('해당 버전을 찾을 수 없습니다.')
+        return
+      }
+
+      // 복구 전 확인
+      if (!window.confirm('이 버전으로 복구하시겠습니까? 현재 내용은 새 버전으로 저장됩니다.')) {
+        return
+      }
+
+      // 복구
+      setKeyThoughtsBlocks(normalizeBlocks(version.content))
+      await handleSaveKeyThoughts()
+
+      alert('복구되었습니다!')
+      setShowKeyThoughtsHistory(false)
+    } catch (error) {
+      console.error('버전 복구 오류:', error.message)
+      alert('복구 중 오류가 발생했습니다.')
     }
   }
 
@@ -6451,6 +6529,10 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 setBlocks={setKeyThoughtsBlocks}
                                 focusedBlockId={focusedBlockId}
                                 setFocusedBlockId={setFocusedBlockId}
+                                onShowHistory={() => {
+                                  fetchKeyThoughtsHistory()
+                                  setShowKeyThoughtsHistory(true)
+                                }}
                               />
                             </SortableSection>
                           )
@@ -7563,6 +7645,92 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                       )}
                     </div>
                   ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 주요 생각정리 버전 히스토리 모달 */}
+        {showKeyThoughtsHistory && (
+          <div className="modal-overlay" onClick={() => setShowKeyThoughtsHistory(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh' }}>
+              <div className="modal-header">
+                <h2>🕐 주요 생각정리 버전 히스토리</h2>
+                <button onClick={() => setShowKeyThoughtsHistory(false)} className="modal-close-button">✕</button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                {keyThoughtsHistory.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
+                    저장된 버전이 없습니다.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {keyThoughtsHistory.map((version) => (
+                      <div
+                        key={version.id}
+                        style={{
+                          border: '1px solid #ddd',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          backgroundColor: '#f9f9f9'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                              {new Date(version.created_at).toLocaleString('ko-KR', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </div>
+                            {version.description && (
+                              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                                {version.description}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => restoreKeyThoughtsVersion(version.id)}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#4CAF50',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            복구
+                          </button>
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#666',
+                          maxHeight: '100px',
+                          overflowY: 'auto',
+                          backgroundColor: 'white',
+                          padding: '8px',
+                          borderRadius: '4px',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {/* 블록 내용 미리보기 */}
+                          {Array.isArray(version.content) ?
+                            version.content.map((block, idx) => (
+                              <div key={idx} style={{ marginBottom: '4px' }}>
+                                {block.type === 'toggle' ? '▸ ' : ''}{block.content || '(빈 블록)'}
+                              </div>
+                            ))
+                            : '(내용 없음)'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
