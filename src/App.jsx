@@ -2702,6 +2702,10 @@ const getDayKey = (dayNumber) => {
 }
 
 function App() {
+  // 인증 상태
+  const [session, setSession] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+
   const [todos, setTodos] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [routineInputValue, setRoutineInputValue] = useState('')
@@ -2851,6 +2855,7 @@ function App() {
   const [keyThoughtsBlocks, setKeyThoughtsBlocks] = useState([
     { id: Date.now() + Math.random(), type: 'toggle', content: '', children: [], isOpen: true }
   ])
+  const lastSavedKeyThoughtsRef = useRef(null) // 마지막으로 히스토리에 저장된 블록
   const [focusedBlockId, setFocusedBlockId] = useState(null)
   const [keyThoughtsHistory, setKeyThoughtsHistory] = useState([])
   const [showKeyThoughtsHistory, setShowKeyThoughtsHistory] = useState(false)
@@ -3533,7 +3538,8 @@ function App() {
       const routineData = {
         text: routineInput,
         days: selectedDays, // 빈 배열이면 매일 반복
-        start_date: formatDateForDB(selectedDate) // 시작 날짜 추가
+        start_date: formatDateForDB(selectedDate), // 시작 날짜 추가
+        user_id: session?.user?.id
       }
 
       // 시간대가 선택되었으면 추가
@@ -3613,7 +3619,8 @@ function App() {
           text,
           days,
           time_slot: timeSlot,
-          start_date: startDate || formatDateForDB(selectedDate) // 시작 날짜 설정
+          start_date: startDate || formatDateForDB(selectedDate), // 시작 날짜 설정
+          user_id: session?.user?.id
         }
 
         const { data, error } = await supabase
@@ -3906,7 +3913,8 @@ function App() {
               visible_dates: [dateStr], // JSON 방식
               hidden_dates: [],
               order_index: 0, // 루틴은 제일 위에
-              routine_id: routine.id
+              routine_id: routine.id,
+              user_id: session?.user?.id
             }])
 
           if (insertError) {
@@ -4026,25 +4034,48 @@ function App() {
     }
   }, [])
 
+  // 인증 상태 확인
+  useEffect(() => {
+    // 현재 세션 가져오기
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setAuthLoading(false)
+    })
+
+    // 인증 상태 변경 리스너
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
   // 앱 시작 시 루틴 목록 가져오기
   useEffect(() => {
+    if (!session) return
     fetchRoutines()
-  }, [])
+  }, [session])
 
   // 앱 시작 시 격려 메시지 가져오기
   useEffect(() => {
+    if (!session) return
     fetchEncouragementMessages()
-  }, [])
+  }, [session])
 
   // 앱 시작 시 생각 메모 가져오기
   useEffect(() => {
+    if (!session) return
     fetchMemoContent()
-  }, [])
+  }, [session])
 
-  // 앱 시작 시 주요 생각정리 가져오기
+  // 앱 시작 시 주요 생각정리 가져오기 및 오래된 히스토리 정리
   useEffect(() => {
+    if (!session) return
     fetchKeyThoughtsContent()
-  }, [])
+    cleanupOldHistory() // 하루에 한 번만 실행됨
+  }, [session])
 
   // 주요 생각정리 블록 변경 시 자동 저장
   useEffect(() => {
@@ -4059,8 +4090,9 @@ function App() {
 
   // 앱 시작 시 섹션 순서 가져오기
   useEffect(() => {
+    if (!session) return
     fetchSectionOrder()
-  }, [])
+  }, [session])
 
   // 앱 시작 시 과거 미완료 항목을 오늘로 이월
   // ⚠️ 구 방식(복사 기반) 이월 로직 - 비활성화됨
@@ -4140,12 +4172,19 @@ function App() {
     let bounceOffset = 0
     let animationFrame = null
 
-    const handleMouseDown = (e) => {
+    const getEventPos = (e) => {
+      if (e.type.includes('touch')) {
+        return isHorizontal ? e.touches[0].pageX : e.touches[0].pageY
+      }
+      return isHorizontal ? e.pageX : e.pageY
+    }
+
+    const handlePointerDown = (e) => {
       // section-block 위에서는 그랩 스크롤 비활성화
       if (e.target.closest('.section-block')) return
 
       isDown = true
-      startPos = isHorizontal ? e.pageX : e.pageY
+      startPos = getEventPos(e)
       scrollPos = isHorizontal ? container.scrollLeft : container.scrollTop
       if (animationFrame) {
         cancelAnimationFrame(animationFrame)
@@ -4156,7 +4195,7 @@ function App() {
       bounceOffset = 0
     }
 
-    const handleMouseLeave = () => {
+    const handlePointerLeave = () => {
       if (isDown && bounceOffset !== 0) {
         container.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
         container.style.transform = isHorizontal ? 'translateX(0)' : 'translateY(0)'
@@ -4168,7 +4207,7 @@ function App() {
       isDown = false
     }
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       if (bounceOffset !== 0) {
         container.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
         container.style.transform = isHorizontal ? 'translateX(0)' : 'translateY(0)'
@@ -4180,11 +4219,11 @@ function App() {
       isDown = false
     }
 
-    const handleMouseMove = (e) => {
+    const handlePointerMove = (e) => {
       if (!isDown) return
       e.preventDefault()
 
-      const pos = isHorizontal ? e.pageX : e.pageY
+      const pos = getEventPos(e)
       const walk = (pos - startPos) * 1.5
       const newScrollPos = scrollPos - walk
 
@@ -4230,17 +4269,31 @@ function App() {
       }
     }
 
-    container.addEventListener('mousedown', handleMouseDown)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.addEventListener('mouseleave', handleMouseLeave)
-    container.addEventListener('mousemove', handleMouseMove)
+    // 마우스 이벤트
+    container.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('mouseup', handlePointerUp)
+    document.addEventListener('mouseleave', handlePointerLeave)
+    container.addEventListener('mousemove', handlePointerMove)
+
+    // 터치 이벤트
+    container.addEventListener('touchstart', handlePointerDown, { passive: true })
+    container.addEventListener('touchmove', handlePointerMove, { passive: false })
+    container.addEventListener('touchend', handlePointerUp)
+    container.addEventListener('touchcancel', handlePointerUp)
+
     container.addEventListener('wheel', handleWheel, { passive: false })
 
     return () => {
-      container.removeEventListener('mousedown', handleMouseDown)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.removeEventListener('mouseleave', handleMouseLeave)
-      container.removeEventListener('mousemove', handleMouseMove)
+      container.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('mouseup', handlePointerUp)
+      document.removeEventListener('mouseleave', handlePointerLeave)
+      container.removeEventListener('mousemove', handlePointerMove)
+
+      container.removeEventListener('touchstart', handlePointerDown)
+      container.removeEventListener('touchmove', handlePointerMove)
+      container.removeEventListener('touchend', handlePointerUp)
+      container.removeEventListener('touchcancel', handlePointerUp)
+
       container.removeEventListener('wheel', handleWheel)
       if (animationFrame) cancelAnimationFrame(animationFrame)
     }
@@ -4531,7 +4584,7 @@ function App() {
 
       const { error } = await supabase
         .from('encouragement_messages')
-        .insert([{ message, order_index: maxOrder + 1 }])
+        .insert([{ message, order_index: maxOrder + 1, user_id: session?.user?.id }])
 
       if (error) throw error
 
@@ -4687,7 +4740,8 @@ function App() {
           order_index: newOrderIndex,
           date: dateStr,
           visible_dates: [dateStr], // JSON 방식: 현재 날짜를 배열로 설정
-          hidden_dates: []
+          hidden_dates: [],
+          user_id: session?.user?.id
         }])
         .select()
 
@@ -4717,7 +4771,8 @@ function App() {
         .insert([{
           text: routineInputValue,
           days: [], // 빈 배열 = 매일 반복
-          start_date: dateStr
+          start_date: dateStr,
+          user_id: session?.user?.id
         }])
         .select()
 
@@ -4740,7 +4795,8 @@ function App() {
           visible_dates: [dateStr],
           hidden_dates: [],
           routine_id: newRoutine.id, // 루틴 ID 연결
-          is_pending_routine: true // 미정 루틴으로 표시 (요일 미설정)
+          is_pending_routine: true, // 미정 루틴으로 표시 (요일 미설정)
+          user_id: session?.user?.id
         }])
         .select()
 
@@ -4777,7 +4833,8 @@ function App() {
           order_index: newOrderIndex,
           date: dateStr,
           visible_dates: [dateStr],
-          hidden_dates: []
+          hidden_dates: [],
+          user_id: session?.user?.id
         }])
         .select()
 
@@ -5310,7 +5367,7 @@ function App() {
         // 신규 생성
         await supabase
           .from('spec_memos')
-          .insert([{ content: memoContent }])
+          .insert([{ content: memoContent, user_id: session?.user?.id }])
       }
 
       setMemoOriginalContent(memoContent)
@@ -5357,9 +5414,9 @@ function App() {
         .from('user_settings')
         .select('setting_value')
         .eq('setting_key', 'key_thoughts_blocks')
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('주요 생각정리 불러오기 오류:', error.message)
         return
       }
@@ -5368,17 +5425,25 @@ function App() {
         const blocks = normalizeBlocks(JSON.parse(data.setting_value))
         setKeyThoughtsBlocks(blocks)
         localStorage.setItem('keyThoughtsBlocks', JSON.stringify(blocks))
+        // 초기 로드 시 마지막 저장 상태로 설정
+        lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(blocks))
       } else {
         const saved = localStorage.getItem('keyThoughtsBlocks')
         if (saved) {
-          setKeyThoughtsBlocks(normalizeBlocks(JSON.parse(saved)))
+          const blocks = normalizeBlocks(JSON.parse(saved))
+          setKeyThoughtsBlocks(blocks)
+          // 초기 로드 시 마지막 저장 상태로 설정
+          lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(blocks))
         }
       }
     } catch (error) {
       console.error('주요 생각정리 불러오기 오류:', error.message)
       const saved = localStorage.getItem('keyThoughtsBlocks')
       if (saved) {
-        setKeyThoughtsBlocks(normalizeBlocks(JSON.parse(saved)))
+        const blocks = normalizeBlocks(JSON.parse(saved))
+        setKeyThoughtsBlocks(blocks)
+        // 초기 로드 시 마지막 저장 상태로 설정
+        lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(blocks))
       }
     }
   }
@@ -5391,9 +5456,9 @@ function App() {
         .from('user_settings')
         .select('id')
         .eq('setting_key', 'key_thoughts_blocks')
-        .single()
+        .maybeSingle()
 
-      if (selectError && selectError.code !== 'PGRST116') {
+      if (selectError) {
         console.error('주요 생각정리 조회 오류:', selectError.message)
         return
       }
@@ -5406,7 +5471,11 @@ function App() {
       } else {
         await supabase
           .from('user_settings')
-          .insert([{ setting_key: 'key_thoughts_blocks', setting_value: JSON.stringify(keyThoughtsBlocks) }])
+          .insert([{
+            setting_key: 'key_thoughts_blocks',
+            setting_value: JSON.stringify(keyThoughtsBlocks),
+            user_id: session?.user?.id
+          }])
       }
 
       // 버전 히스토리 저장
@@ -5416,18 +5485,94 @@ function App() {
     }
   }
 
-  // 버전 히스토리 저장
+  // 큰 변경 감지: 블록 개수, 타입, 순서, 레벨, 또는 20자 이상 텍스트 변경
+  const hasSignificantChange = (oldBlocks, newBlocks) => {
+    if (!oldBlocks || oldBlocks.length === 0) return true // 첫 저장
+    if (oldBlocks.length !== newBlocks.length) return true // 블록 개수 변경
+
+    // 각 블록 비교 (재귀적으로)
+    const compareBlocks = (oldList, newList) => {
+      for (let i = 0; i < oldList.length; i++) {
+        const oldBlock = oldList[i]
+        const newBlock = newList[i]
+
+        // 블록 타입 변경
+        if (oldBlock.type !== newBlock.type) return true
+
+        // 들여쓰기 레벨 변경 (부모-자식 관계 변경)
+        const oldChildCount = oldBlock.children ? oldBlock.children.length : 0
+        const newChildCount = newBlock.children ? newBlock.children.length : 0
+        if (oldChildCount !== newChildCount) return true
+
+        // 텍스트 20자 이상 변경
+        const oldContent = oldBlock.content || ''
+        const newContent = newBlock.content || ''
+        if (Math.abs(oldContent.length - newContent.length) >= 20) return true
+
+        // 자식 블록도 재귀적으로 비교
+        if (newChildCount > 0) {
+          if (compareBlocks(oldBlock.children, newBlock.children)) return true
+        }
+      }
+      return false
+    }
+
+    return compareBlocks(oldBlocks, newBlocks)
+  }
+
+  // 30일 이상된 히스토리 자동 삭제 (하루에 한 번만 실행)
+  const cleanupOldHistory = async () => {
+    try {
+      // 마지막 정리 날짜 확인
+      const lastCleanup = localStorage.getItem('lastHistoryCleanup')
+      const today = new Date().toDateString()
+
+      // 오늘 이미 정리했으면 skip
+      if (lastCleanup === today) {
+        return
+      }
+
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      const { error } = await supabase
+        .from('key_thoughts_history')
+        .delete()
+        .lt('created_at', thirtyDaysAgo.toISOString())
+
+      if (error) {
+        console.error('오래된 히스토리 삭제 오류:', error.message)
+      } else {
+        // 정리 성공 시 날짜 저장
+        localStorage.setItem('lastHistoryCleanup', today)
+        console.log('오래된 히스토리 정리 완료')
+      }
+    } catch (error) {
+      console.error('오래된 히스토리 삭제 오류:', error.message)
+    }
+  }
+
+  // 버전 히스토리 저장 (큰 변경이 있을 때만)
   const saveKeyThoughtsVersion = async (blocks) => {
     try {
+      // 큰 변경이 없으면 저장하지 않음
+      if (!hasSignificantChange(lastSavedKeyThoughtsRef.current, blocks)) {
+        return
+      }
+
       const { error } = await supabase
         .from('key_thoughts_history')
         .insert([{
           content: blocks,
-          description: '자동 저장'
+          description: '자동 저장',
+          user_id: session?.user?.id
         }])
 
       if (error) {
         console.error('버전 히스토리 저장 오류:', error.message)
+      } else {
+        // 저장 성공하면 현재 상태를 마지막 저장 상태로 업데이트
+        lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(blocks))
       }
     } catch (error) {
       console.error('버전 히스토리 저장 오류:', error.message)
@@ -5469,7 +5614,10 @@ function App() {
       }
 
       // 복구
-      setKeyThoughtsBlocks(normalizeBlocks(version.content))
+      const restoredBlocks = normalizeBlocks(version.content)
+      setKeyThoughtsBlocks(restoredBlocks)
+      // 복구된 블록을 마지막 저장 상태로 설정하여 중복 히스토리 방지
+      lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(restoredBlocks))
       await handleSaveKeyThoughts()
 
       alert('복구되었습니다!')
@@ -5487,9 +5635,9 @@ function App() {
         .from('user_settings')
         .select('setting_value')
         .eq('setting_key', 'section_order')
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('섹션 순서 불러오기 오류:', error.message)
         return
       }
@@ -5526,10 +5674,11 @@ function App() {
         .from('user_settings')
         .select('id')
         .eq('setting_key', 'section_order')
-        .single()
+        .maybeSingle()
 
-      if (selectError && selectError.code !== 'PGRST116') {
+      if (selectError) {
         console.error('섹션 순서 조회 오류:', selectError.message)
+        return
       }
 
       if (existing) {
@@ -5542,7 +5691,11 @@ function App() {
         // 신규 생성
         await supabase
           .from('user_settings')
-          .insert([{ setting_key: 'section_order', setting_value: JSON.stringify(newOrder) }])
+          .insert([{
+            setting_key: 'section_order',
+            setting_value: JSON.stringify(newOrder),
+            user_id: session?.user?.id
+          }])
       }
     } catch (error) {
       console.error('섹션 순서 저장 오류:', error.message)
@@ -5599,7 +5752,7 @@ function App() {
         // 새로 생성
         const { error: insertError } = await supabase
           .from('spec_memos')
-          .insert([{ content: memoContent }])
+          .insert([{ content: memoContent, user_id: session?.user?.id }])
 
         if (insertError) throw insertError
       }
@@ -5638,7 +5791,8 @@ function App() {
           completed: false,
           order_index: newOrderIndex,
           date: dateStr,
-          parent_id: parentId
+          parent_id: parentId,
+          user_id: session?.user?.id
         }])
         .select()
 
@@ -5680,7 +5834,8 @@ function App() {
           todo_id: id,
           previous_text: currentTodo.text,
           new_text: newText,
-          changed_on_date: currentTodo.date
+          changed_on_date: currentTodo.date,
+          user_id: session?.user?.id
         }])
 
       if (historyError) {
@@ -5704,7 +5859,8 @@ function App() {
               todo_id: currentTodo.original_todo_id,
               previous_text: currentTodo.text, // 이월 당시의 텍스트
               new_text: newText,
-              changed_on_date: currentTodo.date // 현재 페이지 날짜
+              changed_on_date: currentTodo.date, // 현재 페이지 날짜
+              user_id: session?.user?.id
             }])
         }
       }
@@ -5851,6 +6007,82 @@ function App() {
     }
   }
 
+  // 로그인 핸들러
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/todo-note/'
+        }
+      })
+      if (error) throw error
+    } catch (error) {
+      alert('로그인 오류: ' + error.message)
+    }
+  }
+
+  // 로그아웃 핸들러
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    } catch (error) {
+      alert('로그아웃 오류: ' + error.message)
+    }
+  }
+
+  // 인증 로딩 중
+  if (authLoading) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔄</div>
+          <div>로딩 중...</div>
+        </div>
+      </div>
+    )
+  }
+
+  // 로그인 화면
+  if (!session) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '3rem',
+          background: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: '16px',
+          maxWidth: '400px'
+        }}>
+          <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📝 Todo Note</h1>
+          <p style={{ fontSize: '1.1rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '2rem' }}>
+            날짜별 투두 관리 및 루틴 트래킹
+          </p>
+          <button
+            onClick={handleGoogleLogin}
+            style={{
+              padding: '1rem 2rem',
+              fontSize: '1.1rem',
+              background: '#646cff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              margin: '0 auto'
+            }}
+          >
+            <span>🔐</span>
+            Google로 로그인
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
       {/* 사이드바 오버레이 */}
@@ -5864,6 +6096,50 @@ function App() {
           <h2>메뉴</h2>
           <button className="sidebar-close" onClick={() => setShowSidebar(false)}>✕</button>
         </div>
+
+        {/* 사용자 정보 */}
+        {session && session.user && (
+          <div style={{
+            padding: '1rem',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}>
+            {session.user.user_metadata?.avatar_url && (
+              <img
+                src={session.user.user_metadata.avatar_url}
+                alt="프로필"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%'
+                }}
+              />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {session.user.user_metadata?.full_name || session.user.email}
+              </div>
+              <div style={{
+                fontSize: '0.75rem',
+                color: 'rgba(255, 255, 255, 0.6)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {session.user.email}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-content">
           <button
             className="sidebar-menu-item"
@@ -5950,6 +6226,24 @@ function App() {
           >
             <span className="sidebar-icon">🧪</span>
             <span>더미 데이터 관리</span>
+          </button>
+
+          {/* 로그아웃 버튼 */}
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              if (confirm('로그아웃 하시겠습니까?')) {
+                handleLogout()
+              }
+            }}
+            style={{
+              marginTop: 'auto',
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              color: 'rgba(255, 100, 100, 0.9)'
+            }}
+          >
+            <span className="sidebar-icon">🚪</span>
+            <span>로그아웃</span>
           </button>
         </div>
       </div>
@@ -6549,7 +6843,47 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
 
         {/* 모바일 섹션 페이지네이션 dots */}
         {viewMode === 'horizontal' && (
-          <div className="section-pagination-dots">
+          <div
+            className="section-pagination-dots"
+            onTouchStart={(e) => {
+              const touch = e.touches[0]
+              e.currentTarget.dataset.touchStartX = touch.clientX
+              e.currentTarget.dataset.touchStartTime = Date.now()
+            }}
+            onTouchMove={(e) => {
+              // 터치 이동 중에는 아무것도 하지 않음 (스크롤 방지)
+              e.currentTarget.dataset.touchMoved = 'true'
+            }}
+            onTouchEnd={(e) => {
+              const touchStartX = parseFloat(e.currentTarget.dataset.touchStartX || '0')
+              const touchStartTime = parseInt(e.currentTarget.dataset.touchStartTime || '0')
+              const touchMoved = e.currentTarget.dataset.touchMoved === 'true'
+              const touchEndX = e.changedTouches[0].clientX
+              const touchDuration = Date.now() - touchStartTime
+
+              delete e.currentTarget.dataset.touchStartX
+              delete e.currentTarget.dataset.touchStartTime
+              delete e.currentTarget.dataset.touchMoved
+
+              // 스와이프 감지 (최소 50px 이동, 500ms 이내)
+              if (touchMoved && touchDuration < 500) {
+                const diff = touchStartX - touchEndX
+                const container = sectionsContainerRef.current
+                if (!container) return
+                const sections = container.querySelectorAll('.section-block')
+
+                if (Math.abs(diff) > 50) {
+                  if (diff > 0 && currentSectionIndex < sections.length - 1) {
+                    // 왼쪽으로 스와이프 -> 다음 섹션
+                    sections[currentSectionIndex + 1].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+                  } else if (diff < 0 && currentSectionIndex > 0) {
+                    // 오른쪽으로 스와이프 -> 이전 섹션
+                    sections[currentSectionIndex - 1].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+                  }
+                }
+              }
+            }}
+          >
             {[0, 1, 2].map((index) => (
               <button
                 key={index}
