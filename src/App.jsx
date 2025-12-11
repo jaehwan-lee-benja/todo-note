@@ -4079,6 +4079,8 @@ function App() {
 
   // 주요 생각정리 블록 변경 시 자동 저장
   useEffect(() => {
+    if (!session) return // 로그인하지 않은 경우 저장하지 않음
+
     const timer = setTimeout(() => {
       if (keyThoughtsBlocks.length > 0) {
         handleSaveKeyThoughts()
@@ -4086,7 +4088,7 @@ function App() {
     }, 1000) // 1초 디바운스
 
     return () => clearTimeout(timer)
-  }, [keyThoughtsBlocks])
+  }, [keyThoughtsBlocks, session])
 
   // 앱 시작 시 섹션 순서 가져오기
   useEffect(() => {
@@ -5449,6 +5451,8 @@ function App() {
   }
 
   const handleSaveKeyThoughts = async () => {
+    if (!session?.user?.id) return // 로그인하지 않은 경우 저장하지 않음
+
     try {
       localStorage.setItem('keyThoughtsBlocks', JSON.stringify(keyThoughtsBlocks))
 
@@ -5474,7 +5478,7 @@ function App() {
           .insert([{
             setting_key: 'key_thoughts_blocks',
             setting_value: JSON.stringify(keyThoughtsBlocks),
-            user_id: session?.user?.id
+            user_id: session.user.id
           }])
       }
 
@@ -5554,6 +5558,8 @@ function App() {
 
   // 버전 히스토리 저장 (큰 변경이 있을 때만)
   const saveKeyThoughtsVersion = async (blocks) => {
+    if (!session?.user?.id) return // 로그인하지 않은 경우 저장하지 않음
+
     try {
       // 큰 변경이 없으면 저장하지 않음
       if (!hasSignificantChange(lastSavedKeyThoughtsRef.current, blocks)) {
@@ -5565,7 +5571,7 @@ function App() {
         .insert([{
           content: blocks,
           description: '자동 저장',
-          user_id: session?.user?.id
+          user_id: session.user.id
         }])
 
       if (error) {
@@ -5669,6 +5675,9 @@ function App() {
       // localStorage에 저장
       localStorage.setItem('sectionOrder', JSON.stringify(newOrder))
 
+      // 로그인하지 않은 경우 Supabase에 저장하지 않음
+      if (!session?.user?.id) return
+
       // Supabase에 저장
       const { data: existing, error: selectError } = await supabase
         .from('user_settings')
@@ -5694,7 +5703,7 @@ function App() {
           .insert([{
             setting_key: 'section_order',
             setting_value: JSON.stringify(newOrder),
-            user_id: session?.user?.id
+            user_id: session.user.id
           }])
       }
     } catch (error) {
