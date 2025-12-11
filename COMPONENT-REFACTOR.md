@@ -1,8 +1,8 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 🎯 상태: Phase 1 완료
-> 📊 진행률: 10% (5/50)
+> 🎯 상태: Phase 2.1 완료
+> 📊 진행률: 12% (6/50)
 
 ---
 
@@ -119,7 +119,7 @@ src/
 - [x] **1.5** variables.css 생성 (색상, 크기 변수)
 
 ### ✅ Phase 2: Hooks 분리 (6-15)
-- [ ] **2.1** useAuth.js (세션, 로그인)
+- [x] **2.1** useAuth.js (세션, 로그인)
 - [ ] **2.2** useSupabase.js (DB 연결)
 - [ ] **2.3** useTodos.js (투두 CRUD)
 - [ ] **2.4** useRoutines.js (루틴 관리)
@@ -190,8 +190,8 @@ src/
 ## 📌 진행 상황 추적
 
 ### 현재 상태
-**작업 중**: Phase 1 완료 - 커밋 및 테스트
-**다음 단계**: Phase 2.1 - useAuth.js 분리
+**작업 중**: Phase 2.1 완료 - 커밋 및 테스트
+**다음 단계**: Phase 2.2 - useSupabase.js 분리 (또는 나머지 훅 분리)
 
 ### 완료된 단계
 - ✅ **Phase 1 완료** (5/5 단계)
@@ -200,6 +200,8 @@ src/
   - ✅ Phase 1.3 - dateUtils.js 생성 (formatDateForDB, formatDateOnly, formatDate, isToday)
   - ✅ Phase 1.4 - formatters.js 생성 (padZero, splitLines, trimText, parseTime, getDateFromISO)
   - ✅ Phase 1.5 - variables.css 생성 (색상, 간격, 폰트 크기, 브레이크포인트 등)
+- ✅ **Phase 2 진행 중** (1/10 단계)
+  - ✅ Phase 2.1 - useAuth.js 분리 (session, authLoading, handleGoogleLogin, handleLogout)
 
 ---
 

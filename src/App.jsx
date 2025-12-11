@@ -22,6 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { DAYS, DEFAULT_SPEC_CONTENT, AUTO_SAVE_DELAY, DEFAULT_HOUR, DEFAULT_MINUTE } from './utils/constants'
 import { formatDateForDB, formatDateOnly, formatDate, isToday } from './utils/dateUtils'
+import { useAuth } from './hooks/useAuth'
 import './App.css'
 
 // 애플 스타일 시간 Picker 컴포넌트
@@ -2653,8 +2654,7 @@ const getDayKey = (dayNumber) => {
 
 function App() {
   // 인증 상태
-  const [session, setSession] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const { session, authLoading, handleGoogleLogin, handleLogout } = useAuth()
 
   const [todos, setTodos] = useState([])
   const [inputValue, setInputValue] = useState('')
@@ -3943,24 +3943,6 @@ function App() {
         clearTimeout(scrollTimer)
       }
     }
-  }, [])
-
-  // 인증 상태 확인
-  useEffect(() => {
-    // 현재 세션 가져오기
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setAuthLoading(false)
-    })
-
-    // 인증 상태 변경 리스너
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   // 앱 시작 시 루틴 목록 가져오기
@@ -5924,31 +5906,6 @@ function App() {
       console.error('순서 업데이트 오류:', error.message)
       // 오류 시 다시 가져오기
       fetchTodos()
-    }
-  }
-
-  // 로그인 핸들러
-  const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/todo-note/'
-        }
-      })
-      if (error) throw error
-    } catch (error) {
-      alert('로그인 오류: ' + error.message)
-    }
-  }
-
-  // 로그아웃 핸들러
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-    } catch (error) {
-      alert('로그아웃 오류: ' + error.message)
     }
   }
 
