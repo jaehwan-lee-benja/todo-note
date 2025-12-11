@@ -1872,11 +1872,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
           const hasPendingRoutineBadge = isPendingRoutine || todo.is_pending_routine
           return (subtodos.length > 0 || hasCompletedDateBadge || hasRoutineBadge || hasPendingRoutineBadge) && (
             <div className="todo-badges">
-              {hasPendingRoutineBadge && (
-                <span className="pending-routine-badge" title="루틴 설정이 필요합니다">
-                  미정
-                </span>
-              )}
               {hasCompletedDateBadge && (() => {
                 const completedDate = new Date(todo.completed_at).toISOString().split('T')[0]
                 const completedDay = new Date(todo.completed_at).getDate()
@@ -1901,6 +1896,11 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   </span>
                 )
               })()}
+              {hasPendingRoutineBadge && (
+                <span className="pending-routine-badge" title="루틴 설정이 필요합니다">
+                  미정
+                </span>
+              )}
               {subtodos.length > 0 && (
                 <span
                   className="todo-badge clickable"

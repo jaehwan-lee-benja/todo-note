@@ -236,11 +236,11 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   }
 
   .header-fixed {
-    padding: 1rem 1rem 0 1rem;
+    padding: 1rem 0 0 0;
   }
 
   .content-scrollable {
-    padding: 0 1rem 2rem 1rem;
+    padding: 0.5rem 1rem 120px 1rem;
   }
 
   .todo-list {
@@ -554,6 +554,8 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .today-link:hover {
@@ -581,6 +583,8 @@ h1 {
   border-radius: 6px;
   transition: all 0.2s ease;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .encouragement-message:hover {
@@ -1398,6 +1402,12 @@ h1 {
   .todo-badges {
     gap: 0.3rem;
     padding: 0 0.25rem;
+    grid-row: 2;
+    grid-column: 2 / -1;
+    justify-self: end;
+    margin-top: 0.25rem;
+    flex-direction: row-reverse;
+    max-width: 100%;
   }
 
   .todo-badge {
@@ -2407,9 +2417,12 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  /* 하단 고정 버튼들을 위한 여백 확보 (트렐로 스타일) */
-  .content-scrollable {
-    padding-bottom: 100px;
+  /* 첫 번째 섹션 위 여백 제거 */
+  .sections-container > .section-block:first-child .memo-section,
+  .sections-container > .section-block:first-child .routine-section,
+  .sections-container > .section-block:first-child .normal-section,
+  .sections-container > .section-block:first-child .key-thoughts-section {
+    margin-top: 0;
   }
 
   .hamburger-menu {
@@ -2425,40 +2438,71 @@ h1 {
     left: -280px;
   }
 
-  .date-navigation {
-    gap: 0.6rem;
-    margin-bottom: 1.25rem;
-    padding-bottom: 1.25rem;
+  .settings-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
-  .date-nav-row {
-    gap: 1rem;
+  .hamburger-menu {
+    order: 1;
+  }
+
+  .date-nav-section {
+    order: 2;
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    gap: 0.4rem;
+  }
+
+  .encouragement-section {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    height: 32px;
+  }
+
+  .date-display-wrapper {
+    height: 32px;
   }
 
   .date-nav-button {
-    width: 40px;
+    width: 36px;
     height: 32px;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
   }
 
   .today-link {
-    width: calc(40px + 1rem + 160px + 1rem + 40px);
-    font-size: 0.7rem;
-    padding: 0.35rem 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .encouragement-message {
-    width: calc(40px + 1rem + 160px + 1rem + 40px);
-    font-size: 0.7rem;
-    padding: 0.35rem 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
     height: 32px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .date-display {
-    font-size: 1.05rem;
-    width: 160px;
+    font-size: 0.95rem;
+    width: auto;
+    min-width: 120px;
+    max-width: 160px;
     height: 32px;
-    padding: 0.3rem 1rem;
+    padding: 0.3rem 0.75rem;
   }
 
   .trash-button-fixed {
@@ -4558,12 +4602,13 @@ h1 {
     transform: none;
     border-radius: 0;
     background: transparent;
-    padding: 16px 32px;
+    padding: 20px 32px;
   }
 
   .sections-container.horizontal-layout {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
+    padding-top: 0;
   }
 
   .sections-container.horizontal-layout .section-block {
@@ -4583,12 +4628,13 @@ h1 {
     flex-shrink: 0;
   }
 
-  /* 모바일에서 섹션 패딩 조정 */
+  /* 모바일에서 섹션 패딩 및 여백 조정 */
   .memo-section,
   .routine-section,
   .normal-section,
   .key-thoughts-section {
     padding: 0.75rem;
+    margin-bottom: 0.75rem;
   }
 }
 
