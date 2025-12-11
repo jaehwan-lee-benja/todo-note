@@ -1,8 +1,10 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 🎯 상태: Phase 2.1 완료
+> 📅 마지막 업데이트: 2025-12-11
+> 🎯 상태: Phase 1, 2.1 완료 - 일시 중단
 > 📊 진행률: 12% (6/50)
+> 📝 App.jsx: 7,970줄 (원래 8,087줄에서 117줄 감소)
 
 ---
 
@@ -190,8 +192,9 @@ src/
 ## 📌 진행 상황 추적
 
 ### 현재 상태
-**작업 중**: Phase 2.1 완료 - 커밋 및 테스트
-**다음 단계**: Phase 2.2 - useSupabase.js 분리 (또는 나머지 훅 분리)
+**작업 완료**: Phase 1 (5/5), Phase 2.1 (1/10)
+**다음 세션 시작점**: Phase 2.2부터 계속 진행
+**권장사항**: Phase 2를 간소화하거나, 대규모 훅 분리 대신 컴포넌트 분리 우선 고려
 
 ### 완료된 단계
 - ✅ **Phase 1 완료** (5/5 단계)
@@ -202,6 +205,18 @@ src/
   - ✅ Phase 1.5 - variables.css 생성 (색상, 간격, 폰트 크기, 브레이크포인트 등)
 - ✅ **Phase 2 진행 중** (1/10 단계)
   - ✅ Phase 2.1 - useAuth.js 분리 (session, authLoading, handleGoogleLogin, handleLogout)
+
+### 미완료 단계 (Phase 2.2-2.10)
+⚠️ **주의**: Phase 2 나머지 훅 분리는 복잡도가 매우 높음
+- ⏳ Phase 2.2 - useSupabase.js (이미 supabaseClient.js로 분리됨, 건너뛰기 가능)
+- ⏳ Phase 2.3 - useTodos.js (매우 복잡, 400+ 줄 예상)
+- ⏳ Phase 2.4 - useRoutines.js (복잡, 300+ 줄 예상)
+- ⏳ Phase 2.5 - useMemo.js (중간, 100+ 줄)
+- ⏳ Phase 2.6 - useKeyThoughts.js (중간, 200+ 줄)
+- ⏳ Phase 2.7 - useCarryOver.js (복잡, 200+ 줄)
+- ⏳ Phase 2.8 - useSectionOrder.js (간단, 50+ 줄)
+- ⏳ Phase 2.9 - App.jsx 적용 및 테스트
+- ⏳ Phase 2.10 - 커밋 & 배포
 
 ---
 
@@ -287,6 +302,52 @@ Phase 5.3: TodoItem 컴포넌트 분리
 
 ---
 
-**📅 마지막 업데이트**: 2025-12-11 (초기 작성)
+## 📝 현재 세션 요약 (2025-12-11)
+
+### 완료된 작업
+✅ **Phase 1: 준비 단계** (5/5 완료)
+- 프로젝트 폴더 구조 생성
+- utils 파일 생성 (constants, dateUtils, formatters)
+- styles 파일 생성 (variables.css)
+- App.jsx에서 약 60줄 감소
+
+✅ **Phase 2.1: useAuth 훅 분리** (1/10 완료)
+- 인증 관련 로직 완전 분리
+- App.jsx에서 약 45줄 감소
+- 모든 기능 정상 작동 확인
+
+### 다음 세션 제안사항
+
+#### 옵션 1: Phase 2 계속 진행 (훅 분리)
+**장점**: 로직 분리로 유지보수성 향상
+**단점**: 매우 시간 소요 (Phase 2.3-2.8은 각각 200-400줄)
+**예상 소요**: 5-8시간
+
+#### 옵션 2: Phase 3-4 먼저 진행 (컴포넌트 분리) ⭐ 권장
+**장점**:
+- 시각적으로 명확한 개선 (파일 수 증가)
+- 작은 컴포넌트로 분리하기 쉬움
+- 더 빠른 진행 가능
+**추천 순서**:
+1. Phase 3: Common 컴포넌트 (AppleTimePicker, Toast, DragHandle)
+2. Phase 4: Navigation 컴포넌트 (Header, DateNavigation, Sidebar)
+3. Phase 5: Todo 컴포넌트 (TodoItem, TodoList, TodoBadges)
+
+#### 옵션 3: 하이브리드 방식
+- Phase 2는 간소화 (핵심 2-3개 훅만)
+- Phase 3-5 컴포넌트 분리 우선
+- 나머지 훅은 필요 시 진행
+
+### 현재 파일 크기
+```
+src/App.jsx: 7,970줄 (원래 8,087줄)
+src/App.css: 5,024줄
+```
+
+**목표**: App.jsx 200-300줄로 축소
+
+---
+
+**📅 마지막 업데이트**: 2025-12-11
 **👤 작성자**: Claude Code
 **🔗 관련 문서**: REFACTORING-PLAN.md (데이터 구조 리팩토링)
