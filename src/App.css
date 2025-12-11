@@ -1,3 +1,6 @@
+/* CSS 변수 import */
+@import './styles/variables.css';
+
 /* body 스크롤바 스타일 */
 html {
   overscroll-behavior: none;

@@ -1,8 +1,8 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 🎯 상태: 시작 준비 중
-> 📊 진행률: 0% (0/50)
+> 🎯 상태: Phase 1 완료
+> 📊 진행률: 10% (5/50)
 
 ---
 
@@ -111,12 +111,12 @@ src/
 
 ## 📝 단계별 작업 계획
 
-### ✅ Phase 1: 준비 단계 (1-5)
-- [ ] **1.1** 프로젝트 폴더 구조 생성
-- [ ] **1.2** constants.js 생성 (DAYS, DEFAULT_SPEC_CONTENT)
-- [ ] **1.3** dateUtils.js 생성 (formatDateForDB, isToday 등)
-- [ ] **1.4** formatters.js 생성
-- [ ] **1.5** variables.css 생성 (색상, 크기 변수)
+### ✅ Phase 1: 준비 단계 (1-5) - 완료
+- [x] **1.1** 프로젝트 폴더 구조 생성
+- [x] **1.2** constants.js 생성 (DAYS, DEFAULT_SPEC_CONTENT)
+- [x] **1.3** dateUtils.js 생성 (formatDateForDB, isToday 등)
+- [x] **1.4** formatters.js 생성
+- [x] **1.5** variables.css 생성 (색상, 크기 변수)
 
 ### ✅ Phase 2: Hooks 분리 (6-15)
 - [ ] **2.1** useAuth.js (세션, 로그인)
@@ -190,11 +190,16 @@ src/
 ## 📌 진행 상황 추적
 
 ### 현재 상태
-**작업 중**: (없음)
-**다음 단계**: Phase 1.1 - 프로젝트 폴더 구조 생성
+**작업 중**: Phase 1 완료 - 커밋 및 테스트
+**다음 단계**: Phase 2.1 - useAuth.js 분리
 
 ### 완료된 단계
-(없음)
+- ✅ **Phase 1 완료** (5/5 단계)
+  - ✅ Phase 1.1 - 프로젝트 폴더 구조 생성
+  - ✅ Phase 1.2 - constants.js 생성 (DAYS, DEFAULT_SPEC_CONTENT, AUTO_SAVE_DELAY, DEFAULT_HOUR, DEFAULT_MINUTE)
+  - ✅ Phase 1.3 - dateUtils.js 생성 (formatDateForDB, formatDateOnly, formatDate, isToday)
+  - ✅ Phase 1.4 - formatters.js 생성 (padZero, splitLines, trimText, parseTime, getDateFromISO)
+  - ✅ Phase 1.5 - variables.css 생성 (색상, 간격, 폰트 크기, 브레이크포인트 등)
 
 ---
 

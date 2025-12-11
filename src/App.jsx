@@ -20,51 +20,9 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { DAYS, DEFAULT_SPEC_CONTENT, AUTO_SAVE_DELAY, DEFAULT_HOUR, DEFAULT_MINUTE } from './utils/constants'
+import { formatDateForDB, formatDateOnly, formatDate, isToday } from './utils/dateUtils'
 import './App.css'
-
-// 요일 정보
-const DAYS = [
-  { key: 'mon', label: '월' },
-  { key: 'tue', label: '화' },
-  { key: 'wed', label: '수' },
-  { key: 'thu', label: '목' },
-  { key: 'fri', label: '금' },
-  { key: 'sat', label: '토' },
-  { key: 'sun', label: '일' },
-]
-
-// 기본 기획서 내용
-const DEFAULT_SPEC_CONTENT = `# Todo Note 간단 기획서
-
-## 📋 프로젝트 개요
-**Todo Note** - 날짜별 투두 관리 및 루틴 트래킹 웹 애플리케이션
-
----
-
-## 🎯 핵심 기능
-
-### **투두 관리** - 날짜별 할 일 추가, 수정, 삭제 및 완료 체크
-
-### **자동 이월** - 미완료 투두를 다음날로 자동 복사하여 놓치지 않게 관리
-
-### **루틴 시스템** - 특정 요일마다 반복되는 작업을 자동으로 생성
-
-### **날짜 네비게이션** - 달력으로 특정 날짜 이동 및 이전/다음 날 버튼
-
----
-
-## 🛠️ 기술 스택
-
-- **Frontend**: React 19.1.1 + Vite
-- **Database**: Supabase (PostgreSQL)
-- **Deployment**: GitHub Pages
-
----
-
-## 🌐 접속 방법
-
-- **배포 URL**: https://jaehwan-lee-benja.github.io/todo-note/
-- **개발 서버**: \`npm run dev\` → http://localhost:5173/todo-note/`
 
 // 애플 스타일 시간 Picker 컴포넌트
 function AppleTimePicker({ value, onChange }) {
@@ -76,13 +34,13 @@ function AppleTimePicker({ value, onChange }) {
     if (value && value.includes(':')) {
       return value.split(':')[0]
     }
-    return '09'
+    return DEFAULT_HOUR
   })
   const [minute, setMinute] = useState(() => {
     if (value && value.includes(':')) {
       return value.split(':')[1]
     }
-    return '00'
+    return DEFAULT_MINUTE
   })
 
   // value가 외부에서 변경되면 hour와 minute 업데이트
@@ -1354,14 +1312,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
         ? prev.filter(d => d !== dayKey)
         : [...prev, dayKey]
     )
-  }
-
-  // 날짜를 YYYY-MM-DD 형식으로 변환
-  const formatDateForDB = (date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
   }
 
   // 요일 번호를 키로 변환
@@ -2892,30 +2842,6 @@ function App() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
   const [todoToDelete, setTodoToDelete] = useState(null)
 
-  // 날짜를 YYYY-MM-DD 형식으로 변환 (DB 저장용)
-  const formatDateForDB = (date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
-  // 날짜를 YY.MM.DD(요일) 형식으로 포맷팅 (네비게이션용)
-  const formatDateOnly = (date) => {
-    const year = String(date.getFullYear()).slice(2)
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const weekdays = ['일', '월', '화', '수', '목', '금', '토']
-    const weekday = weekdays[date.getDay()]
-    return `${year}.${month}.${day}(${weekday})`
-  }
-
-  // 오늘 날짜인지 체크
-  const isToday = (date) => {
-    const today = new Date()
-    return formatDateForDB(date) === formatDateForDB(today)
-  }
-
   // 랜덤 격려 문구 선택
   const getRandomEncouragement = () => {
     if (encouragementMessages.length === 0) return ""
@@ -2941,21 +2867,6 @@ function App() {
       setShowEncouragementEmoji(false)
       setCurrentEncouragementMessage(newMessage)
     }, 1000)
-  }
-
-  // 날짜를 YY.MM.DD(요일) HH:MM 형식으로 포맷팅 (생성시간 표시용)
-  const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    const year = String(date.getFullYear()).slice(2) // 마지막 두 자리만
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-
-    const weekdays = ['일', '월', '화', '수', '목', '금', '토']
-    const weekday = weekdays[date.getDay()]
-
-    return `${year}.${month}.${day}(${weekday}) ${hours}:${minutes}`
   }
 
   // 더미 데이터 생성
@@ -4085,7 +3996,7 @@ function App() {
       if (keyThoughtsBlocks.length > 0) {
         handleSaveKeyThoughts()
       }
-    }, 1000) // 1초 디바운스
+    }, AUTO_SAVE_DELAY) // 1초 디바운스
 
     return () => clearTimeout(timer)
   }, [keyThoughtsBlocks, session])
