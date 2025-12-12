@@ -408,9 +408,35 @@ npm run deploy
 - [ ] 다크/라이트 모드 토글
 
 ### 성능 최적화
+
+#### 현재 상태
+- **번들 크기**: 537 kB (gzip: 153 kB)
+- **상태**: 경고 수준이지만 동작에는 문제 없음
+- **전략**: 구조 리팩토링 완료 후 최적화 진행
+
+#### 최적화 계획 (리팩토링 후 진행)
+
+**Phase 1: 코드 스플리팅**
+- [ ] React.lazy를 사용한 컴포넌트 lazy loading
+- [ ] 모달 컴포넌트 동적 import (TrashModal, GanttChartModal 등)
+- [ ] Route-based code splitting (라우터 도입 시)
+
+**Phase 2: 번들 분석 및 최적화**
+- [ ] `rollup-plugin-visualizer`로 번들 구성 분석
+- [ ] `build.rollupOptions.output.manualChunks` 설정
+- [ ] Vendor 라이브러리 분리 (react, dnd-kit, supabase)
+- [ ] Tree shaking 최적화 확인
+
+**Phase 3: 추가 최적화**
 - [ ] 무한 스크롤 (페이지네이션)
 - [ ] 이미지 최적화
-- [ ] 번들 크기 최적화
+- [ ] Service Worker (PWA)
+- [ ] 컴포넌트 메모이제이션 (React.memo, useMemo)
+
+#### 예상 효과
+- 초기 로딩 번들 크기 30-40% 감소
+- Time to Interactive (TTI) 개선
+- Lighthouse 성능 점수 향상
 
 ---
 
