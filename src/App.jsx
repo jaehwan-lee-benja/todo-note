@@ -34,6 +34,11 @@ import RoutineModal from './components/Routine/RoutineModal'
 import RoutineHistoryModal from './components/Routine/RoutineHistoryModal'
 import MemoSection from './components/Memo/MemoSection'
 import KeyThoughtsSection from './components/KeyThoughts/KeyThoughtsSection'
+import TrashModal from './components/Modals/TrashModal'
+import DummyModal from './components/Modals/DummyModal'
+import GanttChartModal from './components/Modals/GanttChartModal'
+import EncouragementModal from './components/Modals/EncouragementModal'
+import KeyThoughtsHistoryModal from './components/Modals/KeyThoughtsHistoryModal'
 import './App.css'
 
 // 드래그 가능한 섹션 래퍼 컴포넌트
@@ -4273,388 +4278,9 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           )
         })()}
 
-        {showTrashModal && (
-          <div className="modal-overlay" onClick={handleCloseTrash}>
-            <div className="modal-content trash-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>🗑️ 휴지통</h2>
-                <div className="modal-header-actions">
-                  {trashedItems.length > 0 && (
-                    <button
-                      onClick={handleEmptyTrash}
-                      className="empty-trash-button"
-                      title="휴지통 비우기"
-                    >
-                      전체 비우기
-                    </button>
-                  )}
-                  <button onClick={handleCloseTrash} className="modal-close-button">✕</button>
-                </div>
-              </div>
-              <div className="trash-list">
-                {trashedItems.length === 0 ? (
-                  <p className="empty-message">휴지통이 비어있습니다.</p>
-                ) : (
-                  trashedItems.map(item => {
-                    // 이월 정보
-                    const visibleDates = item.visible_dates || (item.date ? [item.date] : [])
-                    const hasCarryover = visibleDates.length > 1 || item.original_todo_id
-                    const isOldStyleCarryover = item.original_todo_id !== null && item.original_todo_id !== undefined
 
-                    // 삭제 타입 판단
-                    const hasHiddenDates = item.hidden_dates && item.hidden_dates.length > 0
-                    let deleteType = '알 수 없음'
 
-                    if (isOldStyleCarryover) {
-                      // 구 방식: 개별 레코드 삭제
-                      deleteType = '이 날짜만 삭제 (구 방식)'
-                    } else if (hasHiddenDates) {
-                      // 새 방식: hidden_dates 사용
-                      deleteType = '일부 날짜 숨김'
-                    } else if (item.deleted === true) {
-                      // 새 방식: 완전 삭제
-                      deleteType = visibleDates.length > 1 ? '모든 날짜 삭제' : '삭제'
-                    }
 
-                    return (
-                      <div key={item.id} className="trash-item">
-                        <div className="trash-item-content">
-                          <span className={`trash-text ${item.completed ? 'completed' : ''}`}>
-                            {item.text}
-                          </span>
-                          <div className="trash-metadata">
-                            <span className="trash-date">생성: {formatDate(item.created_at)}</span>
-                            {item.deleted_date && (
-                              <span className="trash-deleted-date">삭제: {item.deleted_date}</span>
-                            )}
-                            <span className={`trash-delete-type ${
-                              isOldStyleCarryover ? 'old-style' : (hasHiddenDates ? 'partial' : 'complete')
-                            }`}>
-                              {deleteType}
-                            </span>
-                          </div>
-
-                          {/* 이월 히스토리 정보 */}
-                          {hasCarryover && (
-                            <div className="trash-carryover-info">
-                              <div className="carryover-label">📅 이월 경로:</div>
-                              <div className="carryover-dates">
-                                {visibleDates.length > 0 ? (
-                                  visibleDates.map((date, idx) => (
-                                    <span key={idx} className="carryover-date-badge">
-                                      {date}
-                                    </span>
-                                  ))
-                                ) : item.original_todo_id ? (
-                                  <span className="carryover-note">구 방식 이월 투두 (original_id: {item.original_todo_id})</span>
-                                ) : null}
-                              </div>
-                              {hasHiddenDates && (
-                                <div className="hidden-dates-info">
-                                  <span className="hidden-label">🚫 숨김 날짜:</span>
-                                  {item.hidden_dates.map((date, idx) => (
-                                    <span key={idx} className="hidden-date-badge">
-                                      {date}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="trash-actions">
-                          <button
-                            onClick={() => handleRestoreFromTrash(item.id)}
-                            className="restore-button"
-                            title="복원"
-                          >
-                            복원
-                          </button>
-                          <button
-                            onClick={() => handlePermanentDelete(item.id)}
-                            className="permanent-delete-button"
-                            title="영구 삭제"
-                          >
-                            영구 삭제
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showDummyModal && (
-          <div className="modal-overlay" onClick={() => setShowDummyModal(false)}>
-            <div className="modal-content routine-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>🧪 더미 데이터 관리</h2>
-                <button onClick={() => setShowDummyModal(false)} className="modal-close-button">✕</button>
-              </div>
-
-              <div className="routine-add-section">
-                <h3>더미 데이터 생성</h3>
-                <p style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
-                  14일~18일 날짜에 걸쳐 총 20개의 테스트용 더미 데이터가 생성됩니다.
-                </p>
-                <button
-                  onClick={handleCreateDummyData}
-                  className="add-routine-button"
-                  style={{width: '100%'}}
-                >
-                  ✅ 더미 데이터 생성 (20개)
-                </button>
-              </div>
-
-              <div className="routine-add-section">
-                <h3>중복 투두 제거</h3>
-                <p style={{fontSize: '14px', color: '#666', marginBottom: '10px'}}>
-                  같은 텍스트의 투두 중 생성일이 가장 빠른 것만 남기고 삭제합니다.
-                </p>
-                <button
-                  onClick={handleRemoveDuplicates}
-                  className="add-routine-button"
-                  style={{width: '100%', background: '#ff6b6b'}}
-                >
-                  🗑️ 중복 투두 제거
-                </button>
-              </div>
-
-              <div className="routine-list" style={{marginTop: '20px'}}>
-                <h3>생성된 세션 목록</h3>
-                {dummySessions.length === 0 ? (
-                  <p className="empty-message">생성된 더미 세션이 없습니다.</p>
-                ) : (
-                  <>
-                    {dummySessions.map((session, index) => (
-                      <div key={session.sessionId} className="routine-item">
-                        <div className="routine-item-content">
-                          <span className="routine-text">
-                            세션 #{index + 1}: {session.sessionId}
-                          </span>
-                          <div className="routine-days">
-                            <span className="routine-day-badge">
-                              투두 {session.count}개
-                            </span>
-                            {session.historyCount > 0 && (
-                              <span className="routine-day-badge">
-                                히스토리 {session.historyCount}개
-                              </span>
-                            )}
-                            <span className="routine-day-badge" style={{fontSize: '11px'}}>
-                              {formatDate(session.createdAt)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="routine-item-actions">
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`세션 #${index + 1}을 삭제하시겠습니까?`)) {
-                                handleDeleteDummySession(session.sessionId)
-                              }
-                            }}
-                            className="routine-delete-button"
-                            title="이 세션만 삭제"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => {
-                        if (window.confirm('모든 더미 데이터를 삭제하시겠습니까?')) {
-                          handleDeleteAllDummies()
-                        }
-                      }}
-                      className="routine-delete-button"
-                      style={{width: '100%', marginTop: '15px', padding: '12px'}}
-                    >
-                      🗑️ 모든 더미 데이터 삭제
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showMemoModal && (
-          <div className="modal-overlay" onClick={handleCloseMemo}>
-            <div className="modal-content memo-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>📝 생각 메모</h2>
-                <button onClick={handleCloseMemo} className="modal-close-button">✕</button>
-              </div>
-
-              <div className="memo-content">
-                {isEditingMemo ? (
-                  <div className="memo-edit-mode">
-                    <textarea
-                      value={memoContent}
-                      onChange={(e) => setMemoContent(e.target.value)}
-                      className="memo-textarea"
-                      placeholder="메모 내용을 입력하세요..."
-                      rows={20}
-                    />
-                    <div className="memo-actions">
-                      <button
-                        onClick={handleSaveMemo}
-                        className="memo-save-button"
-                        disabled={isSavingMemo}
-                      >
-                        {isSavingMemo ? '저장 중...' : '💾 저장'}
-                      </button>
-                      <button
-                        onClick={handleResetMemo}
-                        className="memo-cancel-button"
-                        disabled={isSavingMemo}
-                      >
-                        ↩️ 취소
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="memo-view-mode">
-                    <div className="memo-display">
-                      <pre className="memo-text">{memoContent}</pre>
-                    </div>
-                    <div className="memo-actions">
-                      <button
-                        onClick={handleEditMemo}
-                        className="memo-edit-button"
-                      >
-                        ✏️ 편집
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showGanttChart && (
-          <div className="modal-overlay" onClick={handleCloseGanttChart}>
-            <div className="modal-content gantt-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>📊 간트차트 - 투두 현황</h2>
-                <button onClick={handleCloseGanttChart} className="modal-close-button">✕</button>
-              </div>
-
-              <div className="gantt-filter">
-                <div className="gantt-period-buttons">
-                  {[
-                    { value: '1week', label: '지난 1주일' },
-                    { value: '2weeks', label: '지난 2주일' },
-                    { value: '1month', label: '지난 1개월' },
-                    { value: '3months', label: '지난 3개월' },
-                    { value: '6months', label: '지난 6개월' },
-                    { value: 'all', label: '전체' }
-                  ].map(period => (
-                    <button
-                      key={period.value}
-                      className={`period-button ${ganttPeriod === period.value ? 'active' : ''}`}
-                      onClick={() => setGanttPeriod(period.value)}
-                    >
-                      {period.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="gantt-content">
-                {ganttData.length === 0 ? (
-                  <p className="empty-message">투두가 없습니다.</p>
-                ) : (
-                  <div className="gantt-chart">
-                    {/* 날짜 헤더 */}
-                    {(() => {
-                      // 전체 날짜 범위 계산
-                      const allDates = ganttData.flatMap(item => item.dates)
-                      const uniqueDates = [...new Set(allDates)].sort((a, b) => new Date(a) - new Date(b))
-
-                      const minDate = uniqueDates[0]
-                      const maxDate = uniqueDates[uniqueDates.length - 1]
-
-                      // minDate부터 maxDate까지의 모든 날짜 생성
-                      const dateRange = []
-                      let currentDate = new Date(minDate + 'T00:00:00')
-                      const endDate = new Date(maxDate + 'T00:00:00')
-
-                      while (currentDate <= endDate) {
-                        dateRange.push(formatDateForDB(currentDate))
-                        currentDate.setDate(currentDate.getDate() + 1)
-                      }
-
-                      return (
-                        <>
-                          <div className="gantt-header">
-                            <div className="gantt-task-column">투두 항목</div>
-                            <div className="gantt-timeline">
-                              {dateRange.map(date => (
-                                <div key={date} className="gantt-date-cell">
-                                  {formatDateOnly(new Date(date + 'T00:00:00')).split('(')[0]}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 간트 차트 본문 */}
-                          {ganttData.map((item, idx) => {
-                            const datesSet = new Set(item.dates)
-
-                            return (
-                              <div key={item.originalId} className="gantt-row">
-                                <div className="gantt-task-column" title={item.text}>
-                                  <span className={item.completed ? 'completed-task' : ''}>
-                                    {item.text}
-                                  </span>
-                                </div>
-                                <div className="gantt-timeline">
-                                  {dateRange.map(date => {
-                                    const hasTask = datesSet.has(date)
-
-                                    if (!hasTask) {
-                                      return <div key={date} className="gantt-date-cell"></div>
-                                    }
-
-                                    // 날짜 타입 결정
-                                    const isStartDate = date === item.startDate
-                                    const isCompletedDate = date === item.completedDate
-                                    const isMiddle = !isStartDate && !isCompletedDate
-
-                                    let cellClass = 'gantt-date-cell has-task'
-                                    if (isStartDate) {
-                                      cellClass += ' start-date'
-                                    } else if (isCompletedDate) {
-                                      cellClass += ' completed-date'
-                                    } else {
-                                      cellClass += ' middle-date'
-                                    }
-
-                                    return (
-                                      <div key={date} className={cellClass}>
-                                        {isCompletedDate ? <span className="completed-circle">✓</span> : '○'}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </>
-                      )
-                    })()}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         <RoutineModal
           showRoutineModal={showRoutineModal}
@@ -4687,205 +4313,57 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           routineHistoryData={routineHistoryData}
         />
 
-        {showEncouragementModal && (
-          <div className="modal-overlay" onClick={() => setShowEncouragementModal(false)}>
-            <div className="modal-content encouragement-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>💬 격려 문구 관리</h2>
-                <button onClick={() => setShowEncouragementModal(false)} className="modal-close-button">✕</button>
-              </div>
+        <TrashModal
+          showTrashModal={showTrashModal}
+          onClose={handleCloseTrash}
+          trashedItems={trashedItems}
+          onEmptyTrash={handleEmptyTrash}
+          onRestoreFromTrash={handleRestoreFromTrash}
+          onPermanentDelete={handlePermanentDelete}
+          formatDate={formatDate}
+        />
 
-              <div className="encouragement-add-section">
-                <input
-                  type="text"
-                  value={newEncouragementMessage}
-                  onChange={(e) => setNewEncouragementMessage(e.target.value)}
-                  placeholder="새로운 격려 문구를 입력하세요..."
-                  className="encouragement-input"
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter' && newEncouragementMessage.trim() !== '') {
-                      await addEncouragementMessage(newEncouragementMessage.trim())
-                      setNewEncouragementMessage('')
-                    }
-                  }}
-                />
-                <button
-                  onClick={async () => {
-                    if (newEncouragementMessage.trim() !== '') {
-                      await addEncouragementMessage(newEncouragementMessage.trim())
-                      setNewEncouragementMessage('')
-                    }
-                  }}
-                  className="add-encouragement-button"
-                  disabled={newEncouragementMessage.trim() === ''}
-                >
-                  추가
-                </button>
-              </div>
+        <DummyModal
+          showDummyModal={showDummyModal}
+          onClose={() => setShowDummyModal(false)}
+          onCreateDummyData={handleCreateDummyData}
+          onRemoveDuplicates={handleRemoveDuplicates}
+          dummySessions={dummySessions}
+          onDeleteDummySession={handleDeleteDummySession}
+          onDeleteAllDummies={handleDeleteAllDummies}
+          formatDate={formatDate}
+        />
 
-              <div className="encouragement-list">
-                {encouragementMessages.length === 0 ? (
-                  <p className="empty-message">등록된 격려 문구가 없습니다.</p>
-                ) : (
-                  encouragementMessages.map((message, index) => (
-                    <div key={index} className="encouragement-item">
-                      {editingEncouragementId === index ? (
-                        // 수정 모드
-                        <>
-                          <input
-                            type="text"
-                            value={editingEncouragementText}
-                            onChange={(e) => setEditingEncouragementText(e.target.value)}
-                            className="encouragement-edit-input"
-                            placeholder="격려 문구"
-                          />
-                          <div className="encouragement-item-actions">
-                            <button
-                              onClick={async () => {
-                                if (editingEncouragementText.trim() !== '') {
-                                  await updateEncouragementMessage(index, editingEncouragementText.trim())
-                                  setEditingEncouragementId(null)
-                                  setEditingEncouragementText('')
-                                }
-                              }}
-                              className="encouragement-save-button"
-                              disabled={editingEncouragementText.trim() === ''}
-                            >
-                              저장
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingEncouragementId(null)
-                                setEditingEncouragementText('')
-                              }}
-                              className="encouragement-cancel-button"
-                            >
-                              취소
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        // 일반 모드
-                        <>
-                          <span className="encouragement-text">{message}</span>
-                          <div className="encouragement-item-actions">
-                            <button
-                              onClick={() => {
-                                setEditingEncouragementId(index)
-                                setEditingEncouragementText(message)
-                              }}
-                              className="encouragement-edit-button"
-                              title="수정"
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (window.confirm('이 격려 문구를 삭제하시겠습니까?')) {
-                                  await deleteEncouragementMessage(index)
-                                }
-                              }}
-                              className="encouragement-delete-button"
-                              title="삭제"
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <GanttChartModal
+          showGanttChart={showGanttChart}
+          onClose={handleCloseGanttChart}
+          ganttData={ganttData}
+          ganttPeriod={ganttPeriod}
+          setGanttPeriod={setGanttPeriod}
+          formatDateOnly={formatDateOnly}
+        />
 
-        {/* 주요 생각정리 버전 히스토리 모달 */}
-        {showKeyThoughtsHistory && (
-          <div className="modal-overlay" onClick={() => setShowKeyThoughtsHistory(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh' }}>
-              <div className="modal-header">
-                <h2>🕐 주요 생각정리 버전 히스토리</h2>
-                <button onClick={() => setShowKeyThoughtsHistory(false)} className="modal-close-button">✕</button>
-              </div>
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                {keyThoughtsHistory.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>
-                    저장된 버전이 없습니다.
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {keyThoughtsHistory.map((version) => (
-                      <div
-                        key={version.id}
-                        style={{
-                          border: '1px solid #ddd',
-                          borderRadius: '8px',
-                          padding: '16px',
-                          backgroundColor: '#f9f9f9'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                          <div>
-                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                              {new Date(version.created_at).toLocaleString('ko-KR', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                              })}
-                            </div>
-                            {version.description && (
-                              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                                {version.description}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => restoreKeyThoughtsVersion(version.id)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#4CAF50',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            복구
-                          </button>
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#666',
-                          maxHeight: '100px',
-                          overflowY: 'auto',
-                          backgroundColor: 'white',
-                          padding: '8px',
-                          borderRadius: '4px',
-                          whiteSpace: 'pre-wrap'
-                        }}>
-                          {/* 블록 내용 미리보기 */}
-                          {Array.isArray(version.content) ?
-                            version.content.map((block, idx) => (
-                              <div key={idx} style={{ marginBottom: '4px' }}>
-                                {block.type === 'toggle' ? '▸ ' : ''}{block.content || '(빈 블록)'}
-                              </div>
-                            ))
-                            : '(내용 없음)'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <EncouragementModal
+          showEncouragementModal={showEncouragementModal}
+          onClose={() => setShowEncouragementModal(false)}
+          encouragementMessages={encouragementMessages}
+          newEncouragementMessage={newEncouragementMessage}
+          setNewEncouragementMessage={setNewEncouragementMessage}
+          onAddEncouragementMessage={addEncouragementMessage}
+          editingEncouragementId={editingEncouragementId}
+          editingEncouragementText={editingEncouragementText}
+          setEditingEncouragementId={setEditingEncouragementId}
+          setEditingEncouragementText={setEditingEncouragementText}
+          onUpdateEncouragementMessage={updateEncouragementMessage}
+          onDeleteEncouragementMessage={deleteEncouragementMessage}
+        />
+
+        <KeyThoughtsHistoryModal
+          showKeyThoughtsHistory={showKeyThoughtsHistory}
+          onClose={() => setShowKeyThoughtsHistory(false)}
+          keyThoughtsHistory={keyThoughtsHistory}
+          onRestoreVersion={restoreKeyThoughtsVersion}
+        />
       </div>
     </div>
   )
