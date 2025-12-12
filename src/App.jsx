@@ -25,6 +25,9 @@ import { formatDateForDB, formatDateOnly, formatDate, isToday } from './utils/da
 import { useAuth } from './hooks/useAuth'
 import AppleTimePicker from './components/Common/AppleTimePicker'
 import Toast from './components/Common/Toast'
+import Sidebar from './components/Navigation/Sidebar'
+import Header from './components/Navigation/Header'
+import SectionPagination from './components/Navigation/SectionPagination'
 import './App.css'
 
 // 드래그 가능한 섹션 래퍼 컴포넌트
@@ -5806,260 +5809,43 @@ function App() {
 
   return (
     <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
-      {/* 사이드바 오버레이 */}
-      {showSidebar && (
-        <div className="sidebar-overlay" onClick={() => setShowSidebar(false)} />
-      )}
-
-      {/* 사이드바 */}
-      <div className={`sidebar ${showSidebar ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <h2>메뉴</h2>
-          <button className="sidebar-close" onClick={() => setShowSidebar(false)}>✕</button>
-        </div>
-
-        {/* 사용자 정보 */}
-        {session && session.user && (
-          <div style={{
-            padding: '1rem',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem'
-          }}>
-            {session.user.user_metadata?.avatar_url && (
-              <img
-                src={session.user.user_metadata.avatar_url}
-                alt="프로필"
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%'
-                }}
-              />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: '0.9rem',
-                fontWeight: '600',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {session.user.user_metadata?.full_name || session.user.email}
-              </div>
-              <div style={{
-                fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.6)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {session.user.email}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="sidebar-content">
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              const newMode = viewMode === 'vertical' ? 'horizontal' : 'vertical'
-              setViewMode(newMode)
-              localStorage.setItem('viewMode', newMode)
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">{viewMode === 'vertical' ? '⬌' : '⬍'}</span>
-            <span>{viewMode === 'vertical' ? '가로 나열' : '세로 나열'}</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              handleOpenTrash()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">🗑️</span>
-            <span>휴지통</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              handleOpenRoutine()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">📌</span>
-            <span>루틴 관리</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              handleOpenMemo()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">📝</span>
-            <span>생각 메모</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              // 주요 생각정리 섹션으로 스크롤
-              const keyThoughtsSection = document.querySelector('.key-thoughts-section')
-              if (keyThoughtsSection) {
-                keyThoughtsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">💡</span>
-            <span>주요 생각정리</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              handleOpenGanttChart()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">📊</span>
-            <span>간트로 보기</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              setShowEncouragementModal(true)
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">💬</span>
-            <span>격려 문구 관리</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              setShowDummyModal(true)
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">🧪</span>
-            <span>더미 데이터 관리</span>
-          </button>
-
-          {/* 로그아웃 버튼 */}
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              if (confirm('로그아웃 하시겠습니까?')) {
-                handleLogout()
-              }
-            }}
-            style={{
-              marginTop: 'auto',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              color: 'rgba(255, 100, 100, 0.9)'
-            }}
-          >
-            <span className="sidebar-icon">🚪</span>
-            <span>로그아웃</span>
-          </button>
-        </div>
-      </div>
+      <Sidebar
+        showSidebar={showSidebar}
+        setShowSidebar={setShowSidebar}
+        session={session}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        onOpenTrash={handleOpenTrash}
+        onOpenRoutine={handleOpenRoutine}
+        onOpenMemo={handleOpenMemo}
+        onScrollToKeyThoughts={() => {
+          const keyThoughtsSection = document.querySelector('.key-thoughts-section')
+          if (keyThoughtsSection) {
+            keyThoughtsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        }}
+        onOpenGanttChart={handleOpenGanttChart}
+        onOpenEncouragementModal={() => setShowEncouragementModal(true)}
+        onOpenDummyModal={() => setShowDummyModal(true)}
+        onLogout={handleLogout}
+      />
 
       <div className={`container ${viewMode === 'horizontal' ? 'container-wide' : ''}`}>
-        <div className="header-fixed">
-          <div className="settings-bar">
-            {/* 햄버거 메뉴 버튼 */}
-            <button
-              className="hamburger-menu"
-              onClick={() => setShowSidebar(!showSidebar)}
-              title="메뉴"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="4" width="16" height="2" rx="1" fill="currentColor"/>
-                <rect x="2" y="9" width="16" height="2" rx="1" fill="currentColor"/>
-                <rect x="2" y="14" width="16" height="2" rx="1" fill="currentColor"/>
-              </svg>
-            </button>
-
-            {/* 날짜 네비게이션 */}
-            <div className="date-nav-section">
-              <div className="date-display-wrapper">
-                <span className="date-display">
-                  {formatDateOnly(selectedDate)}
-                </span>
-                <input
-                  type="date"
-                  value={formatDateForDB(selectedDate)}
-                  onChange={handleDateChange}
-                  className="date-picker-input"
-                />
-              </div>
-              <button onClick={handlePrevDay} className="date-nav-button">◀</button>
-              <button onClick={handleNextDay} className="date-nav-button">▶</button>
-            </div>
-
-            {/* 응원 메시지 */}
-            <div className="encouragement-section">
-              {isToday(selectedDate) ? (
-                <div
-                  className="encouragement-message"
-                  onClick={handleEncouragementClick}
-                  title="클릭하면 다른 격려 문구가 나와요!"
-                >
-                  {showEncouragementEmoji ? (
-                    <span className="encouragement-emoji">🔥 🔥 🔥</span>
-                  ) : (
-                    currentEncouragementMessage || getRandomEncouragement()
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => setSelectedDate(new Date())}
-                  className="today-link"
-                  title="오늘로 가기"
-                >
-                  오늘 페이지로 바로가기
-                </button>
-              )}
-            </div>
-
-            {/* 섹션 순서 수정 모드 */}
-            {isReorderMode && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.5rem 1rem',
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '8px',
-                fontSize: '0.9rem',
-                color: '#60a5fa'
-              }}>
-                <span>📌 섹션 순서 수정 중</span>
-                <button
-                  onClick={() => setIsReorderMode(false)}
-                  style={{
-                    padding: '0.25rem 0.75rem',
-                    background: 'rgba(59, 130, 246, 0.2)',
-                    color: '#60a5fa',
-                    border: '1px solid rgba(59, 130, 246, 0.4)',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: '500'
-                  }}
-                >
-                  완료
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <Header
+          showSidebar={showSidebar}
+          setShowSidebar={setShowSidebar}
+          selectedDate={selectedDate}
+          onDateChange={handleDateChange}
+          onPrevDay={handlePrevDay}
+          onNextDay={handleNextDay}
+          showEncouragementEmoji={showEncouragementEmoji}
+          currentEncouragementMessage={currentEncouragementMessage}
+          getRandomEncouragement={getRandomEncouragement}
+          onEncouragementClick={handleEncouragementClick}
+          isReorderMode={isReorderMode}
+          setIsReorderMode={setIsReorderMode}
+          setSelectedDate={setSelectedDate}
+        />
 
         <div className="content-scrollable" ref={contentScrollableRef}>
 
@@ -6562,65 +6348,11 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           </div>
         </DndContext>
 
-        {/* 모바일 섹션 페이지네이션 dots */}
-        {viewMode === 'horizontal' && (
-          <div
-            className="section-pagination-dots"
-            onTouchStart={(e) => {
-              const touch = e.touches[0]
-              e.currentTarget.dataset.touchStartX = touch.clientX
-              e.currentTarget.dataset.touchStartTime = Date.now()
-            }}
-            onTouchMove={(e) => {
-              // 터치 이동 중에는 아무것도 하지 않음 (스크롤 방지)
-              e.currentTarget.dataset.touchMoved = 'true'
-            }}
-            onTouchEnd={(e) => {
-              const touchStartX = parseFloat(e.currentTarget.dataset.touchStartX || '0')
-              const touchStartTime = parseInt(e.currentTarget.dataset.touchStartTime || '0')
-              const touchMoved = e.currentTarget.dataset.touchMoved === 'true'
-              const touchEndX = e.changedTouches[0].clientX
-              const touchDuration = Date.now() - touchStartTime
-
-              delete e.currentTarget.dataset.touchStartX
-              delete e.currentTarget.dataset.touchStartTime
-              delete e.currentTarget.dataset.touchMoved
-
-              // 스와이프 감지 (최소 50px 이동, 500ms 이내)
-              if (touchMoved && touchDuration < 500) {
-                const diff = touchStartX - touchEndX
-                const container = sectionsContainerRef.current
-                if (!container) return
-                const sections = container.querySelectorAll('.section-block')
-
-                if (Math.abs(diff) > 50) {
-                  if (diff > 0 && currentSectionIndex < sections.length - 1) {
-                    // 왼쪽으로 스와이프 -> 다음 섹션
-                    sections[currentSectionIndex + 1].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-                  } else if (diff < 0 && currentSectionIndex > 0) {
-                    // 오른쪽으로 스와이프 -> 이전 섹션
-                    sections[currentSectionIndex - 1].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-                  }
-                }
-              }
-            }}
-          >
-            {[0, 1, 2].map((index) => (
-              <button
-                key={index}
-                className={`pagination-dot ${currentSectionIndex === index ? 'active' : ''}`}
-                onClick={() => {
-                  const container = sectionsContainerRef.current
-                  if (!container) return
-                  const sections = container.querySelectorAll('.section-block')
-                  if (sections[index]) {
-                    sections[index].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
+        <SectionPagination
+          viewMode={viewMode}
+          currentSectionIndex={currentSectionIndex}
+          sectionsContainerRef={sectionsContainerRef}
+        />
         </div>
 
         {showUndoToast && (
