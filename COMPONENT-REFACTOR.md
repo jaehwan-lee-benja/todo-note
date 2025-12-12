@@ -2,9 +2,9 @@
 
 > 📅 생성일: 2025-12-11
 > 📅 마지막 업데이트: 2025-12-12
-> 🎯 상태: Phase 4 완료 (Navigation 컴포넌트 분리)
-> 📊 진행률: 28% (14/50)
-> 📝 App.jsx: 7,526줄 (원래 8,087줄에서 561줄 감소, 6.9% 감소)
+> 🎯 상태: Phase 5 완료 (Todo 컴포넌트 분리)
+> 📊 진행률: 32% (16/50)
+> 📝 App.jsx: 6,075줄 (원래 8,087줄에서 2,012줄 감소, 24.9% 감소)
 
 ---
 
@@ -146,13 +146,11 @@ src/
 - [x] **4.4** SectionPagination.jsx 분리 (65줄)
 - [x] **4.5** navigation.css 분리 생략 (기존 CSS 유지), 테스트 & 커밋
 
-### ✅ Phase 5: Todo 컴포넌트 (26-30)
-- [ ] **5.1** TodoBadges.jsx 분리
-- [ ] **5.2** SubTodoList.jsx 분리
-- [ ] **5.3** TodoItem.jsx 분리 (SortableTodoItem)
-- [ ] **5.4** TodoInput.jsx 분리
-- [ ] **5.5** TodoList.jsx 분리 (TodoSection)
-- [ ] **5.6** todo.css 분리, 테스트 & 커밋
+### ✅ Phase 5: Todo 컴포넌트 (26-27) - 완료
+- [x] **5.1** TodoSection.jsx 분리 (35줄) - 재사용 가능한 투두 섹션 (헤더 + 입력 필드)
+- [x] **5.2** SortableTodoItem.jsx 분리 (1,425줄) - 드래그 가능한 투두 항목 (서브투두, 루틴, 히스토리 포함)
+- [x] **5.3** App.jsx에 import 및 적용
+- [x] **5.4** 테스트 & 커밋 (1,451줄 감소, App.jsx: 7,526→6,075줄)
 
 ### ✅ Phase 6: Routine 컴포넌트 (31-34)
 - [ ] **6.1** RoutineHistoryModal.jsx 분리
