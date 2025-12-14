@@ -1048,6 +1048,16 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     setShowTodoRoutineSetupModal(true)
   }
 
+  // 투두 루틴 설정 모달 닫기
+  const handleCloseTodoRoutineSetupModal = () => {
+    setShowTodoRoutineSetupModal(false)
+    setSelectedTodoForModal(null)
+    // 루틴 편집 상태 초기화
+    setRoutineDaysForModal([])
+    setRoutineTimeSlotForModal('')
+    setIsEditingRoutineInModal(false)
+  }
+
   // 히스토리 세부 내용 토글
   const toggleHistoryDetail = (historyId) => {
     setExpandedHistoryIds(prev =>
@@ -1125,6 +1135,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleOpenTodoHistoryModal,
     handleCloseTodoHistoryModal,
     handleOpenTodoRoutineSetupModal,
+    handleCloseTodoRoutineSetupModal,
     toggleHistoryDetail,
   }
 }

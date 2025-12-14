@@ -45,6 +45,9 @@ import { useMemo as useMemoHook } from './hooks/useMemo'
 import { useKeyThoughts } from './hooks/useKeyThoughts'
 import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
+import { useDummyData } from './hooks/useDummyData'
+import { useEncouragement } from './hooks/useEncouragement'
+import { useGanttChart } from './hooks/useGanttChart'
 import './App.css'
 
 // 드래그 가능한 섹션 래퍼 컴포넌트
@@ -262,6 +265,7 @@ function App() {
     handleOpenTodoHistoryModal,
     handleCloseTodoHistoryModal,
     handleOpenTodoRoutineSetupModal,
+    handleCloseTodoRoutineSetupModal,
     toggleHistoryDetail,
     showTodoHistoryModal,
     showTodoRoutineSetupModal,
@@ -303,13 +307,30 @@ function App() {
     }
   }
 
-  const handleOpenGanttChart = () => {
-    setShowGanttChart(true)
-  }
+  // 간트차트 관리
+  const {
+    showGanttChart,
+    ganttData,
+    ganttPeriod,
+    setGanttPeriod,
+    handleOpenGanttChart,
+    handleCloseGanttChart,
+    fetchGanttData,
+  } = useGanttChart(supabase)
 
-  const [dummySessions, setDummySessions] = useState([])
-  const [showDummyModal, setShowDummyModal] = useState(false)
-  const [showDummySQL, setShowDummySQL] = useState(false)
+  // 더미 데이터 관리
+  const {
+    dummySessions,
+    showDummyModal,
+    setShowDummyModal,
+    showDummySQL,
+    setShowDummySQL,
+    handleCreateDummyData,
+    handleDeleteDummySession,
+    handleDeleteAllDummies,
+    handleRemoveDuplicates,
+  } = useDummyData(session, supabase, fetchTodos)
+
   const [showMemoModal, setShowMemoModal] = useState(false)
 
   // 메모 관리
@@ -347,16 +368,27 @@ function App() {
     fetchKeyThoughtsHistory,
     restoreKeyThoughtsVersion,
   } = useKeyThoughts(session)
-  const [showGanttChart, setShowGanttChart] = useState(false)
-  const [ganttData, setGanttData] = useState([])
-  const [ganttPeriod, setGanttPeriod] = useState('1week') // 'all', '1week', '2weeks', '1month', '3months', '6months'
-  const [encouragementMessages, setEncouragementMessages] = useState([])
-  const [showEncouragementModal, setShowEncouragementModal] = useState(false)
-  const [newEncouragementMessage, setNewEncouragementMessage] = useState('')
-  const [editingEncouragementId, setEditingEncouragementId] = useState(null)
-  const [editingEncouragementText, setEditingEncouragementText] = useState('')
-  const [showEncouragementEmoji, setShowEncouragementEmoji] = useState(false)
-  const [currentEncouragementMessage, setCurrentEncouragementMessage] = useState('')
+
+  // 격려 메시지 관리
+  const {
+    encouragementMessages,
+    showEncouragementModal,
+    setShowEncouragementModal,
+    newEncouragementMessage,
+    setNewEncouragementMessage,
+    editingEncouragementId,
+    setEditingEncouragementId,
+    editingEncouragementText,
+    setEditingEncouragementText,
+    showEncouragementEmoji,
+    currentEncouragementMessage,
+    handleEncouragementClick,
+    fetchEncouragementMessages,
+    addEncouragementMessage,
+    updateEncouragementMessage,
+    deleteEncouragementMessage,
+  } = useEncouragement(session, supabase)
+
   // showTodoHistoryModal, showTodoRoutineSetupModal 등은 useTodos에서 관리됨
   const [viewMode, setViewMode] = useState(() => {
     // 로컬스토리지에서 뷰 모드 불러오기
@@ -376,359 +408,6 @@ function App() {
   const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
 
   // 랜덤 격려 문구 선택
-  const getRandomEncouragement = () => {
-    if (encouragementMessages.length === 0) return ""
-    const randomIndex = Math.floor(Math.random() * encouragementMessages.length)
-    return encouragementMessages[randomIndex]
-  }
-
-  // 격려 메시지 클릭 핸들러
-  const handleEncouragementClick = () => {
-    // 이모지 표시
-    setShowEncouragementEmoji(true)
-
-    // 새로운 랜덤 문구 선택 (현재 문구와 다르게)
-    let newMessage = getRandomEncouragement()
-    let attempts = 0
-    while (newMessage === currentEncouragementMessage && encouragementMessages.length > 1 && attempts < 10) {
-      newMessage = getRandomEncouragement()
-      attempts++
-    }
-
-    // 1초 후 이모지 숨기고 문구 변경
-    setTimeout(() => {
-      setShowEncouragementEmoji(false)
-      setCurrentEncouragementMessage(newMessage)
-    }, 1000)
-  }
-
-  // 더미 데이터 생성
-  const handleCreateDummyData = async () => {
-    try {
-      const sessionId = `DUMMY-${Date.now()}`
-      const today = new Date(2025, 10, 16) // 2025-11-16
-
-      const dummyData = []
-      const historyData = []
-
-      // 14일 페이지 (정상 생성)
-      const date14 = '2025-11-14'
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 14일생성-미완료-수정이력있음`, date: date14, completed: false, created_at: '2025-11-14T09:00:00Z', order_index: 1001 },
-        { text: `[${sessionId}] 더미: 14일생성-14일완료`, date: date14, completed: true, created_at: '2025-11-14T09:10:00Z', order_index: 1002 },
-        { text: `[${sessionId}] 더미: 14일생성-15일완료`, date: date14, completed: true, created_at: '2025-11-14T09:20:00Z', order_index: 1003 },
-        { text: `[${sessionId}] 더미: 14일생성-16일완료`, date: date14, completed: true, created_at: '2025-11-14T09:30:00Z', order_index: 1004 }
-      )
-
-      // 15일 페이지 (정상 생성)
-      const date15 = '2025-11-15'
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 15일생성-미완료-수정이력있음`, date: date15, completed: false, created_at: '2025-11-15T10:00:00Z', order_index: 1005 },
-        { text: `[${sessionId}] 더미: 15일생성-15일완료`, date: date15, completed: true, created_at: '2025-11-15T10:10:00Z', order_index: 1006 },
-        { text: `[${sessionId}] 더미: 15일생성-16일완료`, date: date15, completed: true, created_at: '2025-11-15T10:20:00Z', order_index: 1007 }
-      )
-
-      // 16일 페이지 (정상 생성)
-      const date16 = '2025-11-16'
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 16일생성-미완료`, date: date16, completed: false, created_at: '2025-11-16T11:00:00Z', order_index: 1008 },
-        { text: `[${sessionId}] 더미: 16일생성-16일완료`, date: date16, completed: true, created_at: '2025-11-16T11:10:00Z', order_index: 1009 }
-      )
-
-      // 15일 페이지에 미리 작성
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 14일생성-15일페이지-미완료`, date: date15, completed: false, created_at: '2025-11-14T14:00:00Z', order_index: 1010 },
-        { text: `[${sessionId}] 더미: 14일생성-15일페이지-15일완료`, date: date15, completed: true, created_at: '2025-11-14T14:10:00Z', order_index: 1011 }
-      )
-
-      // 16일 페이지에 미리 작성
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 15일생성-16일페이지-미완료`, date: date16, completed: false, created_at: '2025-11-15T15:00:00Z', order_index: 1012 },
-        { text: `[${sessionId}] 더미: 15일생성-16일페이지-16일완료`, date: date16, completed: true, created_at: '2025-11-15T15:10:00Z', order_index: 1013 },
-        { text: `[${sessionId}] 더미: 14일생성-16일페이지-미완료`, date: date16, completed: false, created_at: '2025-11-14T15:00:00Z', order_index: 1014 },
-        { text: `[${sessionId}] 더미: 14일생성-16일페이지-16일완료`, date: date16, completed: true, created_at: '2025-11-14T15:10:00Z', order_index: 1015 }
-      )
-
-      // 17일 페이지에 미리 작성 (미래)
-      const date17 = '2025-11-17'
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 16일생성-17일페이지-미완료`, date: date17, completed: false, created_at: '2025-11-16T16:00:00Z', order_index: 1016 },
-        { text: `[${sessionId}] 더미: 15일생성-17일페이지-미완료`, date: date17, completed: false, created_at: '2025-11-15T16:00:00Z', order_index: 1017 },
-        { text: `[${sessionId}] 더미: 14일생성-17일페이지-미완료`, date: date17, completed: false, created_at: '2025-11-14T16:00:00Z', order_index: 1018 }
-      )
-
-      // 18일 페이지에 미리 작성 (미래)
-      const date18 = '2025-11-18'
-      dummyData.push(
-        { text: `[${sessionId}] 더미: 16일생성-18일페이지-미완료`, date: date18, completed: false, created_at: '2025-11-16T17:00:00Z', order_index: 1019 },
-        { text: `[${sessionId}] 더미: 15일생성-18일페이지-미완료`, date: date18, completed: false, created_at: '2025-11-15T17:00:00Z', order_index: 1020 }
-      )
-
-      // Supabase에 투두 삽입
-      const { data: insertedTodos, error: todoError } = await supabase
-        .from('todos')
-        .insert(dummyData)
-        .select()
-
-      if (todoError) throw todoError
-
-      // 히스토리 데이터 생성 (수정 이력이 있는 투두들)
-      // 14일 생성 투두의 히스토리 (15일, 16일 수정)
-      const todo14 = insertedTodos.find(t => t.text.includes('14일생성-미완료-수정이력있음'))
-      if (todo14) {
-        historyData.push(
-          {
-            todo_id: todo14.id,
-            previous_text: `[${sessionId}] 더미: 14일생성-미완료-1차`,
-            new_text: `[${sessionId}] 더미: 14일생성-미완료-2차`,
-            changed_at: '2025-11-15T12:00:00Z',
-            changed_on_date: date15
-          },
-          {
-            todo_id: todo14.id,
-            previous_text: `[${sessionId}] 더미: 14일생성-미완료-2차`,
-            new_text: `[${sessionId}] 더미: 14일생성-미완료-수정이력있음`,
-            changed_at: '2025-11-16T12:00:00Z',
-            changed_on_date: date16
-          }
-        )
-      }
-
-      // 15일 생성 투두의 히스토리 (16일 수정)
-      const todo15 = insertedTodos.find(t => t.text.includes('15일생성-미완료-수정이력있음'))
-      if (todo15) {
-        historyData.push(
-          {
-            todo_id: todo15.id,
-            previous_text: `[${sessionId}] 더미: 15일생성-미완료-1차`,
-            new_text: `[${sessionId}] 더미: 15일생성-미완료-수정이력있음`,
-            changed_at: '2025-11-16T13:00:00Z',
-            changed_on_date: date16
-          }
-        )
-      }
-
-      // 히스토리 데이터 삽입
-      if (historyData.length > 0) {
-        const { error: historyError } = await supabase
-          .from('todo_history')
-          .insert(historyData)
-
-        if (historyError) {
-          console.error('히스토리 생성 오류:', historyError.message)
-        }
-      }
-
-      // 세션 정보 저장
-      setDummySessions(prev => [...prev, {
-        sessionId,
-        createdAt: new Date().toISOString(),
-        count: dummyData.length,
-        historyCount: historyData.length
-      }])
-
-      alert(`✅ 더미 데이터 생성 완료!\n투두: ${dummyData.length}개\n히스토리: ${historyData.length}개\n세션 ID: ${sessionId}`)
-
-      // 현재 날짜 새로고침
-      fetchTodos()
-    } catch (error) {
-      console.error('더미 데이터 생성 오류:', error.message)
-      alert('❌ 더미 데이터 생성 실패: ' + error.message)
-    }
-  }
-
-  // 특정 세션 더미 데이터 삭제
-  const handleDeleteDummySession = async (sessionId) => {
-    const confirmed = window.confirm(
-      `⚠️ 정말로 세션 "${sessionId}"의 더미 데이터를 삭제하시겠습니까?\n\n이 세션의 모든 투두가 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.`
-    )
-
-    if (!confirmed) return
-
-    try {
-      // 먼저 해당 세션의 투두 ID들을 가져오기
-      const { data: todosToDelete, error: fetchError } = await supabase
-        .from('todos')
-        .select('id')
-        .like('text', `[${sessionId}]%`)
-
-      if (fetchError) throw fetchError
-
-      // 투두 ID들로 히스토리 삭제 (ON DELETE CASCADE가 없으면 수동으로)
-      if (todosToDelete && todosToDelete.length > 0) {
-        const todoIds = todosToDelete.map(t => t.id)
-
-        const { error: historyError } = await supabase
-          .from('todo_history')
-          .delete()
-          .in('todo_id', todoIds)
-
-        if (historyError) {
-          console.error('히스토리 삭제 오류:', historyError.message)
-        }
-      }
-
-      // 투두 삭제
-      const { error } = await supabase
-        .from('todos')
-        .delete()
-        .like('text', `[${sessionId}]%`)
-
-      if (error) throw error
-
-      setDummySessions(prev => prev.filter(s => s.sessionId !== sessionId))
-      alert(`✅ 세션 ${sessionId} 삭제 완료!`)
-
-      // 현재 날짜 새로고침
-      fetchTodos()
-    } catch (error) {
-      console.error('더미 데이터 삭제 오류:', error.message)
-      alert('❌ 더미 데이터 삭제 실패: ' + error.message)
-    }
-  }
-
-  // 모든 더미 데이터 삭제
-  const handleDeleteAllDummies = async () => {
-    const confirmed = window.confirm(
-      `⚠️ 정말로 모든 더미 데이터를 삭제하시겠습니까?\n\n모든 더미 세션의 투두가 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.`
-    )
-
-    if (!confirmed) return
-
-    try {
-      // 먼저 모든 더미 투두 ID들을 가져오기
-      const { data: todosToDelete, error: fetchError } = await supabase
-        .from('todos')
-        .select('id')
-        .like('text', '[DUMMY-%')
-
-      if (fetchError) throw fetchError
-
-      // 투두 ID들로 히스토리 삭제
-      if (todosToDelete && todosToDelete.length > 0) {
-        const todoIds = todosToDelete.map(t => t.id)
-
-        const { error: historyError } = await supabase
-          .from('todo_history')
-          .delete()
-          .in('todo_id', todoIds)
-
-        if (historyError) {
-          console.error('히스토리 삭제 오류:', historyError.message)
-        }
-      }
-
-      // 투두 삭제
-      const { error } = await supabase
-        .from('todos')
-        .delete()
-        .like('text', '[DUMMY-%')
-
-      if (error) throw error
-
-      setDummySessions([])
-      alert('✅ 모든 더미 데이터 삭제 완료!')
-
-      // 현재 날짜 새로고침
-      fetchTodos()
-    } catch (error) {
-      console.error('모든 더미 데이터 삭제 오류:', error.message)
-      alert('❌ 모든 더미 데이터 삭제 실패: ' + error.message)
-    }
-  }
-
-  // 중복 투두 확인 및 삭제
-  const handleRemoveDuplicates = async () => {
-    try {
-      // 모든 투두 가져오기 (삭제되지 않은 것만)
-      const { data: allTodos, error: fetchError } = await supabase
-        .from('todos')
-        .select('*')
-        .eq('deleted', false)
-        .order('created_at', { ascending: true })
-
-      if (fetchError) throw fetchError
-
-      if (!allTodos || allTodos.length === 0) {
-        alert('투두가 없습니다.')
-        return
-      }
-
-      // 같은 텍스트를 가진 투두들을 그룹화
-      const textGroups = {}
-      allTodos.forEach(todo => {
-        if (!textGroups[todo.text]) {
-          textGroups[todo.text] = []
-        }
-        textGroups[todo.text].push(todo)
-      })
-
-      // 중복이 있는 그룹만 필터링 (2개 이상)
-      const duplicateGroups = Object.entries(textGroups).filter(([_, todos]) => todos.length > 1)
-
-      if (duplicateGroups.length === 0) {
-        alert('중복된 투두가 없습니다.')
-        return
-      }
-
-      // 중복 리스트 생성
-      let duplicateList = '중복된 투두 목록:\n\n'
-      let todosToDelete = []
-
-      duplicateGroups.forEach(([text, todos]) => {
-        duplicateList += `"${text}" - ${todos.length}개\n`
-        // 첫 번째(가장 오래된)를 제외한 나머지를 삭제 대상에 추가
-        const toDelete = todos.slice(1)
-        todosToDelete.push(...toDelete)
-        toDelete.forEach(todo => {
-          const createdDate = new Date(todo.created_at).toLocaleString('ko-KR')
-          duplicateList += `  ❌ 삭제 예정: ${createdDate}\n`
-        })
-        const keepTodo = todos[0]
-        const keepDate = new Date(keepTodo.created_at).toLocaleString('ko-KR')
-        duplicateList += `  ✅ 유지: ${keepDate}\n\n`
-      })
-
-      duplicateList += `\n총 ${todosToDelete.length}개의 중복 투두를 삭제합니다.`
-
-      // 확인 받기
-      const confirmDelete = window.confirm(duplicateList + '\n\n⚠️ 이 투두들은 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.\n\n삭제하시겠습니까?')
-
-      if (!confirmDelete) {
-        return
-      }
-
-      // 삭제 실행
-      const idsToDelete = todosToDelete.map(t => t.id)
-
-      // 히스토리 먼저 삭제
-      const { error: historyError } = await supabase
-        .from('todo_history')
-        .delete()
-        .in('todo_id', idsToDelete)
-
-      if (historyError) {
-        console.error('히스토리 삭제 오류:', historyError.message)
-      }
-
-      // 투두 삭제
-      const { error: deleteError } = await supabase
-        .from('todos')
-        .delete()
-        .in('id', idsToDelete)
-
-      if (deleteError) throw deleteError
-
-      alert(`✅ ${todosToDelete.length}개의 중복 투두를 삭제했습니다.`)
-
-      // 현재 날짜 새로고침
-      fetchTodos()
-    } catch (error) {
-      console.error('중복 투두 삭제 오류:', error.message)
-      alert('❌ 중복 투두 삭제 실패: ' + error.message)
-    }
-  }
-
   // 날짜 변경 핸들러
   const handlePrevDay = () => {
     const newDate = new Date(selectedDate)
@@ -849,73 +528,7 @@ function App() {
     fetchEncouragementMessages()
   }, [session])
 
-  // 앱 시작 시 과거 미완료 항목을 오늘로 이월
-  // ⚠️ 구 방식(복사 기반) 이월 로직 - 비활성화됨
-  // 새 방식(JSON 기반)만 사용하도록 변경
-  // useEffect(() => {
-  //   movePastIncompleteTodosToToday()
-  // }, [])
-
-  // 격려 메시지가 로드되면 초기 메시지 설정
-  useEffect(() => {
-    if (encouragementMessages.length > 0 && !currentEncouragementMessage) {
-      setCurrentEncouragementMessage(getRandomEncouragement())
-    }
-  }, [encouragementMessages])
-
-  // TODO: 가로 스크롤 elastic bounce 효과 - 나중에 다시 시도
-  // 현재 브라우저 호환성 이슈로 비활성화됨
-  // 트렐로 스타일의 고무줄 효과를 구현하려고 했으나 동작하지 않음
-  // 다른 라이브러리 사용이나 다른 접근 방법 고려 필요
-  /*
-  useEffect(() => {
-    if (viewMode !== 'horizontal' || !sectionsContainerRef.current) return
-
-    const container = sectionsContainerRef.current
-    let isOverscrolling = false
-    let overscrollAmount = 0
-    let animationFrameId = null
-
-    const handleWheel = (e) => {
-      const { scrollLeft, scrollWidth, clientWidth } = container
-      const atStart = scrollLeft <= 0
-      const atEnd = scrollLeft >= scrollWidth - clientWidth - 1
-
-      if ((atStart && e.deltaX < 0) || (atEnd && e.deltaX > 0)) {
-        e.preventDefault()
-        isOverscrolling = true
-        overscrollAmount += e.deltaX * 0.3 // 탄성 계수
-
-        // 최대 이동 거리 제한
-        overscrollAmount = Math.max(-100, Math.min(100, overscrollAmount))
-
-        // Transform 적용
-        container.style.transform = `translateX(${-overscrollAmount}px)`
-        container.style.transition = 'none'
-
-        // 자동으로 복귀
-        if (animationFrameId) cancelAnimationFrame(animationFrameId)
-        animationFrameId = requestAnimationFrame(() => {
-          setTimeout(() => {
-            container.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-            container.style.transform = 'translateX(0)'
-            overscrollAmount = 0
-            isOverscrolling = false
-          }, 50)
-        })
-      }
-    }
-
-    container.addEventListener('wheel', handleWheel, { passive: false })
-
-    return () => {
-      container.removeEventListener('wheel', handleWheel)
-      if (animationFrameId) cancelAnimationFrame(animationFrameId)
-    }
-  }, [viewMode])
-  */
-
-  // 가로/세로 레이아웃에서 드래그로 스크롤 기능 + elastic bounce
+  // 가로/세로 레이아웃에서 드래그로 스크롤 기능
   useEffect(() => {
     if (!sectionsContainerRef.current) return
 
@@ -1300,118 +913,6 @@ function App() {
     }
   }, [isDraggingAny])
 
-  // 격려 메시지 가져오기
-  const fetchEncouragementMessages = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('encouragement_messages')
-        .select('*')
-        .order('order_index', { ascending: true })
-
-      if (error) throw error
-
-      if (data && data.length > 0) {
-        const messages = data.map(item => item.message)
-        setEncouragementMessages(messages)
-        // 현재 메시지가 없으면 첫 번째 메시지로 설정
-        if (!currentEncouragementMessage) {
-          setCurrentEncouragementMessage(messages[0])
-        }
-      }
-    } catch (error) {
-      console.error('격려 메시지 가져오기 오류:', error.message)
-    }
-  }
-
-  // 격려 메시지 추가
-  const addEncouragementMessage = async (message) => {
-    try {
-      // 현재 최대 order_index 찾기
-      const { data: existingMessages } = await supabase
-        .from('encouragement_messages')
-        .select('order_index')
-        .order('order_index', { ascending: false })
-        .limit(1)
-
-      const maxOrder = existingMessages && existingMessages.length > 0
-        ? existingMessages[0].order_index
-        : 0
-
-      const { error } = await supabase
-        .from('encouragement_messages')
-        .insert([{ message, order_index: maxOrder + 1, user_id: session?.user?.id }])
-
-      if (error) throw error
-
-      // 목록 새로고침
-      await fetchEncouragementMessages()
-    } catch (error) {
-      console.error('격려 메시지 추가 오류:', error.message)
-      alert('격려 메시지 추가에 실패했습니다.')
-    }
-  }
-
-  // 격려 메시지 수정
-  const updateEncouragementMessage = async (index, newMessage) => {
-    try {
-      // 현재 메시지 목록에서 해당 인덱스의 메시지 찾기
-      const { data: allMessages } = await supabase
-        .from('encouragement_messages')
-        .select('*')
-        .order('order_index', { ascending: true })
-
-      if (!allMessages || index >= allMessages.length) {
-        throw new Error('메시지를 찾을 수 없습니다.')
-      }
-
-      const targetMessage = allMessages[index]
-
-      const { error } = await supabase
-        .from('encouragement_messages')
-        .update({ message: newMessage })
-        .eq('id', targetMessage.id)
-
-      if (error) throw error
-
-      // 목록 새로고침
-      await fetchEncouragementMessages()
-    } catch (error) {
-      console.error('격려 메시지 수정 오류:', error.message)
-      alert('격려 메시지 수정에 실패했습니다.')
-    }
-  }
-
-  // 격려 메시지 삭제
-  const deleteEncouragementMessage = async (index) => {
-    try {
-      // 현재 메시지 목록에서 해당 인덱스의 메시지 찾기
-      const { data: allMessages } = await supabase
-        .from('encouragement_messages')
-        .select('*')
-        .order('order_index', { ascending: true })
-
-      if (!allMessages || index >= allMessages.length) {
-        throw new Error('메시지를 찾을 수 없습니다.')
-      }
-
-      const targetMessage = allMessages[index]
-
-      const { error } = await supabase
-        .from('encouragement_messages')
-        .delete()
-        .eq('id', targetMessage.id)
-
-      if (error) throw error
-
-      // 목록 새로고침
-      await fetchEncouragementMessages()
-    } catch (error) {
-      console.error('격려 메시지 삭제 오류:', error.message)
-      alert('격려 메시지 삭제에 실패했습니다.')
-    }
-  }
-
-
   // Google 로그인 인증 화면
   const authScreen = GoogleAuthButton({ authLoading, session, handleGoogleLogin })
   if (authScreen) return authScreen
@@ -1449,7 +950,6 @@ function App() {
           onNextDay={handleNextDay}
           showEncouragementEmoji={showEncouragementEmoji}
           currentEncouragementMessage={currentEncouragementMessage}
-          getRandomEncouragement={getRandomEncouragement}
           onEncouragementClick={handleEncouragementClick}
           isReorderMode={isReorderMode}
           setIsReorderMode={setIsReorderMode}

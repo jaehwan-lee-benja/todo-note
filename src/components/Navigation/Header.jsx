@@ -12,7 +12,6 @@ function Header({
   onNextDay,
   showEncouragementEmoji,
   currentEncouragementMessage,
-  getRandomEncouragement,
   onEncouragementClick,
   isReorderMode,
   setIsReorderMode
@@ -52,7 +51,7 @@ function Header({
               {showEncouragementEmoji ? (
                 <span className="encouragement-emoji">🔥 🔥 🔥</span>
               ) : (
-                currentEncouragementMessage || getRandomEncouragement()
+                currentEncouragementMessage || '화이팅!'
               )}
             </div>
           ) : (
