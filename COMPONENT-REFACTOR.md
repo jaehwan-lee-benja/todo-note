@@ -1,12 +1,12 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 📅 마지막 업데이트: 2025-12-13
-> 🎯 상태: Phase 2 (부분), Phase 9 완료 - 커스텀 훅 5개 생성 완료
-> 📊 진행률: 54% (27/50)
-> 📝 App.jsx: 4,326줄 (원래 8,087줄에서 3,761줄 감소, 46.5% 감소)
+> 📅 마지막 업데이트: 2025-12-14
+> 🎯 상태: Phase 2 완료, Phase 9 완료, Phase 10.1 완료 - 커스텀 훅 적용 완료
+> 📊 진행률: 60% (30/50)
+> 📝 App.jsx: 2,259줄 (원래 8,087줄에서 5,828줄 감소, 72.1% 감소)
 >
-> **⚠️ 다음 작업**: 생성된 커스텀 훅을 App.jsx에 적용 필요
+> **⚠️ 다음 작업**: App.jsx 최종 정리 (목표: 500-800줄)
 
 ---
 
@@ -122,17 +122,17 @@ src/
 - [x] **1.4** formatters.js 생성
 - [x] **1.5** variables.css 생성 (색상, 크기 변수)
 
-### 🔄 Phase 2: Hooks 분리 (6-15) - 진행 중 (60% 완료)
+### ✅ Phase 2: Hooks 분리 (6-15) - 완료
 - [x] **2.1** useAuth.js (세션, 로그인) ✅
 - [x] **2.2** useSupabase.js (이미 supabaseClient.js로 존재, 생략) ✅
-- [x] **2.3** useTodos.js (투두 CRUD) ✅ **NEW** - 파일 생성 완료
-- [x] **2.4** useRoutines.js (루틴 관리) ✅ **NEW** - 파일 생성 완료
-- [x] **2.5** useMemo.js (메모 관리) ✅ **NEW** - 파일 생성 완료
-- [x] **2.6** useKeyThoughts.js (주요 생각정리) ✅ **NEW** - 파일 생성 완료
+- [x] **2.3** useTodos.js (투두 CRUD) ✅ - 파일 생성 완료
+- [x] **2.4** useRoutines.js (루틴 관리) ✅ - 파일 생성 완료
+- [x] **2.5** useMemo.js (메모 관리) ✅ - 파일 생성 완료
+- [x] **2.6** useKeyThoughts.js (주요 생각정리) ✅ - 파일 생성 완료
 - [x] **2.7** useCarryOver.js (useTodos에 포함됨, 생략) ✅
-- [x] **2.8** useSectionOrder.js (섹션 순서) ✅ **NEW** - 파일 생성 완료
-- [ ] **2.9** App.jsx에 훅 import 및 적용 ⚠️ **다음 작업**
-- [ ] **2.10** 테스트 & 커밋
+- [x] **2.8** useSectionOrder.js (섹션 순서) ✅ - 파일 생성 완료
+- [x] **2.9** App.jsx에 훅 import 및 적용 ✅ - 순환 종속성 해결 완료
+- [x] **2.10** 테스트 & 커밋 ✅
 
 ### ✅ Phase 3: Common 컴포넌트 (16-20) - 완료
 - [x] **3.1** AppleTimePicker.jsx 분리
@@ -180,9 +180,9 @@ src/
 - [x] **9.1** GoogleAuthButton.jsx 분리 (61줄) ✅ **NEW**
 - [x] **9.2** 테스트 & 커밋 (46줄 감소, App.jsx: 4,372→4,326줄) ✅
 
-### ⏳ Phase 10: 최종 정리 (46-50) - 대기 중
-- [ ] **10.1** App.jsx에 커스텀 훅 적용 (Phase 2.9) ⚠️ **다음 작업**
-- [ ] **10.2** App.jsx 최종 정리 (목표: 500-800줄)
+### 🔄 Phase 10: 최종 정리 (46-50) - 진행 중
+- [x] **10.1** App.jsx에 커스텀 훅 적용 ✅ - 2,067줄 감소 (4,326→2,259줄)
+- [ ] **10.2** App.jsx 최종 정리 (목표: 500-800줄) ⚠️ **다음 작업**
 - [ ] **10.3** CSS 파일 최종 정리
 - [ ] **10.4** import 최적화
 - [ ] **10.5** 불필요한 코드 제거
@@ -193,13 +193,16 @@ src/
 
 ## 📌 진행 상황 추적
 
-### 현재 상태 (2025-12-13)
-**작업 완료**: Phase 1 (5/5), Phase 2 (6/8), Phase 3 (5/5), Phase 4 (5/5), Phase 5 (4/4), Phase 6 (4/4), Phase 7 (3/6), Phase 8 (6/6), Phase 9 (2/2) ✅
-**다음 세션 시작점**: Phase 10.1 - App.jsx에 커스텀 훅 적용
+### 현재 상태 (2025-12-14)
+**작업 완료**: Phase 1 (5/5), Phase 2 (10/10), Phase 3 (5/5), Phase 4 (5/5), Phase 5 (4/4), Phase 6 (4/4), Phase 7 (3/6), Phase 8 (6/6), Phase 9 (2/2), Phase 10 (1/7) ✅
+**다음 세션 시작점**: Phase 10.2 - App.jsx 최종 정리
+**주요 성과**:
+- 5개 커스텀 훅 성공적으로 적용 완료
+- 순환 종속성 해결 (useTodos ↔ useRoutines)
+- App.jsx 2,067줄 감소 (4,326→2,259줄, 72.1% 감소)
 **권장사항**:
-- 생성된 5개 커스텀 훅(useTodos, useRoutines, useMemo, useKeyThoughts, useSectionOrder)을 App.jsx에 적용
-- 신중한 리팩토링 필요 (Agent 자동화보다 수동 작업 권장)
-- 목표: App.jsx 500-800줄까지 감소
+- 남은 코드 분석 후 추가 컴포넌트 분리 가능성 검토
+- 목표: App.jsx 500-800줄까지 추가 감소
 
 ### 완료된 단계
 - ✅ **Phase 1 완료** (5/5 단계)
@@ -244,27 +247,30 @@ src/
   - ✅ Phase 8.4 - EncouragementModal.jsx 분리 (133줄) - 격려 문구 관리
   - ✅ Phase 8.5 - KeyThoughtsHistoryModal.jsx 분리 (97줄) - 주요 생각정리 히스토리
   - ✅ Phase 8.6 - App.jsx에 import 및 적용, 테스트 완료, 커밋 (522줄 감소, App.jsx: 4,894→4,372줄)
-- 🔄 **Phase 2 진행 중** (6/8 완료) **NEW** 📅 2025-12-13
+- ✅ **Phase 2 완료** (10/10 단계) 📅 2025-12-13~14
+  - ✅ Phase 2.1 - useAuth.js 분리 완료
   - ✅ Phase 2.3 - useTodos.js 분리 완료 - 투두 CRUD, 이월 로직 등 28개 state + 27개 함수
   - ✅ Phase 2.4 - useRoutines.js 분리 완료 - 루틴 관리 12개 state + 15개 함수
   - ✅ Phase 2.5 - useMemo.js 분리 완료 (125줄) - 메모 관리 기능
   - ✅ Phase 2.6 - useKeyThoughts.js 분리 완료 (265줄) - 주요 생각정리 블록 관리
   - ✅ Phase 2.8 - useSectionOrder.js 분리 완료 (150줄) - 섹션 순서 관리
-  - ⏳ Phase 2.9 - App.jsx 적용 대기 중 (다음 작업)
-- ✅ **Phase 9 완료** (2/2 단계) **NEW** 📅 2025-12-13
+  - ✅ Phase 2.9 - App.jsx 적용 완료 - 순환 종속성 해결 (todos 상태를 App.jsx에서 관리)
+  - ✅ Phase 2.10 - 테스트 완료 (2,067줄 감소, App.jsx: 4,326→2,259줄)
+- ✅ **Phase 9 완료** (2/2 단계) 📅 2025-12-13
   - ✅ Phase 9.1 - GoogleAuthButton.jsx 분리 (61줄) - 인증 화면 컴포넌트
   - ✅ Phase 9.2 - 테스트 완료, 커밋 (46줄 감소, App.jsx: 4,372→4,326줄)
+- 🔄 **Phase 10 진행 중** (1/7 단계) 📅 2025-12-14
+  - ✅ Phase 10.1 - App.jsx에 커스텀 훅 적용 완료 (2,067줄 감소)
 
-### 다음 작업 (Phase 2.9 - 훅 적용)
-⚠️ **주의**: 복잡한 작업으로 수동 리팩토링 권장
-- [ ] Phase 2.9 - App.jsx에 5개 커스텀 훅 적용
-  - useTodos 통합 (예상 감소: ~1,500줄)
-  - useRoutines 통합 (예상 감소: ~600줄)
-  - useMemo 통합 (예상 감소: ~120줄)
-  - useKeyThoughts 통합 (예상 감소: ~300줄)
-  - useSectionOrder 통합 (예상 감소: ~150줄)
-- [ ] Phase 2.10 - 전체 테스트 및 커밋
-- **예상 최종 App.jsx 크기**: 1,500-1,700줄 (현재 4,326줄)
+### 다음 작업 (Phase 10.2 - 최종 정리)
+⚠️ **현재 상태**: App.jsx 2,259줄 (원본 8,087줄에서 72.1% 감소)
+- [ ] Phase 10.2 - App.jsx 코드 분석 및 추가 분리 가능성 검토
+  - 대용량 함수 컴포넌트화 가능성 검토
+  - 중복 코드 제거
+  - 복잡한 로직 간소화
+- [ ] Phase 10.3 - CSS 파일 정리 (App.css 5,024줄)
+- [ ] Phase 10.4 - import 최적화 및 정리
+- **최종 목표**: App.jsx 500-800줄까지 감소
 
 ---
 

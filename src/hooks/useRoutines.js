@@ -468,6 +468,7 @@ export const useRoutines = ({
   return {
     // State
     routines,
+    setRoutines,
     routineInput,
     selectedDays,
     selectedTimeSlot,

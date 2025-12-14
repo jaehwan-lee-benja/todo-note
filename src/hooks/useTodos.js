@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
 import { formatDateForDB } from '../utils/dateUtils'
 
-export const useTodos = (session, supabase, selectedDate, routines, setRoutines) => {
+export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines) => {
   // State
-  const [todos, setTodos] = useState([])
+  // todos와 setTodos는 App 컴포넌트에서 전달받음
   const [inputValue, setInputValue] = useState('')
   const [routineInputValue, setRoutineInputValue] = useState('')
   const [normalInputValue, setNormalInputValue] = useState('')
@@ -1055,8 +1055,7 @@ export const useTodos = (session, supabase, selectedDate, routines, setRoutines)
 
   return {
     // State
-    todos,
-    setTodos,
+    // todos와 setTodos는 App에서 관리하므로 반환하지 않음
     inputValue,
     setInputValue,
     routineInputValue,

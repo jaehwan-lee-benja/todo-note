@@ -148,47 +148,9 @@ function App() {
   const [showSidebar, setShowSidebar] = useState(false)
   const recentlyEditedIds = useRef(new Set())
 
-  // todos state를 먼저 선언 (useRoutines와 useTodos가 공유)
-  const [todos, setTodos] = useState([])
-
-  // 루틴 관리 (먼저 호출)
+  // 투두 관리
   const {
-    showRoutineModal, setShowRoutineModal,
-    routines, setRoutines,
-    routineInput, setRoutineInput,
-    selectedDays, setSelectedDays,
-    selectedTimeSlot, setSelectedTimeSlot,
-    isAddingRoutine,
-    editingRoutineId, setEditingRoutineId,
-    editingRoutineText, setEditingRoutineText,
-    showRoutineHistory, setShowRoutineHistory,
-    selectedRoutineForHistory, setSelectedRoutineForHistory,
-    routineHistoryData, setRoutineHistoryData,
-    editingRoutineDays, setEditingRoutineDays,
-    fetchRoutines,
-    handleAddRoutine,
-    handleCreateRoutineFromTodo,
-    handleStartEditRoutine,
-    handleCancelEditRoutine,
-    handleSaveEditRoutine,
-    handleToggleEditDay,
-    handleDeleteRoutine,
-    fetchRoutineHistory,
-    handleCloseRoutineHistory,
-    handleOpenRoutine,
-    handleCloseRoutine,
-    handleToggleDay,
-  } = useRoutines({
-    session,
-    supabase,
-    selectedDate,
-    setTodos,
-    setSuccessToastMessage: () => {},
-    setShowSuccessToast: () => {},
-  })
-
-  // 투두 관리 (루틴 다음에 호출, todos/setTodos는 destructuring에서 제외)
-  const {
+    todos, setTodos,
     inputValue, setInputValue,
     routineInputValue, setRoutineInputValue,
     normalInputValue, setNormalInputValue,
@@ -227,7 +189,43 @@ function App() {
     handleDragStart,
     handleDragCancel,
     handleDragEnd,
-  } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines)
+  } = useTodos(session, supabase, selectedDate, routines, setRoutines)
+
+  // 루틴 관리
+  const {
+    showRoutineModal, setShowRoutineModal,
+    routines, setRoutines,
+    routineInput, setRoutineInput,
+    selectedDays, setSelectedDays,
+    selectedTimeSlot, setSelectedTimeSlot,
+    isAddingRoutine,
+    editingRoutineId, setEditingRoutineId,
+    editingRoutineText, setEditingRoutineText,
+    showRoutineHistory, setShowRoutineHistory,
+    selectedRoutineForHistory, setSelectedRoutineForHistory,
+    routineHistoryData, setRoutineHistoryData,
+    editingRoutineDays, setEditingRoutineDays,
+    fetchRoutines,
+    handleAddRoutine,
+    handleCreateRoutineFromTodo,
+    handleStartEditRoutine,
+    handleCancelEditRoutine,
+    handleSaveEditRoutine,
+    handleToggleEditDay,
+    handleDeleteRoutine,
+    fetchRoutineHistory,
+    handleCloseRoutineHistory,
+    handleOpenRoutine,
+    handleCloseRoutine,
+    handleToggleDay,
+  } = useRoutines({
+    session,
+    supabase,
+    selectedDate,
+    setTodos,
+    setSuccessToastMessage: () => {},
+    setShowSuccessToast: () => {},
+  })
   const [dummySessions, setDummySessions] = useState([])
   const [showDummyModal, setShowDummyModal] = useState(false)
   const [showDummySQL, setShowDummySQL] = useState(false)

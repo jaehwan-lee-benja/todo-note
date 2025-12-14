@@ -148,47 +148,9 @@ function App() {
   const [showSidebar, setShowSidebar] = useState(false)
   const recentlyEditedIds = useRef(new Set())
 
-  // todos state를 먼저 선언 (useRoutines와 useTodos가 공유)
-  const [todos, setTodos] = useState([])
-
-  // 루틴 관리 (먼저 호출)
+  // 투두 관리
   const {
-    showRoutineModal, setShowRoutineModal,
-    routines, setRoutines,
-    routineInput, setRoutineInput,
-    selectedDays, setSelectedDays,
-    selectedTimeSlot, setSelectedTimeSlot,
-    isAddingRoutine,
-    editingRoutineId, setEditingRoutineId,
-    editingRoutineText, setEditingRoutineText,
-    showRoutineHistory, setShowRoutineHistory,
-    selectedRoutineForHistory, setSelectedRoutineForHistory,
-    routineHistoryData, setRoutineHistoryData,
-    editingRoutineDays, setEditingRoutineDays,
-    fetchRoutines,
-    handleAddRoutine,
-    handleCreateRoutineFromTodo,
-    handleStartEditRoutine,
-    handleCancelEditRoutine,
-    handleSaveEditRoutine,
-    handleToggleEditDay,
-    handleDeleteRoutine,
-    fetchRoutineHistory,
-    handleCloseRoutineHistory,
-    handleOpenRoutine,
-    handleCloseRoutine,
-    handleToggleDay,
-  } = useRoutines({
-    session,
-    supabase,
-    selectedDate,
-    setTodos,
-    setSuccessToastMessage: () => {},
-    setShowSuccessToast: () => {},
-  })
-
-  // 투두 관리 (루틴 다음에 호출, todos/setTodos는 destructuring에서 제외)
-  const {
+    todos, setTodos,
     inputValue, setInputValue,
     routineInputValue, setRoutineInputValue,
     normalInputValue, setNormalInputValue,
@@ -227,7 +189,36 @@ function App() {
     handleDragStart,
     handleDragCancel,
     handleDragEnd,
-  } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines)
+  } = useTodos(session, selectedDate, setSelectedDate, recentlyEditedIds)
+
+  // 루틴 관리
+  const {
+    showRoutineModal, setShowRoutineModal,
+    routines, setRoutines,
+    routineInput, setRoutineInput,
+    selectedDays, setSelectedDays,
+    selectedTimeSlot, setSelectedTimeSlot,
+    isAddingRoutine,
+    editingRoutineId, setEditingRoutineId,
+    editingRoutineText, setEditingRoutineText,
+    showRoutineHistory, setShowRoutineHistory,
+    selectedRoutineForHistory, setSelectedRoutineForHistory,
+    routineHistoryData, setRoutineHistoryData,
+    editingRoutineDays, setEditingRoutineDays,
+    fetchRoutines,
+    handleAddRoutine,
+    handleCreateRoutineFromTodo,
+    handleStartEditRoutine,
+    handleCancelEditRoutine,
+    handleSaveEditRoutine,
+    handleToggleEditDay,
+    handleDeleteRoutine,
+    fetchRoutineHistory,
+    handleCloseRoutineHistory,
+    handleOpenRoutine,
+    handleCloseRoutine,
+    handleToggleDay,
+  } = useRoutines(session, selectedDate)
   const [dummySessions, setDummySessions] = useState([])
   const [showDummyModal, setShowDummyModal] = useState(false)
   const [showDummySQL, setShowDummySQL] = useState(false)
@@ -741,6 +732,148 @@ function App() {
     }
   }
 
+  // 과거의 모든 미완료 항목을 날짜별로 순차 이월 (복사 방식)
+  const movePastIncompleteTodosToToday = async () => {
+    // 이미 실행 중이면 중복 실행 방지
+    if (carryOverInProgress.current) {
+      return
+    }
+
+    try {
+      // 실행 시작 플래그 설정
+      carryOverInProgress.current = true
+
+      const today = new Date()
+      const todayStr = formatDateForDB(today)
+
+      // 과거의 가장 오래된 미완료 항목 날짜 찾기
+      const { data: oldestTodo, error: oldestError } = await supabase
+        .from('todos')
+        .select('date')
+        .lt('date', todayStr)
+        .eq('deleted', false)
+        .eq('completed', false)
+        .is('routine_id', null)
+        .order('date', { ascending: true })
+        .limit(1)
+
+      if (oldestError) throw oldestError
+
+      if (!oldestTodo || oldestTodo.length === 0) {
+        return // 이월할 항목이 없음
+      }
+
+      const oldestDate = new Date(oldestTodo[0].date + 'T00:00:00')
+
+      // 가장 오래된 날짜부터 어제까지, 하루씩 순차적으로 이월
+      let currentDate = new Date(oldestDate)
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+
+      let totalCarriedOver = 0
+
+      while (currentDate <= yesterday) {
+        const fromDateStr = formatDateForDB(currentDate)
+        const nextDate = new Date(currentDate)
+        nextDate.setDate(nextDate.getDate() + 1)
+        const toDateStr = formatDateForDB(nextDate)
+
+        // 현재 날짜의 미완료 항목 가져오기
+        const { data: incompleteTodos, error: fetchError } = await supabase
+          .from('todos')
+          .select('*')
+          .eq('date', fromDateStr)
+          .eq('deleted', false)
+          .eq('completed', false)
+          .is('routine_id', null)
+          .order('order_index', { ascending: true })
+
+        if (fetchError) throw fetchError
+
+        if (incompleteTodos && incompleteTodos.length > 0) {
+          // 다음 날의 기존 항목 가져오기
+          const { data: nextDayTodos, error: nextDayError } = await supabase
+            .from('todos')
+            .select('*')
+            .eq('date', toDateStr)
+            .eq('deleted', false)
+            .order('order_index', { ascending: true })
+
+          if (nextDayError) throw nextDayError
+
+          // 이미 이월된 항목 체크
+          const alreadyCarriedOverIds = new Set()
+          nextDayTodos?.forEach(t => {
+            if (t.original_todo_id !== null) {
+              alreadyCarriedOverIds.add(t.original_todo_id)
+            }
+          })
+
+          // 아직 이월되지 않은 항목만 필터링
+          const todosNeedCarryOver = incompleteTodos.filter(todo => {
+            const originalId = todo.original_todo_id || todo.id
+            return !alreadyCarriedOverIds.has(originalId)
+          })
+
+          if (todosNeedCarryOver.length > 0) {
+            // 원본 투두들의 created_at 조회
+            const originalIds = todosNeedCarryOver
+              .map(todo => todo.original_todo_id || todo.id)
+              .filter((id, index, self) => self.indexOf(id) === index)
+
+            const { data: originalTodos, error: originalError } = await supabase
+              .from('todos')
+              .select('id, created_at')
+              .in('id', originalIds)
+
+            if (originalError) throw originalError
+
+            const createdAtMap = {}
+            originalTodos?.forEach(t => {
+              createdAtMap[t.id] = t.created_at
+            })
+
+            const nextDayCount = nextDayTodos ? nextDayTodos.length : 0
+            const startIndex = nextDayCount + 1
+
+            // 다음 날로 복사
+            const todosToInsert = todosNeedCarryOver.map((todo, index) => {
+              const originalId = todo.original_todo_id || todo.id
+              return {
+                text: todo.text,
+                completed: false,
+                date: toDateStr,
+                created_at: createdAtMap[originalId] || todo.created_at,
+                order_index: startIndex + index,
+                original_todo_id: originalId,
+                parent_id: null,
+                routine_id: null
+              }
+            })
+
+            const { error: insertError } = await supabase
+              .from('todos')
+              .insert(todosToInsert)
+
+            if (insertError) throw insertError
+
+            totalCarriedOver += todosNeedCarryOver.length
+          }
+        }
+
+        // 다음 날로 이동
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+
+      if (totalCarriedOver > 0) {
+      }
+    } catch (error) {
+      console.error('과거 미완료 항목 이월 오류:', error.message)
+    } finally {
+      // 작업 완료 후 플래그 해제
+      carryOverInProgress.current = false
+    }
+  }
 
   // 스크롤바 표시 제어
   useEffect(() => {
@@ -1339,6 +1472,871 @@ function App() {
     }
   }
 
+  const fetchTodos = async () => {
+    try {
+      setLoading(true)
+      const dateStr = formatDateForDB(selectedDate)
+
+      // 오늘 날짜인 경우 미완료 투두 자동 이월
+      if (isToday(selectedDate)) {
+        await carryOverIncompleteTodos(dateStr)
+      }
+
+      // 해당 날짜의 요일에 맞는 루틴 투두 자동 생성
+      await createRoutineTodosForDate(dateStr)
+
+      // 하이브리드 조회: 새 방식(visible_dates) + 구 방식(date) 모두 지원
+      // TODO: 3단계 완료 후 서버 사이드 필터링으로 최적화
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('deleted', false)
+        .order('order_index', { ascending: true })
+
+      if (error) throw error
+
+      // 클라이언트 사이드 필터링
+      const filteredTodos = (data || []).filter(todo => {
+        // hidden_dates 체크 (새 방식, 구 방식 모두 적용)
+        const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(dateStr)
+        if (isHidden) {
+          return false // 숨김 처리된 투두는 표시하지 않음
+        }
+
+        // 새 방식: visible_dates에 현재 날짜가 포함되어 있는지 확인
+        if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
+          const isVisible = todo.visible_dates.includes(dateStr)
+          return isVisible
+        }
+
+        // 구 방식 (하위 호환): visible_dates가 없거나 빈 배열이면 date 컬럼 사용
+        return todo.date === dateStr
+      })
+
+      setTodos(filteredTodos)
+    } catch (error) {
+      console.error('할 일 가져오기 오류:', error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchTrash = async () => {
+    try {
+      // 모든 삭제된 항목 가져오기 (날짜 구분 없이 통합)
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .eq('deleted', true)
+        .order('deleted_date', { ascending: false })  // 최근 삭제된 순으로 정렬
+
+      if (error) throw error
+      setTrashedItems(data || [])
+    } catch (error) {
+      console.error('휴지통 가져오기 오류:', error.message)
+    }
+  }
+
+  const handleAddTodo = async () => {
+    if (inputValue.trim() === '' || isAdding) return
+
+    try {
+      setIsAdding(true)
+
+      // 새 항목은 맨 아래에 추가
+      const newOrderIndex = todos.length > 0 ? Math.max(...todos.map(t => t.order_index)) + 1 : 1
+
+      // 새 항목을 추가 (JSON 방식)
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: inputValue,
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr], // JSON 방식: 현재 날짜를 배열로 설정
+          hidden_dates: [],
+          user_id: session?.user?.id
+        }])
+        .select()
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos([...todos, data[0]])
+      setInputValue('')
+    } catch (error) {
+      console.error('할 일 추가 오류:', error.message)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleAddRoutineTodo = async () => {
+    if (routineInputValue.trim() === '' || isAdding) return
+
+    try {
+      setIsAdding(true)
+
+      const dateStr = formatDateForDB(selectedDate)
+
+      // 1. 빈 배열로 루틴 생성 (매일 반복)
+      const { data: routineData, error: routineError } = await supabase
+        .from('routines')
+        .insert([{
+          text: routineInputValue,
+          days: [], // 빈 배열 = 매일 반복
+          start_date: dateStr,
+          user_id: session?.user?.id
+        }])
+        .select()
+
+      if (routineError) throw routineError
+
+      const newRoutine = routineData[0]
+
+      // 2. 미정 루틴 투두들의 최대 order_index 찾기
+      const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
+      const newOrderIndex = pendingRoutineTodos.length > 0 ? Math.max(...pendingRoutineTodos.map(t => t.order_index)) + 1 : 1
+
+      // 3. 투두 생성 (루틴 ID 연결, 미정 표시 유지)
+      const { data: todoData, error: todoError } = await supabase
+        .from('todos')
+        .insert([{
+          text: routineInputValue,
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr],
+          hidden_dates: [],
+          routine_id: newRoutine.id, // 루틴 ID 연결
+          is_pending_routine: true, // 미정 루틴으로 표시 (요일 미설정)
+          user_id: session?.user?.id
+        }])
+        .select()
+
+      if (todoError) throw todoError
+
+      // 4. 로컬 상태 업데이트
+      setRoutines([newRoutine, ...routines])
+      setTodos([...todos, todoData[0]])
+      setRoutineInputValue('')
+    } catch (error) {
+      console.error('할 일 추가 오류:', error.message)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleAddNormalTodo = async () => {
+    if (normalInputValue.trim() === '' || isAdding) return
+
+    try {
+      setIsAdding(true)
+
+      // 일반 투두들의 최대 order_index 찾기
+      const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null)
+      const newOrderIndex = normalTodos.length > 0 ? Math.max(...normalTodos.map(t => t.order_index)) + 1 : 1
+
+      // 새 항목을 추가 (JSON 방식)
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: normalInputValue,
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr],
+          hidden_dates: [],
+          user_id: session?.user?.id
+        }])
+        .select()
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos([...todos, data[0]])
+      setNormalInputValue('')
+    } catch (error) {
+      console.error('할 일 추가 오류:', error.message)
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleToggleTodo = async (id) => {
+    const todo = todos.find(t => t.id === id)
+    if (!todo) return
+
+    try {
+      const newCompleted = !todo.completed
+      const completedAt = newCompleted ? new Date().toISOString() : null
+
+      // JSON 방식: 1개 투두만 업데이트 (간단!)
+      const { error } = await supabase
+        .from('todos')
+        .update({
+          completed: newCompleted,
+          completed_at: completedAt
+        })
+        .eq('id', id)
+
+      if (error) throw error
+
+      setTodos(todos.map(t =>
+        t.id === id ? { ...t, completed: newCompleted, completed_at: completedAt } : t
+      ))
+    } catch (error) {
+      console.error('할 일 토글 오류:', error.message)
+    }
+  }
+
+  // UI에서 투두 즉시 제거 (DB 업데이트 후 사용)
+  const handleRemoveTodoFromUI = (id) => {
+    setTodos(todos.filter(t => t.id !== id))
+  }
+
+  const handleDeleteTodo = async (id) => {
+    // 삭제할 todo 찾기
+    const todo = todos.find(t => t.id === id)
+    if (!todo) return
+
+    // visible_dates 확인 (여러 날짜에 보이는 투두인지 체크)
+    // 빈 배열도 체크해야 함 (빈 배열은 truthy이므로 length 체크 필요)
+    const visibleDates = (todo.visible_dates?.length > 0)
+      ? todo.visible_dates
+      : [todo.date || todo.created_date]
+
+    // 구 방식(복사 기반) 이월 투두인지 확인
+    const isOldStyleCarryover = todo.original_todo_id !== null && todo.original_todo_id !== undefined
+
+    // 새 방식: 여러 날짜에 보이는 경우 OR 구 방식: 이월된 투두인 경우 → 모달 표시
+    if (visibleDates.length > 1 || isOldStyleCarryover) {
+      setTodoToDelete(todo)
+      setShowDeleteConfirmModal(true)
+    } else {
+      // 단일 날짜 투두는 바로 삭제
+      await executeSimpleDelete(id)
+    }
+  }
+
+  // 단순 삭제 (단일 날짜 투두)
+  const executeSimpleDelete = async (id) => {
+    try {
+      const todo = todos.find(t => t.id === id)
+      if (!todo) return
+
+      // 삭제된 todo 저장
+      setDeletedTodo(todo)
+
+      // Soft delete: deleted=true, deleted_date=오늘
+      const dateStr = formatDateForDB(selectedDate)
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted: true, deleted_date: dateStr })
+        .eq('id', id)
+
+      if (error) throw error
+
+      // UI에서 제거
+      setTodos(todos.filter(t => t.id !== id))
+
+      // 토스트 표시
+      setShowUndoToast(true)
+
+      // 5초 후 토스트 자동 숨김
+      setTimeout(() => {
+        setShowUndoToast(false)
+        setDeletedTodo(null)
+      }, 5000)
+    } catch (error) {
+      console.error('할 일 삭제 오류:', error.message)
+    }
+  }
+
+  // 옵션 1: 이 날짜에서만 숨김 (hidden_dates에 추가)
+  const hideOnThisDateOnly = async (todo) => {
+    try {
+      const dateStr = formatDateForDB(selectedDate)
+      const currentHiddenDates = todo.hidden_dates || []
+
+      // hidden_dates에 현재 날짜 추가
+      const newHiddenDates = [...currentHiddenDates, dateStr]
+
+      const { error } = await supabase
+        .from('todos')
+        .update({ hidden_dates: newHiddenDates })
+        .eq('id', todo.id)
+
+      if (error) throw error
+
+      // UI에서 제거
+      setTodos(todos.filter(t => t.id !== todo.id))
+      setShowDeleteConfirmModal(false)
+      setTodoToDelete(null)
+    } catch (error) {
+      console.error('숨김 오류:', error.message)
+    }
+  }
+
+  // 옵션 2: 완전 삭제 (deleted = true)
+  const deleteCompletely = async (todo) => {
+    try {
+      const dateStr = formatDateForDB(selectedDate)
+
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted: true, deleted_date: dateStr })
+        .eq('id', todo.id)
+
+      if (error) throw error
+
+      // UI에서 제거
+      setTodos(todos.filter(t => t.id !== todo.id))
+      setShowDeleteConfirmModal(false)
+      setTodoToDelete(null)
+    } catch (error) {
+      console.error('삭제 오류:', error.message)
+    }
+  }
+
+  const handleUndoDelete = async () => {
+    if (!deletedTodo) return
+
+    try {
+      // Soft delete 취소: deleted=false, deleted_date=null
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted: false, deleted_date: null })
+        .eq('id', deletedTodo.id)
+
+      if (error) throw error
+
+      // UI에 다시 추가
+      setTodos(currentTodos => {
+        const restoredTodo = { ...deletedTodo, deleted: false, deleted_date: null }
+        const newTodos = [...currentTodos, restoredTodo]
+        return newTodos.sort((a, b) => a.order_index - b.order_index)
+      })
+
+      // 토스트 숨김
+      setShowUndoToast(false)
+      setDeletedTodo(null)
+    } catch (error) {
+      console.error('삭제 취소 오류:', error.message)
+    }
+  }
+
+  const handleRestoreFromTrash = async (id) => {
+    const confirmed = window.confirm(
+      '이 항목을 복원하시겠습니까?\n\n복원된 항목은 원래 날짜 페이지에서 다시 보입니다.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .update({
+          deleted: false,
+          deleted_date: null,
+          hidden_dates: []  // 복원 시 숨김 날짜도 초기화하여 모든 날짜에서 보이게
+        })
+        .eq('id', id)
+
+      if (error) throw error
+
+      // 휴지통에서 제거
+      setTrashedItems(trashedItems.filter(item => item.id !== id))
+
+      // 일반 리스트 새로고침
+      fetchTodos()
+
+      // 성공 알림
+      alert('✅ 복원되었습니다!')
+    } catch (error) {
+      console.error('복원 오류:', error.message)
+      alert('❌ 복원 실패: ' + error.message)
+    }
+  }
+
+  const handlePermanentDelete = async (id) => {
+    const confirmed = window.confirm(
+      '⚠️ 정말로 이 항목을 영구적으로 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+
+      // 휴지통에서 제거
+      setTrashedItems(trashedItems.filter(item => item.id !== id))
+
+      // 성공 알림
+      alert('🗑️ 영구적으로 삭제되었습니다.')
+    } catch (error) {
+      console.error('영구 삭제 오류:', error.message)
+      alert('❌ 영구 삭제 실패: ' + error.message)
+    }
+  }
+
+  const handleEmptyTrash = async () => {
+    if (trashedItems.length === 0) return
+
+    const confirmed = window.confirm(
+      `⚠️ 정말로 휴지통을 비우시겠습니까?\n\n${trashedItems.length}개의 항목이 영구적으로 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      // 모든 휴지통 항목의 ID 수집
+      const idsToDelete = trashedItems.map(item => item.id)
+
+      // 한 번에 모두 삭제
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .in('id', idsToDelete)
+
+      if (error) throw error
+
+      // UI 업데이트
+      setTrashedItems([])
+      alert(`✅ ${idsToDelete.length}개의 항목이 영구 삭제되었습니다.`)
+    } catch (error) {
+      console.error('휴지통 비우기 오류:', error.message)
+      alert('❌ 휴지통 비우기 실패: ' + error.message)
+    }
+  }
+
+  const handleOpenTrash = () => {
+    setShowTrashModal(true)
+    fetchTrash()
+  }
+
+  const handleCloseTrash = () => {
+    setShowTrashModal(false)
+  }
+
+  // 간트차트 관련 함수
+  const handleOpenGanttChart = async () => {
+    setShowGanttChart(true)
+    await fetchGanttData()
+  }
+
+  const handleCloseGanttChart = () => {
+    setShowGanttChart(false)
+    setGanttData([])
+  }
+
+  // 투두 히스토리 모달
+  const handleOpenTodoHistoryModal = async (todo) => {
+    setSelectedTodoForModal(todo)
+
+    // 히스토리 데이터 가져오기
+    try {
+      const { data, error } = await supabase
+        .from('todo_history')
+        .select('*')
+        .eq('todo_id', todo.id)
+        .order('changed_at', { ascending: false })
+
+      if (error) throw error
+
+      // todoHistory 객체 업데이트
+      setTodoHistory(prev => ({
+        ...prev,
+        [todo.id]: data || []
+      }))
+    } catch (error) {
+      console.error('Error fetching history:', error)
+    }
+
+    setShowTodoHistoryModal(true)
+  }
+
+  const handleCloseTodoHistoryModal = () => {
+    setShowTodoHistoryModal(false)
+    setSelectedTodoForModal(null)
+    setExpandedHistoryIds([]) // 펼쳐진 항목 초기화
+  }
+
+  // 히스토리 세부 내용 토글
+  const toggleHistoryDetail = (historyId) => {
+    setExpandedHistoryIds(prev =>
+      prev.includes(historyId)
+        ? prev.filter(id => id !== historyId)
+        : [...prev, historyId]
+    )
+  }
+
+  // 투두 루틴 설정 모달
+  const handleOpenTodoRoutineSetupModal = (todo) => {
+    setSelectedTodoForModal(todo)
+
+    // 기존 루틴이 있으면 요일과 시간대 설정
+    const currentRoutine = routines.find(r => r.id === todo.routine_id)
+    if (currentRoutine) {
+      setRoutineDaysForModal(currentRoutine.days || [])
+      setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
+      setIsEditingRoutineInModal(false) // 처음엔 보기 모드
+    } else {
+      setRoutineDaysForModal([])
+      setRoutineTimeSlotForModal('')
+      setIsEditingRoutineInModal(true) // 새로 만들 때는 편집 모드
+    }
+
+    setShowTodoRoutineSetupModal(true)
+  }
+
+  const handleCloseTodoRoutineSetupModal = () => {
+    setShowTodoRoutineSetupModal(false)
+    setSelectedTodoForModal(null)
+    // 루틴 편집 상태 초기화
+    setRoutineDaysForModal([])
+    setRoutineTimeSlotForModal('')
+    setIsEditingRoutineInModal(false)
+  }
+
+  // 모달에서 루틴 요일 토글
+  const handleToggleRoutineDayInModal = (dayKey) => {
+    setRoutineDaysForModal(prev =>
+      prev.includes(dayKey)
+        ? prev.filter(d => d !== dayKey)
+        : [...prev, dayKey]
+    )
+  }
+
+  const fetchGanttData = async () => {
+    try {
+      const today = new Date()
+      const todayStr = formatDateForDB(today)
+
+      // 기간 계산
+      let startDate = null
+      if (ganttPeriod !== 'all') {
+        startDate = new Date(today)
+        switch (ganttPeriod) {
+          case '1week':
+            startDate.setDate(today.getDate() - 7)
+            break
+          case '2weeks':
+            startDate.setDate(today.getDate() - 14)
+            break
+          case '1month':
+            startDate.setMonth(today.getMonth() - 1)
+            break
+          case '3months':
+            startDate.setMonth(today.getMonth() - 3)
+            break
+          case '6months':
+            startDate.setMonth(today.getMonth() - 6)
+            break
+        }
+      }
+
+      // 모든 투두 조회 (기간 필터링 포함)
+      let query = supabase
+        .from('todos')
+        .select('*')
+        .eq('deleted', false)
+        .is('routine_id', null) // 루틴 투두 제외
+        .order('created_at', { ascending: true })
+
+      if (startDate) {
+        query = query.gte('date', formatDateForDB(startDate))
+      }
+
+      const { data: allTodos, error } = await query
+
+      if (error) throw error
+
+      // original_todo_id로 그룹화 (같은 투두의 이월 버전들)
+      const groupedByOriginal = {}
+
+      for (const todo of allTodos || []) {
+        // 원본 ID 결정 (original_todo_id가 있으면 그것, 없으면 자신의 id)
+        const originalId = todo.original_todo_id || todo.id
+
+        if (!groupedByOriginal[originalId]) {
+          groupedByOriginal[originalId] = []
+        }
+        groupedByOriginal[originalId].push(todo)
+      }
+
+      // 배열로 변환하고 생성일 순서대로 정렬
+      const ganttItems = Object.entries(groupedByOriginal).map(([originalId, todos]) => {
+        // 날짜순 정렬
+        const sortedTodos = todos.sort((a, b) => new Date(a.date) - new Date(b.date))
+        const firstTodo = sortedTodos[0]
+
+        // 모든 날짜 추출
+        const allDates = sortedTodos.map(t => t.date)
+
+        // 완료 날짜 찾기 (completed_at이 있는 투두에서 추출)
+        let completedDate = null
+        for (const todo of sortedTodos) {
+          if (todo.completed && todo.completed_at) {
+            const completedAtDate = new Date(todo.completed_at)
+            completedDate = formatDateForDB(completedAtDate)
+            break
+          }
+        }
+
+        // 오늘 날짜에 있는 투두 찾기 (완료 여부 확인용)
+        const todayTodo = sortedTodos.find(t => t.date === todayStr)
+
+        return {
+          text: firstTodo.text,
+          originalId: parseInt(originalId),
+          createdAt: firstTodo.created_at,
+          startDate: allDates[0],
+          endDate: allDates[allDates.length - 1],
+          dates: allDates,
+          completed: todayTodo?.completed || false,
+          completedDate: completedDate
+        }
+      }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+
+      setGanttData(ganttItems)
+    } catch (error) {
+      console.error('간트차트 데이터 조회 오류:', error.message)
+    }
+  }
+
+  // 메모 관련 함수
+  const handleOpenMemo = async () => {
+    setShowMemoModal(true)
+    await fetchMemoContent()
+  }
+
+  const handleCloseMemo = () => {
+    setShowMemoModal(false)
+    setIsEditingMemo(false)
+    setMemoContent(memoOriginalContent) // 취소 시 원래 내용으로 복원
+  }
+
+  const handleFocusTodo = (id) => {
+    setFocusedTodoId(focusedTodoId === id ? null : id)
+  }
+
+  const handleAddSubTodo = async (parentId, subTodoText) => {
+    if (!subTodoText || subTodoText.trim() === '') return
+
+    try {
+      // 해당 부모의 서브 투두 개수 확인
+      const parentSubtodos = todos.filter(t => t.parent_id === parentId)
+      const newOrderIndex = parentSubtodos.length + 1
+
+      const dateStr = formatDateForDB(selectedDate)
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: subTodoText.trim(),
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          parent_id: parentId,
+          user_id: session?.user?.id
+        }])
+        .select()
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos([...todos, data[0]])
+    } catch (error) {
+      console.error('하위 할 일 추가 오류:', error.message)
+    }
+  }
+
+  const handleEditTodo = async (id, newText) => {
+    try {
+      let currentTodo = null
+
+      // 수정 중인 ID로 표시 (Realtime UPDATE 무시하기 위함)
+      recentlyEditedIds.current.add(id)
+
+      // 먼저 로컬 상태 업데이트 (즉각적인 UI 반영) - 함수형 업데이트 사용
+      const now = new Date().toISOString()
+      setTodos(prevTodos => {
+        currentTodo = prevTodos.find(t => t.id === id)
+        if (!currentTodo || currentTodo.text === newText) {
+          recentlyEditedIds.current.delete(id)
+          return prevTodos
+        }
+        return prevTodos.map(todo =>
+          todo.id === id ? { ...todo, text: newText, updated_at: now } : todo
+        )
+      })
+
+      if (!currentTodo || currentTodo.text === newText) return
+
+      // 히스토리에 변경 기록 추가 (어떤 날짜 페이지에서 변경되었는지도 기록)
+      const { error: historyError } = await supabase
+        .from('todo_history')
+        .insert([{
+          todo_id: id,
+          previous_text: currentTodo.text,
+          new_text: newText,
+          changed_on_date: currentTodo.date,
+          user_id: session?.user?.id
+        }])
+
+      if (historyError) {
+        console.error('히스토리 저장 오류:', historyError.message)
+      }
+
+      // 이월된 투두라면 원본의 히스토리에도 기록
+      if (currentTodo.original_todo_id) {
+        // 원본 투두 정보 가져오기
+        const { data: originalTodo, error: originalError } = await supabase
+          .from('todos')
+          .select('text, date')
+          .eq('id', currentTodo.original_todo_id)
+          .single()
+
+        if (!originalError && originalTodo) {
+          // 원본 투두의 히스토리에도 변경 기록 추가
+          await supabase
+            .from('todo_history')
+            .insert([{
+              todo_id: currentTodo.original_todo_id,
+              previous_text: currentTodo.text, // 이월 당시의 텍스트
+              new_text: newText,
+              changed_on_date: currentTodo.date, // 현재 페이지 날짜
+              user_id: session?.user?.id
+            }])
+        }
+      }
+
+      // 투두 텍스트 업데이트
+      const { error } = await supabase
+        .from('todos')
+        .update({ text: newText })
+        .eq('id', id)
+
+      if (error) {
+        console.error('할 일 수정 오류:', error.message)
+        // 오류 발생 시 원래 상태로 복구
+        setTodos(prevTodos =>
+          prevTodos.map(todo =>
+            todo.id === id ? currentTodo : todo
+          )
+        )
+        recentlyEditedIds.current.delete(id)
+      } else {
+        // 성공 시 5초 후 수정 완료 표시 제거
+        setTimeout(() => {
+          recentlyEditedIds.current.delete(id)
+        }, 5000)
+      }
+    } catch (error) {
+      console.error('할 일 수정 오류:', error.message)
+      recentlyEditedIds.current.delete(id)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddTodo()
+    }
+  }
+
+  // 드래그 앤 드롭 센서 설정 (투두 항목용)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 300,
+        tolerance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 500,
+        tolerance: 10,
+        distance: 10,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // 섹션 드래그 앤 드롭 센서 설정 (더 빠른 반응)
+  const sectionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 100,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // 드래그 시작 핸들러
+  const handleDragStart = () => {
+    setIsDraggingAny(true)
+  }
+
+  // 드래그 취소 핸들러
+  const handleDragCancel = () => {
+    setIsDraggingAny(false)
+  }
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = async (event) => {
+    setIsDraggingAny(false)
+
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = todos.findIndex((todo) => todo.id === active.id)
+    const newIndex = todos.findIndex((todo) => todo.id === over.id)
+
+    // 로컬 상태 즉시 업데이트
+    const newTodos = arrayMove(todos, oldIndex, newIndex)
+    setTodos(newTodos)
+
+    // Supabase에 새로운 순서 저장
+    try {
+      const updates = newTodos.map((todo, index) => ({
+        id: todo.id,
+        order_index: index + 1
+      }))
+
+      for (const update of updates) {
+        await supabase
+          .from('todos')
+          .update({ order_index: update.order_index })
+          .eq('id', update.id)
+      }
+    } catch (error) {
+      console.error('순서 업데이트 오류:', error.message)
+      // 오류 시 다시 가져오기
+      fetchTodos()
+    }
+  }
 
   // Google 로그인 인증 화면
   const authScreen = GoogleAuthButton({ authLoading, session, handleGoogleLogin })
