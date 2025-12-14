@@ -31,6 +31,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
   // Refs
   const carryOverInProgress = useRef(false)
+  const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
 
   // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
   const getDayKey = (dayNumber) => {
@@ -249,7 +250,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   }
 
   // 특정 날짜의 루틴 작업 자동 생성
-  const createRoutineTodosForDate = async (dateStr, routineCreationInProgress) => {
+  const createRoutineTodosForDate = async (dateStr) => {
     // 이미 생성 중이면 중복 실행 방지
     if (routineCreationInProgress.current.has(dateStr)) {
       return
@@ -363,10 +364,13 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   }
 
   // 투두 목록 가져오기
-  const fetchTodos = async (isToday, routineCreationInProgress) => {
+  const fetchTodos = async () => {
     try {
       setLoading(true)
       const dateStr = formatDateForDB(selectedDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const isToday = selectedDate.getTime() === today.getTime()
 
       // 오늘 날짜인 경우 미완료 투두 자동 이월
       if (isToday) {
@@ -374,7 +378,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       }
 
       // 해당 날짜의 요일에 맞는 루틴 투두 자동 생성
-      await createRoutineTodosForDate(dateStr, routineCreationInProgress)
+      await createRoutineTodosForDate(dateStr)
 
       // 하이브리드 조회: 새 방식(visible_dates) + 구 방식(date) 모두 지원
       const { data, error } = await supabase

@@ -1,12 +1,13 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 📅 마지막 업데이트: 2025-12-14
-> 🎯 상태: Phase 2 완료, Phase 9 완료, Phase 10.1 완료 - 커스텀 훅 적용 완료
+> 📅 마지막 업데이트: 2025-12-14 (Phase 10.1 진행 중)
+> 🎯 상태: Phase 10.1 진행 중 - 커스텀 훅 적용 후 에러 수정 작업 중
 > 📊 진행률: 60% (30/50)
-> 📝 App.jsx: 2,259줄 (원래 8,087줄에서 5,828줄 감소, 72.1% 감소)
+> 📝 App.jsx: ~2,300줄 (원래 8,087줄에서 ~5,700줄 감소, 약 70% 감소)
 >
-> **⚠️ 다음 작업**: App.jsx 최종 정리 (목표: 500-800줄)
+> **⚠️ 현재 상태**: 커스텀 훅 적용 완료 후 런타임 에러 수정 중
+> **🔴 다음 작업**: 남은 에러 수정 후 Phase 10.2 진행
 
 ---
 
@@ -194,15 +195,25 @@ src/
 ## 📌 진행 상황 추적
 
 ### 현재 상태 (2025-12-14)
-**작업 완료**: Phase 1 (5/5), Phase 2 (10/10), Phase 3 (5/5), Phase 4 (5/5), Phase 5 (4/4), Phase 6 (4/4), Phase 7 (3/6), Phase 8 (6/6), Phase 9 (2/2), Phase 10 (1/7) ✅
-**다음 세션 시작점**: Phase 10.2 - App.jsx 최종 정리
+**작업 완료**: Phase 1 (5/5), Phase 2 (10/10), Phase 3 (5/5), Phase 4 (5/5), Phase 5 (4/4), Phase 6 (4/4), Phase 7 (3/6), Phase 8 (6/6), Phase 9 (2/2)
+**진행 중**: Phase 10.1 - 커스텀 훅 적용 후 런타임 에러 수정 작업 중
+**다음 세션 시작점**: Phase 10.1 완료 (남은 에러 수정) → Phase 10.2 진행
 **주요 성과**:
 - 5개 커스텀 훅 성공적으로 적용 완료
 - 순환 종속성 해결 (useTodos ↔ useRoutines)
-- App.jsx 2,067줄 감소 (4,326→2,259줄, 72.1% 감소)
+- App.jsx 2,067줄 감소 (4,326→2,259줄, 47.8% 감소)
+- 원본 대비 72.1% 감소 (8,087→2,259줄)
+
+**🔴 현재 이슈**:
+- 커스텀 훅 적용 후 런타임 에러 수정 진행 중
+- 여러 함수 누락 및 destructuring 불일치 문제 발견
+- 현재까지 수정한 에러: routineCreationInProgress, handleOpenTrash, 중복 선언, handleOpenMemo, handleOpenGanttChart, sensors
+- **추가 확인 필요**: 브라우저에서 남은 런타임 에러 확인 및 전체 기능 테스트 필요
+
 **권장사항**:
-- 남은 코드 분석 후 추가 컴포넌트 분리 가능성 검토
-- 목표: App.jsx 500-800줄까지 추가 감소
+- Phase 10.1 완료: 모든 런타임 에러 수정 및 기능 테스트
+- Phase 10.2: 남은 코드 분석 후 추가 컴포넌트 분리 가능성 검토
+- 최종 목표: App.jsx 500-800줄까지 추가 감소
 
 ### 완료된 단계
 - ✅ **Phase 1 완료** (5/5 단계)
@@ -260,9 +271,23 @@ src/
   - ✅ Phase 9.1 - GoogleAuthButton.jsx 분리 (61줄) - 인증 화면 컴포넌트
   - ✅ Phase 9.2 - 테스트 완료, 커밋 (46줄 감소, App.jsx: 4,372→4,326줄)
 - 🔄 **Phase 10 진행 중** (1/7 단계) 📅 2025-12-14
-  - ✅ Phase 10.1 - App.jsx에 커스텀 훅 적용 완료 (2,067줄 감소)
+  - 🔄 Phase 10.1 - App.jsx에 커스텀 훅 적용 및 에러 수정 진행 중
+    * ✅ 5개 커스텀 훅 적용 완료 (2,067줄 감소)
+    * 🔄 런타임 에러 수정 진행 중
+    * ⚠️ **주요 수정 사항**:
+      - useTodos.js에 routineCreationInProgress ref 추가
+      - fetchTodos 함수 시그니처 수정 (파라미터 제거)
+      - App.jsx destructuring 수정 (handleRestoreFromTrash, handlePermanentDelete 등)
+      - 중복 state 선언 제거 (showTodoHistoryModal 등)
+      - 누락된 함수 추가 (handleFocusTodo, showSuccessMessage, handleUndoRoutineDelete, handleOpenMemo, handleOpenGanttChart)
+      - DnD sensors 추가 (sensors, sectionSensors)
+    * ⚠️ **추가 확인 필요 사항**:
+      - 남은 런타임 에러 확인 필요
+      - 모든 기능 동작 테스트 필요
+      - 드래그 앤 드롭 기능 테스트 필요
+      - 모달 오픈/클로즈 기능 테스트 필요
 
-### 다음 작업 (Phase 10.2 - 최종 정리)
+### 다음 작업 (Phase 10.1 완료 후 Phase 10.2)
 ⚠️ **현재 상태**: App.jsx 2,259줄 (원본 8,087줄에서 72.1% 감소)
 - [ ] Phase 10.2 - App.jsx 코드 분석 및 추가 분리 가능성 검토
   - 대용량 함수 컴포넌트화 가능성 검토

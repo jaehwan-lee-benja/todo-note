@@ -148,6 +148,38 @@ function App() {
   const [showSidebar, setShowSidebar] = useState(false)
   const recentlyEditedIds = useRef(new Set())
 
+  // DnD sensors 설정
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const sectionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    })
+  )
+
   // todos state를 먼저 선언 (useRoutines와 useTodos가 공유)
   const [todos, setTodos] = useState([])
 
@@ -178,6 +210,7 @@ function App() {
     handleOpenRoutine,
     handleCloseRoutine,
     handleToggleDay,
+    createRoutineTodos,
   } = useRoutines({
     session,
     supabase,
@@ -192,42 +225,88 @@ function App() {
     inputValue, setInputValue,
     routineInputValue, setRoutineInputValue,
     normalInputValue, setNormalInputValue,
-    loading, setLoading,
-    isDraggingAny, setIsDraggingAny,
+    loading,
+    isDraggingAny,
     isAdding,
     deletedTodo,
     showUndoToast,
     showSuccessToast,
     successToastMessage,
     lastDeleteAction,
-    showTrashModal, setShowTrashModal,
+    showTrashModal,
     trashedItems,
     focusedTodoId, setFocusedTodoId,
     showDeleteConfirmModal, setShowDeleteConfirmModal,
     todoToDelete, setTodoToDelete,
-    routineCreationInProgress,
     carryOverInProgress,
-    showSuccessMessage,
-    handleUndoRoutineDelete,
     fetchTodos,
     handleAddTodo,
+    handleAddRoutineTodo,
+    handleAddNormalTodo,
     handleToggleTodo,
     handleDeleteTodo,
-    handleRestoreTodo,
-    handlePermanentDeleteTodo,
-    handleToggleTrashModal,
+    handleRestoreFromTrash,
+    handlePermanentDelete,
     movePastIncompleteTodosToToday,
     carryOverIncompleteTodos,
-    createRoutineTodosForDate,
-    createRoutineTodos,
-    handleFocusTodo,
     handleAddSubTodo,
     handleEditTodo,
-    handleKeyDown,
     handleDragStart,
     handleDragCancel,
     handleDragEnd,
+    handleOpenTrash,
+    handleCloseTrash,
+    fetchTrash,
+    handleEmptyTrash,
+    handleUndoDelete,
+    handleOpenTodoHistoryModal,
+    handleCloseTodoHistoryModal,
+    handleOpenTodoRoutineSetupModal,
+    toggleHistoryDetail,
+    showTodoHistoryModal,
+    showTodoRoutineSetupModal,
+    selectedTodoForModal,
+    todoHistory,
+    expandedHistoryIds,
+    routineDaysForModal,
+    setRoutineDaysForModal,
+    isEditingRoutineInModal,
+    setIsEditingRoutineInModal,
+    routineTimeSlotForModal,
+    setRoutineTimeSlotForModal,
+    executeSimpleDelete,
+    hideOnThisDateOnly,
+    deleteCompletely,
+    handleRemoveTodoFromUI,
   } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines)
+
+  // 추가 헬퍼 함수들
+  const handleFocusTodo = (todoId) => {
+    setFocusedTodoId(todoId)
+  }
+
+  const showSuccessMessage = (message) => {
+    // 성공 메시지 표시 (Toast나 다른 방법으로)
+    console.log('Success:', message)
+  }
+
+  const handleUndoRoutineDelete = () => {
+    // 루틴 삭제 취소 로직
+    handleUndoDelete()
+  }
+
+  const handleOpenMemo = () => {
+    // 메모 섹션으로 스크롤
+    const memoSection = document.querySelector('.memo-section')
+    if (memoSection) {
+      memoSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const handleOpenGanttChart = () => {
+    setShowGanttChart(true)
+  }
+
   const [dummySessions, setDummySessions] = useState([])
   const [showDummyModal, setShowDummyModal] = useState(false)
   const [showDummySQL, setShowDummySQL] = useState(false)
@@ -278,14 +357,7 @@ function App() {
   const [editingEncouragementText, setEditingEncouragementText] = useState('')
   const [showEncouragementEmoji, setShowEncouragementEmoji] = useState(false)
   const [currentEncouragementMessage, setCurrentEncouragementMessage] = useState('')
-  const [showTodoHistoryModal, setShowTodoHistoryModal] = useState(false)
-  const [showTodoRoutineSetupModal, setShowTodoRoutineSetupModal] = useState(false)
-  const [selectedTodoForModal, setSelectedTodoForModal] = useState(null)
-  const [todoHistory, setTodoHistory] = useState({}) // todo_id를 키로 하는 히스토리 객체
-  const [expandedHistoryIds, setExpandedHistoryIds] = useState([]) // 펼쳐진 히스토리 항목 ID 목록
-  const [routineDaysForModal, setRoutineDaysForModal] = useState([]) // 모달에서 사용할 루틴 요일
-  const [isEditingRoutineInModal, setIsEditingRoutineInModal] = useState(false) // 모달에서 루틴 편집 중인지
-  const [routineTimeSlotForModal, setRoutineTimeSlotForModal] = useState('') // 모달에서 사용할 루틴 시간대
+  // showTodoHistoryModal, showTodoRoutineSetupModal 등은 useTodos에서 관리됨
   const [viewMode, setViewMode] = useState(() => {
     // 로컬스토리지에서 뷰 모드 불러오기
     const saved = localStorage.getItem('viewMode')
