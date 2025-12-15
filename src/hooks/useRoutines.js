@@ -34,6 +34,11 @@ export const useRoutines = ({
 
   // 루틴 목록 가져오기
   const fetchRoutines = async () => {
+    // 로그인하지 않은 상태에서는 루틴을 가져오지 않음
+    if (!session?.user?.id) {
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('routines')

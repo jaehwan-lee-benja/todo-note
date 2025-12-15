@@ -15,6 +15,15 @@ export function useSectionOrder(session) {
 
   // 섹션 순서 불러오기
   const fetchSectionOrder = async () => {
+    // 로그인하지 않은 상태에서는 localStorage만 확인
+    if (!session?.user?.id) {
+      const saved = localStorage.getItem('sectionOrder')
+      if (saved) {
+        setSectionOrder(JSON.parse(saved))
+      }
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('user_settings')

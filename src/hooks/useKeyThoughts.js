@@ -215,19 +215,75 @@ export function useKeyThoughts(session) {
         return
       }
 
-      if (!window.confirm('이 버전으로 복구하시겠습니까? 현재 내용은 새 버전으로 저장됩니다.')) {
+      if (!window.confirm('이 버전으로 복구하시겠습니까?\n현재 내용은 백업으로 자동 저장됩니다.')) {
         return
       }
 
+      // 1. 현재 내용을 히스토리에 백업 (복구 전 상태 보존)
+      if (hasSignificantChange(lastSavedKeyThoughtsRef.current, keyThoughtsBlocks)) {
+        await supabase
+          .from('key_thoughts_history')
+          .insert([{
+            content: keyThoughtsBlocks,
+            description: '복구 전 자동 백업',
+            user_id: session.user.id
+          }])
+      }
+
+      // 2. 복구할 버전으로 교체
       const restoredBlocks = normalizeBlocks(version.content)
       setKeyThoughtsBlocks(restoredBlocks)
-      lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(restoredBlocks))
-      await handleSaveKeyThoughts()
 
-      alert('복구되었습니다!')
+      // 3. DB에 저장 (user_settings 테이블)
+      localStorage.setItem('keyThoughtsBlocks', JSON.stringify(restoredBlocks))
+
+      const { data: existing, error: selectError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('setting_key', 'key_thoughts_blocks')
+        .maybeSingle()
+
+      if (selectError) {
+        console.error('주요 생각정리 조회 오류:', selectError.message)
+        alert('복구에 실패했습니다.')
+        return
+      }
+
+      if (existing) {
+        await supabase
+          .from('user_settings')
+          .update({ setting_value: JSON.stringify(restoredBlocks) })
+          .eq('setting_key', 'key_thoughts_blocks')
+      } else {
+        await supabase
+          .from('user_settings')
+          .insert([{
+            setting_key: 'key_thoughts_blocks',
+            setting_value: JSON.stringify(restoredBlocks),
+            user_id: session.user.id
+          }])
+      }
+
+      // 4. 복구된 내용을 히스토리에 저장
+      await supabase
+        .from('key_thoughts_history')
+        .insert([{
+          content: restoredBlocks,
+          description: `버전 복구 (${new Date(version.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`,
+          user_id: session.user.id
+        }])
+
+      // 5. 마지막 저장 참조 업데이트
+      lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(restoredBlocks))
+
+      alert('✅ 복구가 완료되었습니다!')
       setShowKeyThoughtsHistory(false)
+
+      // 히스토리 목록 새로고침
+      await fetchKeyThoughtsHistory()
     } catch (error) {
       console.error('버전 복구 오류:', error.message)
+      alert('❌ 복구 중 오류가 발생했습니다: ' + error.message)
     }
   }
 

@@ -31,7 +31,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
   // Refs
   const carryOverInProgress = useRef(false)
-  const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
+  const routineCreationInProgress = useRef(new Set())
+  const recentlyEditedIds = useRef(new Set())
 
   // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
   const getDayKey = (dayNumber) => {
@@ -60,34 +61,46 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       if (error) throw error
       if (!allTodos || allTodos.length === 0) return
 
-      // 오늘 이전 날짜에 생성된 미완료 투두 중, 오늘 날짜가 visible_dates에 없는 것만 필터링
+      // 오늘 이전 날짜의 미완료 투두 중, 오늘 날짜가 visible_dates에 없는 것만 필터링
       const todosToCarryOver = allTodos.filter(todo => {
-        // created_at 날짜가 오늘 이전인지 확인
-        const createdDate = new Date(todo.created_at)
-        const createdDateStr = formatDateForDB(createdDate)
-
-        if (createdDateStr >= todayStr) {
-          return false // 오늘 생성된 투두는 이월 대상이 아님
-        }
-
-        // visible_dates에 오늘 날짜가 이미 있으면 제외
-        const visibleDates = todo.visible_dates || []
-        if (visibleDates.includes(todayStr)) {
-          return false
-        }
-
         // hidden_dates에 오늘 날짜가 있으면 제외 (숨김 처리된 경우)
         const hiddenDates = todo.hidden_dates || []
         if (hiddenDates.includes(todayStr)) {
           return false
         }
 
-        return true
+        // 새 방식: visible_dates 사용
+        if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
+          // visible_dates에 오늘 날짜가 이미 있으면 제외
+          if (todo.visible_dates.includes(todayStr)) {
+            return false
+          }
+          // visible_dates의 모든 날짜가 오늘 이전이면 이월 대상
+          const hasOldDate = todo.visible_dates.some(dateStr => dateStr < todayStr)
+          return hasOldDate
+        }
+
+        // 구 방식: date 필드 사용 (하위 호환)
+        if (todo.date && todo.date < todayStr) {
+          return true
+        }
+
+        return false
       })
+
+      if (todosToCarryOver.length === 0) return
 
       // 이월 대상 투두의 visible_dates에 오늘 날짜 추가
       for (const todo of todosToCarryOver) {
-        const updatedVisibleDates = [...(todo.visible_dates || []), todayStr]
+        let updatedVisibleDates = []
+
+        // visible_dates가 있으면 기존 값에 추가
+        if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
+          updatedVisibleDates = [...todo.visible_dates, todayStr]
+        } else {
+          // visible_dates가 없으면 date 필드를 포함해서 초기화
+          updatedVisibleDates = todo.date ? [todo.date, todayStr] : [todayStr]
+        }
 
         const { error: updateError } = await supabase
           .from('todos')
@@ -365,12 +378,18 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
   // 투두 목록 가져오기
   const fetchTodos = async () => {
+    // 로그인하지 않은 상태에서는 투두를 가져오지 않음
+    if (!session?.user?.id) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const dateStr = formatDateForDB(selectedDate)
       const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const isToday = selectedDate.getTime() === today.getTime()
+      const todayStr = formatDateForDB(today)
+      const isToday = dateStr === todayStr
 
       // 오늘 날짜인 경우 미완료 투두 자동 이월
       if (isToday) {
@@ -832,7 +851,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   }
 
   // 투두 수정
-  const handleEditTodo = async (id, newText, recentlyEditedIds) => {
+  const handleEditTodo = async (id, newText) => {
     try {
       let currentTodo = null
 

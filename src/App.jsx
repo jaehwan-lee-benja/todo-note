@@ -20,8 +20,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DAYS, DEFAULT_SPEC_CONTENT, AUTO_SAVE_DELAY } from './utils/constants'
-import { formatDateForDB, formatDateOnly, formatDate, isToday } from './utils/dateUtils'
+import { DAYS } from './utils/constants'
+import { formatDateForDB, formatDateOnly, formatDate } from './utils/dateUtils'
 import { useAuth } from './hooks/useAuth'
 import AppleTimePicker from './components/Common/AppleTimePicker'
 import Toast from './components/Common/Toast'
@@ -186,7 +186,6 @@ function App() {
   // todos state를 먼저 선언 (useRoutines와 useTodos가 공유)
   const [todos, setTodos] = useState([])
 
-  // 루틴 관리 (먼저 호출)
   const {
     showRoutineModal, setShowRoutineModal,
     routines, setRoutines,
@@ -223,7 +222,6 @@ function App() {
     setShowSuccessToast: () => {},
   })
 
-  // 투두 관리 (루틴 다음에 호출, todos/setTodos는 destructuring에서 제외)
   const {
     inputValue, setInputValue,
     routineInputValue, setRoutineInputValue,
@@ -284,30 +282,25 @@ function App() {
     handleRemoveTodoFromUI,
   } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines)
 
-  // 추가 헬퍼 함수들
   const handleFocusTodo = (todoId) => {
     setFocusedTodoId(todoId)
   }
 
   const showSuccessMessage = (message) => {
-    // 성공 메시지 표시 (Toast나 다른 방법으로)
     console.log('Success:', message)
   }
 
   const handleUndoRoutineDelete = () => {
-    // 루틴 삭제 취소 로직
     handleUndoDelete()
   }
 
   const handleOpenMemo = () => {
-    // 메모 섹션으로 스크롤
     const memoSection = document.querySelector('.memo-section')
     if (memoSection) {
       memoSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 
-  // 간트차트 관리
   const {
     showGanttChart,
     ganttData,
@@ -318,7 +311,6 @@ function App() {
     fetchGanttData,
   } = useGanttChart(supabase)
 
-  // 더미 데이터 관리
   const {
     dummySessions,
     showDummyModal,
@@ -333,7 +325,6 @@ function App() {
 
   const [showMemoModal, setShowMemoModal] = useState(false)
 
-  // 메모 관리
   const {
     memoContent, setMemoContent,
     isEditingMemo, setIsEditingMemo,
@@ -351,7 +342,6 @@ function App() {
     handleResetMemo,
   } = useMemoHook(session)
 
-  // 주요 생각정리 관리
   const {
     isSavingKeyThoughts,
     keyThoughtsBlocks, setKeyThoughtsBlocks,
@@ -369,7 +359,6 @@ function App() {
     restoreKeyThoughtsVersion,
   } = useKeyThoughts(session)
 
-  // 격려 메시지 관리
   const {
     encouragementMessages,
     showEncouragementModal,
@@ -522,10 +511,14 @@ function App() {
     }
   }, [])
 
-  // 앱 시작 시 격려 메시지 가져오기
+  // 앱 시작 시 데이터 가져오기
   useEffect(() => {
     if (!session) return
     fetchEncouragementMessages()
+    fetchMemoContent()
+    fetchKeyThoughtsContent()
+    fetchRoutines()
+    fetchSectionOrder()
   }, [session])
 
   // 가로/세로 레이아웃에서 드래그로 스크롤 기능
@@ -881,7 +874,7 @@ function App() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [selectedDate])
+  }, [selectedDate, session])
 
   // 드래그 중 스크롤 차단
   useEffect(() => {
