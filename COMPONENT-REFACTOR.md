@@ -295,19 +295,21 @@ src/
   - 데이터 흐름 및 구현 순서 정의
   - 문서: USETODOS-DECOMPOSITION-DESIGN.md
 
-#### Step 2: 핵심 훅 분리
-- [ ] **11.3** useTodoCRUD.js 생성 (기본 CRUD 작업)
-  - todos state 관리
-  - createTodo, updateTodo, deleteTodo
-  - fetchTodos, saveTodo
-- [ ] **11.4** useTodoCarryOver.js 생성 (이월 로직)
+#### Step 2: 독립적 훅 분리 (useTodoHistory 완료)
+- [x] **11.3** useTodoHistory.js 생성 (히스토리 관리) ✅
+  - 히스토리 조회 및 모달 관리 (82줄)
+  - useTodos.js: 1,160줄 → 1,109줄 (-51줄)
+  - App.jsx에 selectedTodoForModal 공유 State 추가
+  - 로컬 + 배포 환경 모두 정상 작동 확인
+- [ ] **11.4** useTodoRoutineSetup.js 생성 (루틴 연동) - 진행 중
+  - 루틴 설정 모달 관리
+  - 루틴 요일 및 시간대 설정
+  - 예상: ~120줄
+- [ ] **11.5** useTodoCarryOver.js 생성 (이월 로직)
   - 자동 이월 로직
   - 수동 이월 처리
   - 이월 조건 검사
-- [ ] **11.5** useTodoHistory.js 생성 (히스토리 관리)
-  - 히스토리 조회
-  - 히스토리 저장
-  - 이전 버전 복구
+  - 예상: ~200줄
 
 #### Step 3: 보조 훅 분리
 - [ ] **11.6** useTodoSubTasks.js 생성 (서브투두 관리)
@@ -420,10 +422,10 @@ App.css: 5,024줄 → ~200줄 (전역 스타일만)
 
 ## 📌 진행 상황 추적
 
-### 현재 상태 (2025-12-17) - Phase 11.1-11.2 완료
-**작업 완료**: Phase 1~10 전체 완료 ✅, Phase 11.1-11.2 완료 ✅
-**현재 작업**: Phase 11 Hook Decomposition 진행 중
-**다음 단계**: useTodoCRUD.js 생성 (11.3) 또는 독립적 훅부터 시작
+### 현재 상태 (2025-12-17) - Phase 11.3 완료, 11.4 진행 중
+**작업 완료**: Phase 1~10 전체 완료 ✅, Phase 11.1-11.3 완료 ✅
+**현재 작업**: Phase 11.4 useTodoRoutineSetup.js 분리 진행 중
+**다음 단계**: useTodoCarryOver.js 분리 (11.5)
 
 **주요 성과**:
 - ✅ 총 8개 커스텀 훅 생성 완료

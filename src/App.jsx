@@ -46,6 +46,7 @@ import { useKeyThoughts } from './hooks/useKeyThoughts'
 import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
 import { useTodoHistory } from './hooks/useTodoHistory'
+import { useTodoRoutineSetup } from './hooks/useTodoRoutineSetup'
 import { useDummyData } from './hooks/useDummyData'
 import { useEncouragement } from './hooks/useEncouragement'
 import { useGanttChart } from './hooks/useGanttChart'
@@ -241,6 +242,23 @@ function App() {
     setShowSuccessToast: () => {},
   })
 
+  // 투두 루틴 설정 훅
+  const {
+    showTodoRoutineSetupModal,
+    routineDaysForModal,
+    setRoutineDaysForModal,
+    isEditingRoutineInModal,
+    setIsEditingRoutineInModal,
+    routineTimeSlotForModal,
+    setRoutineTimeSlotForModal,
+    handleOpenTodoRoutineSetupModal,
+    handleCloseTodoRoutineSetupModal,
+  } = useTodoRoutineSetup({
+    selectedTodoForModal,
+    setSelectedTodoForModal,
+    routines,
+  })
+
   const {
     inputValue, setInputValue,
     routineInputValue, setRoutineInputValue,
@@ -279,15 +297,6 @@ function App() {
     fetchTrash,
     handleEmptyTrash,
     handleUndoDelete,
-    handleOpenTodoRoutineSetupModal,
-    handleCloseTodoRoutineSetupModal,
-    showTodoRoutineSetupModal,
-    routineDaysForModal,
-    setRoutineDaysForModal,
-    isEditingRoutineInModal,
-    setIsEditingRoutineInModal,
-    routineTimeSlotForModal,
-    setRoutineTimeSlotForModal,
     executeSimpleDelete,
     hideOnThisDateOnly,
     deleteCompletely,

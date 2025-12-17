@@ -18,11 +18,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   const [showTrashModal, setShowTrashModal] = useState(false)
   const [trashedItems, setTrashedItems] = useState([])
   const [focusedTodoId, setFocusedTodoId] = useState(null)
-  const [showTodoRoutineSetupModal, setShowTodoRoutineSetupModal] = useState(false)
   // selectedTodoForModal은 App.jsx에서 전달받음
-  const [routineDaysForModal, setRoutineDaysForModal] = useState([])
-  const [isEditingRoutineInModal, setIsEditingRoutineInModal] = useState(false)
-  const [routineTimeSlotForModal, setRoutineTimeSlotForModal] = useState('')
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
   const [todoToDelete, setTodoToDelete] = useState(null)
 
@@ -1012,35 +1008,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
   }
 
-  // 투두 루틴 설정 모달 열기
-  const handleOpenTodoRoutineSetupModal = (todo) => {
-    setSelectedTodoForModal(todo)
-
-    // 기존 루틴이 있으면 요일과 시간대 설정
-    const currentRoutine = routines.find(r => r.id === todo.routine_id)
-    if (currentRoutine) {
-      setRoutineDaysForModal(currentRoutine.days || [])
-      setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
-      setIsEditingRoutineInModal(false)
-    } else {
-      setRoutineDaysForModal([])
-      setRoutineTimeSlotForModal('')
-      setIsEditingRoutineInModal(true)
-    }
-
-    setShowTodoRoutineSetupModal(true)
-  }
-
-  // 투두 루틴 설정 모달 닫기
-  const handleCloseTodoRoutineSetupModal = () => {
-    setShowTodoRoutineSetupModal(false)
-    setSelectedTodoForModal(null)
-    // 루틴 편집 상태 초기화
-    setRoutineDaysForModal([])
-    setRoutineTimeSlotForModal('')
-    setIsEditingRoutineInModal(false)
-  }
-
   return {
     // State
     // todos와 setTodos는 App에서 관리하므로 반환하지 않음
@@ -1062,14 +1029,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     trashedItems,
     focusedTodoId,
     setFocusedTodoId,
-    showTodoRoutineSetupModal,
     selectedTodoForModal,
-    routineDaysForModal,
-    setRoutineDaysForModal,
-    isEditingRoutineInModal,
-    setIsEditingRoutineInModal,
-    routineTimeSlotForModal,
-    setRoutineTimeSlotForModal,
     showDeleteConfirmModal,
     setShowDeleteConfirmModal,
     todoToDelete,
@@ -1103,7 +1063,5 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleCloseTrash,
     handleDragStart,
     handleDragCancel,
-    handleOpenTodoRoutineSetupModal,
-    handleCloseTodoRoutineSetupModal,
   }
 }
