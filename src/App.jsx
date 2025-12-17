@@ -45,6 +45,7 @@ import { useMemo as useMemoHook } from './hooks/useMemo'
 import { useKeyThoughts } from './hooks/useKeyThoughts'
 import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
+import { useTodoHistory } from './hooks/useTodoHistory'
 import { useDummyData } from './hooks/useDummyData'
 import { useEncouragement } from './hooks/useEncouragement'
 import { useGanttChart } from './hooks/useGanttChart'
@@ -186,6 +187,24 @@ function App() {
   // todos state를 먼저 선언 (useRoutines와 useTodos가 공유)
   const [todos, setTodos] = useState([])
 
+  // 공유 UI State (여러 훅에서 사용)
+  const [selectedTodoForModal, setSelectedTodoForModal] = useState(null)
+
+  // 투두 히스토리 훅
+  const {
+    showTodoHistoryModal,
+    todoHistory,
+    expandedHistoryIds,
+    handleOpenTodoHistoryModal,
+    handleCloseTodoHistoryModal,
+    toggleHistoryDetail,
+  } = useTodoHistory({
+    session,
+    supabase,
+    selectedTodoForModal,
+    setSelectedTodoForModal,
+  })
+
   const {
     showRoutineModal, setShowRoutineModal,
     routines, setRoutines,
@@ -260,16 +279,9 @@ function App() {
     fetchTrash,
     handleEmptyTrash,
     handleUndoDelete,
-    handleOpenTodoHistoryModal,
-    handleCloseTodoHistoryModal,
     handleOpenTodoRoutineSetupModal,
     handleCloseTodoRoutineSetupModal,
-    toggleHistoryDetail,
-    showTodoHistoryModal,
     showTodoRoutineSetupModal,
-    selectedTodoForModal,
-    todoHistory,
-    expandedHistoryIds,
     routineDaysForModal,
     setRoutineDaysForModal,
     isEditingRoutineInModal,
@@ -280,7 +292,7 @@ function App() {
     hideOnThisDateOnly,
     deleteCompletely,
     handleRemoveTodoFromUI,
-  } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines)
+  } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal)
 
   const handleFocusTodo = (todoId) => {
     setFocusedTodoId(todoId)

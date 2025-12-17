@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { formatDateForDB } from '../utils/dateUtils'
 
-export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines) => {
+export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal) => {
   // State
   // todos와 setTodos는 App 컴포넌트에서 전달받음
   const [inputValue, setInputValue] = useState('')
@@ -18,11 +18,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   const [showTrashModal, setShowTrashModal] = useState(false)
   const [trashedItems, setTrashedItems] = useState([])
   const [focusedTodoId, setFocusedTodoId] = useState(null)
-  const [showTodoHistoryModal, setShowTodoHistoryModal] = useState(false)
   const [showTodoRoutineSetupModal, setShowTodoRoutineSetupModal] = useState(false)
-  const [selectedTodoForModal, setSelectedTodoForModal] = useState(null)
-  const [todoHistory, setTodoHistory] = useState({})
-  const [expandedHistoryIds, setExpandedHistoryIds] = useState([])
+  // selectedTodoForModal은 App.jsx에서 전달받음
   const [routineDaysForModal, setRoutineDaysForModal] = useState([])
   const [isEditingRoutineInModal, setIsEditingRoutineInModal] = useState(false)
   const [routineTimeSlotForModal, setRoutineTimeSlotForModal] = useState('')
@@ -1015,39 +1012,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
   }
 
-  // 투두 히스토리 모달 열기
-  const handleOpenTodoHistoryModal = async (todo) => {
-    setSelectedTodoForModal(todo)
-
-    // 히스토리 데이터 가져오기
-    try {
-      const { data, error } = await supabase
-        .from('todo_history')
-        .select('*')
-        .eq('todo_id', todo.id)
-        .order('changed_at', { ascending: false })
-
-      if (error) throw error
-
-      // todoHistory 객체 업데이트
-      setTodoHistory(prev => ({
-        ...prev,
-        [todo.id]: data || []
-      }))
-    } catch (error) {
-      console.error('Error fetching history:', error)
-    }
-
-    setShowTodoHistoryModal(true)
-  }
-
-  // 투두 히스토리 모달 닫기
-  const handleCloseTodoHistoryModal = () => {
-    setShowTodoHistoryModal(false)
-    setSelectedTodoForModal(null)
-    setExpandedHistoryIds([])
-  }
-
   // 투두 루틴 설정 모달 열기
   const handleOpenTodoRoutineSetupModal = (todo) => {
     setSelectedTodoForModal(todo)
@@ -1077,15 +1041,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     setIsEditingRoutineInModal(false)
   }
 
-  // 히스토리 세부 내용 토글
-  const toggleHistoryDetail = (historyId) => {
-    setExpandedHistoryIds(prev =>
-      prev.includes(historyId)
-        ? prev.filter(id => id !== historyId)
-        : [...prev, historyId]
-    )
-  }
-
   return {
     // State
     // todos와 setTodos는 App에서 관리하므로 반환하지 않음
@@ -1107,11 +1062,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     trashedItems,
     focusedTodoId,
     setFocusedTodoId,
-    showTodoHistoryModal,
     showTodoRoutineSetupModal,
     selectedTodoForModal,
-    todoHistory,
-    expandedHistoryIds,
     routineDaysForModal,
     setRoutineDaysForModal,
     isEditingRoutineInModal,
@@ -1151,10 +1103,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleCloseTrash,
     handleDragStart,
     handleDragCancel,
-    handleOpenTodoHistoryModal,
-    handleCloseTodoHistoryModal,
     handleOpenTodoRoutineSetupModal,
     handleCloseTodoRoutineSetupModal,
-    toggleHistoryDetail,
   }
 }
