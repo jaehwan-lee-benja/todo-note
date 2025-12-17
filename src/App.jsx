@@ -47,6 +47,7 @@ import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
 import { useTodoHistory } from './hooks/useTodoHistory'
 import { useTodoRoutineSetup } from './hooks/useTodoRoutineSetup'
+import { useTodoCarryOver } from './hooks/useTodoCarryOver'
 import { useDummyData } from './hooks/useDummyData'
 import { useEncouragement } from './hooks/useEncouragement'
 import { useGanttChart } from './hooks/useGanttChart'
@@ -259,6 +260,17 @@ function App() {
     routines,
   })
 
+  // 투두 이월 훅
+  const {
+    carryOverInProgress,
+    carryOverIncompleteTodos,
+    movePastIncompleteTodosToToday,
+  } = useTodoCarryOver({
+    session,
+    supabase,
+    selectedDate,
+  })
+
   const {
     inputValue, setInputValue,
     routineInputValue, setRoutineInputValue,
@@ -276,7 +288,6 @@ function App() {
     focusedTodoId, setFocusedTodoId,
     showDeleteConfirmModal, setShowDeleteConfirmModal,
     todoToDelete, setTodoToDelete,
-    carryOverInProgress,
     fetchTodos,
     handleAddTodo,
     handleAddRoutineTodo,
@@ -285,8 +296,6 @@ function App() {
     handleDeleteTodo,
     handleRestoreFromTrash,
     handlePermanentDelete,
-    movePastIncompleteTodosToToday,
-    carryOverIncompleteTodos,
     handleAddSubTodo,
     handleEditTodo,
     handleDragStart,
@@ -842,7 +851,22 @@ function App() {
 
   // 선택된 날짜가 변경될 때마다 할 일 목록 가져오기
   useEffect(() => {
-    fetchTodos()
+    const loadTodos = async () => {
+      // 오늘 날짜인 경우 미완료 투두 자동 이월
+      const dateStr = formatDateForDB(selectedDate)
+      const today = new Date()
+      const todayStr = formatDateForDB(today)
+      const isToday = dateStr === todayStr
+
+      if (isToday && session?.user?.id) {
+        await carryOverIncompleteTodos(dateStr)
+      }
+
+      // 투두 목록 가져오기
+      await fetchTodos()
+    }
+
+    loadTodos()
 
     // Supabase Realtime 구독
     const dateStr = formatDateForDB(selectedDate)
