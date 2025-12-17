@@ -1,20 +1,25 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 📅 마지막 업데이트: 2025-12-15 (Phase 10 완료)
-> 🎯 상태: **🎉 리팩토링 완료!**
-> 📊 진행률: **100% (50/50)**
+> 📅 마지막 업데이트: 2025-12-17 (Phase 11 계획 수립)
+> 🎯 상태: **Phase 10 완료, Phase 11-13 계획 수립**
+> 📊 진행률: **50/50 (Phase 1-10 완료), Phase 11-13 계획 중**
 > 📝 App.jsx: **1,833줄** (원래 8,087줄에서 6,254줄 감소, **77.3% 감소**)
+> 📝 useTodos.js: **36KB** (가장 큰 훅, 분해 필요)
+> 📝 App.css: **5,024줄** (분리 필요)
 >
-> **✅ 완료 상태**: 총 8개 커스텀 훅 + 20개 컴포넌트 분리 완료
-> **🎉 모든 Phase 완료**: 버그 수정 및 배포 완료
+> **✅ Phase 1-10 완료**: 총 8개 커스텀 훅 + 20개 컴포넌트 분리 완료
+> **🚀 다음 단계**: Hook Decomposition (훅 분해) → CSS Modules → 고급 패턴
 
 ---
 
 ## 📋 목차
 - [현재 상태 진단](#현재-상태-진단)
+- [리팩토링 원칙 및 스타일](#리팩토링-원칙-및-스타일)
 - [목표 아키텍처](#목표-아키텍처)
 - [단계별 작업 계획](#단계별-작업-계획)
+  - [Phase 1-10 (완료)](#phase-1-10-완료)
+  - [Phase 11-13 (계획)](#phase-11-13-계획)
 - [세션 인계 가이드](#세션-인계-가이드)
 
 ---
@@ -44,6 +49,83 @@ src/App.css        5,024줄   🔴 매우 심각
 6. ❌ **낮은 재사용성** - 다른 프로젝트에 재사용 불가
 7. ❌ **Merge conflict 위험** - 협업 시 충돌 가능성 높음
 8. ❌ **코드 리뷰 불가능** - 파일이 너무 커서 리뷰 어려움
+
+---
+
+## 🎨 리팩토링 원칙 및 스타일
+
+### 적용된 리팩토링 원칙 (Phase 1-10)
+
+#### ✅ 1. SOLID 원칙
+- **Single Responsibility**: 각 컴포넌트/훅이 단일 책임 (TodoSection, RoutineModal 등)
+- **Open/Closed**: props를 통한 확장 가능성 유지
+- **Dependency Inversion**: 구체적 구현이 아닌 props/hooks 인터페이스에 의존
+
+#### ✅ 2. Separation of Concerns (관심사 분리)
+- **UI Layer**: 컴포넌트 (components/)
+- **Logic Layer**: 커스텀 훅 (hooks/)
+- **Utility Layer**: 유틸리티 함수 (utils/)
+
+#### ✅ 3. By Type 폴더 구조
+```
+src/
+├── components/     # UI 컴포넌트
+├── hooks/          # 비즈니스 로직
+└── utils/          # 순수 함수
+```
+
+#### ✅ 4. Component-First 접근
+- UI 컴포넌트를 먼저 분리 → 시각적 개선 빠름
+- 로직(훅)은 나중에 분리 → 안정성 확보
+
+---
+
+### 다음 단계 원칙 (Phase 11-13)
+
+#### 🎯 1. Hook Decomposition (훅 분해)
+**목적**: 거대한 훅을 기능별로 분해하여 관리 용이성 향상
+
+**적용 대상**:
+- `useTodos.js` (36KB) → 6-7개 작은 훅
+- `useRoutines.js` (15KB) → 필요 시 분해
+
+**원칙**:
+- 각 훅은 100-200줄 이하
+- 단일 책임 원칙 준수
+- 훅 간 의존성 최소화
+
+#### 🎯 2. CSS Modules
+**목적**: 스타일 충돌 방지 및 컴포넌트별 스타일 관리
+
+**적용 방법**:
+- 각 컴포넌트마다 `.module.css` 파일 생성
+- 전역 스타일은 `App.css`에만 유지
+- CSS 변수는 `variables.css`에 유지
+
+#### 🎯 3. Container/Presenter Pattern (선택적)
+**목적**: 로직과 UI 완전 분리
+
+**적용 대상** (복잡한 컴포넌트만):
+- SortableTodoItem (1,425줄)
+- KeyThoughtsSection (328줄)
+- NotionBlock (531줄)
+
+---
+
+### 리팩토링 우선순위
+
+**🥇 1순위: Hook Decomposition**
+- useTodos.js 분해 (가장 큰 문제)
+- App.jsx 추가 감소 (1,833 → 800줄 목표)
+
+**🥈 2순위: CSS Modules**
+- App.css 분해 (5,024줄)
+- 컴포넌트별 스타일 격리
+
+**🥉 3순위: 고급 패턴** (선택적)
+- Container/Presenter 패턴
+- Feature-First 구조 전환
+- Storybook 도입
 
 ---
 
@@ -195,11 +277,151 @@ src/
 
 ---
 
+## 🚀 Phase 11-13: 심화 리팩토링 계획
+
+### 🎯 Phase 11: Hook Decomposition (훅 분해) - 계획 중
+**목표**: useTodos.js (36KB) 분해 → App.jsx 추가 감소 (1,833줄 → 800줄)
+
+#### Step 1: useTodos.js 분석 및 설계
+- [ ] **11.1** useTodos.js 전체 구조 분석
+  - state 목록 정리 (28개 state)
+  - 함수 목록 정리 (27개 함수)
+  - 의존성 관계 파악
+- [ ] **11.2** 분해 설계서 작성
+  - 새로운 훅 목록 정의 (6-7개 예상)
+  - 각 훅의 책임 정의
+  - 훅 간 인터페이스 설계
+  - 순환 종속성 방지 전략
+
+#### Step 2: 핵심 훅 분리
+- [ ] **11.3** useTodoCRUD.js 생성 (기본 CRUD 작업)
+  - todos state 관리
+  - createTodo, updateTodo, deleteTodo
+  - fetchTodos, saveTodo
+- [ ] **11.4** useTodoCarryOver.js 생성 (이월 로직)
+  - 자동 이월 로직
+  - 수동 이월 처리
+  - 이월 조건 검사
+- [ ] **11.5** useTodoHistory.js 생성 (히스토리 관리)
+  - 히스토리 조회
+  - 히스토리 저장
+  - 이전 버전 복구
+
+#### Step 3: 보조 훅 분리
+- [ ] **11.6** useTodoSubTasks.js 생성 (서브투두 관리)
+  - 서브투두 추가/삭제/수정
+  - 서브투두 순서 변경
+  - 서브투두 완료 처리
+- [ ] **11.7** useTodoRoutine.js 생성 (루틴 연동)
+  - 루틴에서 투두 생성
+  - 루틴 연결 관리
+  - 루틴 투두 특수 처리
+- [ ] **11.8** useTodoTrash.js 생성 (휴지통)
+  - 삭제된 투두 관리
+  - 복구 기능
+  - 영구 삭제
+
+#### Step 4: 통합 및 테스트
+- [ ] **11.9** App.jsx에 새 훅 적용
+  - 기존 useTodos 제거
+  - 새로운 훅들 import
+  - state 및 함수 연결
+- [ ] **11.10** 전체 기능 테스트
+  - 투두 CRUD 테스트
+  - 이월 기능 테스트
+  - 서브투두 테스트
+  - 히스토리 테스트
+- [ ] **11.11** 커밋 & 배포
+
+**예상 결과**:
+```
+useTodos.js (36KB) → 제거
+→ useTodoCRUD.js (~8KB)
+→ useTodoCarryOver.js (~6KB)
+→ useTodoHistory.js (~5KB)
+→ useTodoSubTasks.js (~7KB)
+→ useTodoRoutine.js (~5KB)
+→ useTodoTrash.js (~5KB)
+
+App.jsx: 1,833줄 → ~800줄 (예상)
+```
+
+---
+
+### 🎨 Phase 12: CSS Modules 도입 - 계획
+**목표**: App.css (5,024줄) 분해 → 컴포넌트별 스타일 격리
+
+#### Step 1: CSS Modules 설정
+- [ ] **12.1** vite.config.js에 CSS Modules 설정 확인
+- [ ] **12.2** 변수 파일 분리 전략 수립
+  - variables.css는 전역 유지
+  - 컴포넌트별 CSS 변수 정의
+
+#### Step 2: 컴포넌트별 CSS 분리 (우선순위)
+- [ ] **12.3** Todo 컴포넌트 CSS
+  - TodoSection.module.css
+  - SortableTodoItem.module.css
+- [ ] **12.4** Navigation CSS
+  - Header.module.css
+  - Sidebar.module.css
+  - DateNavigation.module.css
+- [ ] **12.5** KeyThoughts CSS
+  - KeyThoughtsSection.module.css
+  - NotionBlock.module.css
+- [ ] **12.6** Modals CSS
+  - TrashModal.module.css
+  - GanttChartModal.module.css
+  - EncouragementModal.module.css
+- [ ] **12.7** 나머지 컴포넌트 CSS 분리
+
+#### Step 3: 전역 스타일 정리
+- [ ] **12.8** App.css 최소화
+  - 리셋 스타일만 유지
+  - 전역 레이아웃만 유지
+  - 나머지 제거
+- [ ] **12.9** 테스트 & 커밋
+
+**예상 결과**:
+```
+App.css: 5,024줄 → ~200줄 (전역 스타일만)
++ 20개 컴포넌트 CSS 모듈 파일
+```
+
+---
+
+### 🏗️ Phase 13: 고급 패턴 (선택적) - 계획
+**목표**: 테스트 가능성 및 재사용성 극대화
+
+#### Container/Presenter 패턴
+- [ ] **13.1** SortableTodoItem 분리
+  - TodoItemContainer.jsx (로직)
+  - TodoItemPresenter.jsx (UI)
+- [ ] **13.2** KeyThoughtsSection 분리
+  - KeyThoughtsContainer.jsx
+  - KeyThoughtsPresenter.jsx
+- [ ] **13.3** NotionBlock 분리
+  - NotionBlockContainer.jsx
+  - NotionBlockPresenter.jsx
+
+#### Storybook 도입 (선택)
+- [ ] **13.4** Storybook 설정
+- [ ] **13.5** 주요 컴포넌트 스토리 작성
+- [ ] **13.6** 인터랙션 테스트 작성
+
+#### 최종 정리
+- [ ] **13.7** 문서 업데이트
+- [ ] **13.8** 성능 최적화 검토
+- [ ] **13.9** 접근성 검토
+- [ ] **13.10** 최종 배포
+
+---
+
 ## 📌 진행 상황 추적
 
-### 현재 상태 (2025-12-15) - 🎉 리팩토링 완료!
+### 현재 상태 (2025-12-17) - Phase 11 계획 수립 완료
 **작업 완료**: Phase 1~10 전체 완료 ✅
-**상태**: 모든 Phase 완료 및 배포 완료
+**현재 작업**: Phase 11 Hook Decomposition 시작 예정
+**다음 단계**: useTodos.js 분석 및 설계 (11.1-11.2)
 
 **주요 성과**:
 - ✅ 총 8개 커스텀 훅 생성 완료
@@ -397,52 +619,53 @@ Phase 5.3: TodoItem 컴포넌트 분리
 
 ---
 
-## 📝 현재 세션 요약 (2025-12-11)
+## 📝 현재 세션 요약 (2025-12-17)
 
-### 완료된 작업
-✅ **Phase 1: 준비 단계** (5/5 완료)
-- 프로젝트 폴더 구조 생성
-- utils 파일 생성 (constants, dateUtils, formatters)
-- styles 파일 생성 (variables.css)
-- App.jsx에서 약 60줄 감소
-
-✅ **Phase 2.1: useAuth 훅 분리** (1/10 완료)
-- 인증 관련 로직 완전 분리
-- App.jsx에서 약 45줄 감소
+### 완료된 작업 (Phase 1-10)
+✅ **Phase 1-10 전체 완료** (50/50 단계)
+- 8개 커스텀 훅 분리 완료
+- 20개 컴포넌트 분리 완료
+- App.jsx: 8,087줄 → 1,833줄 (77.3% 감소)
 - 모든 기능 정상 작동 확인
+- GitHub 배포 완료
 
-### 다음 세션 제안사항
+### 리팩토링 원칙 정립 (2025-12-17)
+✅ **리팩토링 원칙 및 스타일 문서화**
+- SOLID 원칙 적용 확인
+- Separation of Concerns 분석
+- Hook Decomposition 전략 수립
+- CSS Modules 도입 계획
+- Container/Presenter 패턴 검토
 
-#### 옵션 1: Phase 2 계속 진행 (훅 분리)
-**장점**: 로직 분리로 유지보수성 향상
-**단점**: 매우 시간 소요 (Phase 2.3-2.8은 각각 200-400줄)
-**예상 소요**: 5-8시간
+✅ **Phase 11-13 계획 수립**
+- Phase 11: Hook Decomposition (useTodos 분해)
+- Phase 12: CSS Modules 도입
+- Phase 13: 고급 패턴 (선택적)
 
-#### 옵션 2: Phase 3-4 먼저 진행 (컴포넌트 분리) ⭐ 권장
-**장점**:
-- 시각적으로 명확한 개선 (파일 수 증가)
-- 작은 컴포넌트로 분리하기 쉬움
-- 더 빠른 진행 가능
-**추천 순서**:
-1. Phase 3: Common 컴포넌트 (AppleTimePicker, Toast, DragHandle)
-2. Phase 4: Navigation 컴포넌트 (Header, DateNavigation, Sidebar)
-3. Phase 5: Todo 컴포넌트 (TodoItem, TodoList, TodoBadges)
+### 다음 단계
 
-#### 옵션 3: 하이브리드 방식
-- Phase 2는 간소화 (핵심 2-3개 훅만)
-- Phase 3-5 컴포넌트 분리 우선
-- 나머지 훅은 필요 시 진행
+#### 🎯 Phase 11.1: useTodos.js 분석 (다음 작업)
+**목표**: useTodos.js (36KB) 전체 구조 파악
+**작업 내용**:
+1. state 목록 정리 (28개 state 예상)
+2. 함수 목록 정리 (27개 함수 예상)
+3. 의존성 관계 파악
+4. 분해 포인트 찾기
+
+**예상 결과**: useTodos 분해 설계서 초안
 
 ### 현재 파일 크기
 ```
-src/App.jsx: 7,970줄 (원래 8,087줄)
-src/App.css: 5,024줄
+src/App.jsx: 1,833줄 (목표: 800줄)
+src/App.css: 5,024줄 (목표: 200줄)
+src/hooks/useTodos.js: 36KB (분해 대상)
+src/hooks/useRoutines.js: 15KB (필요 시 분해)
 ```
 
-**목표**: App.jsx 200-300줄로 축소
+**다음 목표**: App.jsx 800줄로 축소 (Phase 11 완료 시)
 
 ---
 
-**📅 마지막 업데이트**: 2025-12-11
+**📅 마지막 업데이트**: 2025-12-17
 **👤 작성자**: Claude Code
 **🔗 관련 문서**: REFACTORING-PLAN.md (데이터 구조 리팩토링)
