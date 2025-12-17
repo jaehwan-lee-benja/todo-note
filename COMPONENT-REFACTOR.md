@@ -1,15 +1,16 @@
 # Todo Note 컴포넌트 리팩토링 계획서
 
 > 📅 생성일: 2025-12-11
-> 📅 마지막 업데이트: 2025-12-17 (Phase 11 계획 수립)
-> 🎯 상태: **Phase 10 완료, Phase 11-13 계획 수립**
-> 📊 진행률: **50/50 (Phase 1-10 완료), Phase 11-13 계획 중**
+> 📅 마지막 업데이트: 2025-12-17 (Phase 11.5 완료)
+> 🎯 상태: **Phase 11.5 완료, Phase 11.6-11.11 진행 예정**
+> 📊 진행률: **50/50 (Phase 1-10 완료), Phase 11: 5/11 완료**
 > 📝 App.jsx: **1,833줄** (원래 8,087줄에서 6,254줄 감소, **77.3% 감소**)
-> 📝 useTodos.js: **36KB** (가장 큰 훅, 분해 필요)
+> 📝 useTodos.js: **831줄** (원래 1,160줄에서 329줄 감소, **28.4% 감소**)
 > 📝 App.css: **5,024줄** (분리 필요)
 >
 > **✅ Phase 1-10 완료**: 총 8개 커스텀 훅 + 20개 컴포넌트 분리 완료
-> **🚀 다음 단계**: Hook Decomposition (훅 분해) → CSS Modules → 고급 패턴
+> **✅ Phase 11.1-11.5 완료**: 3개 독립 훅 분리 (History, RoutineSetup, CarryOver)
+> **🚀 다음 단계**: 핵심 훅 분리 (CRUD, SubTasks, Trash, DragDrop) → CSS Modules → 고급 패턴
 
 ---
 
@@ -306,11 +307,15 @@ src/
   - useTodos.js: 1,109줄 → 1,067줄 (-42줄)
   - 누적 감소: 1,160줄 → 1,067줄 (-93줄, -8.0%)
   - 빌드 정상 완료, 배포 완료
-- [ ] **11.5** useTodoCarryOver.js 생성 (이월 로직)
-  - 자동 이월 로직
-  - 수동 이월 처리
-  - 이월 조건 검사
-  - 예상: ~200줄
+- [x] **11.5** useTodoCarryOver.js 생성 (이월 로직) ✅
+  - 자동 이월 로직 (carryOverIncompleteTodos)
+  - 수동 이월 처리 (movePastIncompleteTodosToToday)
+  - carryOverInProgress ref (중복 실행 방지)
+  - useTodoCarryOver.js: 252줄
+  - useTodos.js: 1,067줄 → 831줄 (-236줄, -22.1%)
+  - 누적 감소: 1,160줄 → 831줄 (-329줄, -28.4%)
+  - App.jsx useEffect에서 오늘 날짜 자동 이월 호출
+  - 빌드 정상 완료, 배포 완료
 
 #### Step 3: 보조 훅 분리
 - [ ] **11.6** useTodoSubTasks.js 생성 (서브투두 관리)
@@ -677,19 +682,29 @@ Phase 5.3: TodoItem 컴포넌트 분리
 - 누적 감소: 1,160줄 → 1,067줄 (-93줄, -8.0%)
 - 빌드 정상 완료, 배포 완료
 
+✅ **Phase 11.5 완료 - useTodoCarryOver 훅 분리**
+- useTodoCarryOver.js 생성 (252줄)
+- 자동 이월 로직 (carryOverIncompleteTodos)
+- 수동 이월 처리 (movePastIncompleteTodosToToday)
+- carryOverInProgress ref (중복 실행 방지)
+- useTodos.js: 1,067줄 → 831줄 (-236줄, -22.1%)
+- 누적 감소: 1,160줄 → 831줄 (-329줄, -28.4%)
+- App.jsx useEffect에서 오늘 날짜 자동 이월 호출
+- 빌드 정상 완료, 배포 완료
+
 ### 다음 단계
 
-#### 🎯 Phase 11.5: useTodoCarryOver 훅 분리 (다음 작업)
-**목표**: 이월 로직 분리 (~200줄 예상)
-- 자동 이월 로직
-- 수동 이월 처리
-- 이월 조건 검사
+#### 🎯 Phase 11.6: useTodoSubTasks 훅 분리 (다음 작업)
+**목표**: 서브투두 관리 분리 (~80줄 예상)
+- 서브투두 추가/삭제/수정
+- 서브투두 순서 변경
+- 서브투두 완료 처리
 
 ### 현재 파일 크기
 ```
 src/App.jsx: 1,833줄 (목표: 800줄)
 src/App.css: 5,024줄 (목표: 200줄)
-src/hooks/useTodos.js: 36KB (분해 대상)
+src/hooks/useTodos.js: 831줄 (원래 1,160줄, -28.4% 감소)
 src/hooks/useRoutines.js: 15KB (필요 시 분해)
 ```
 
