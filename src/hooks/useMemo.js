@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { DEFAULT_SPEC_CONTENT } from '../utils/constants'
 
 /**
  * 메모 관리 커스텀 훅
@@ -26,13 +25,15 @@ export function useMemo(session) {
 
       if (error) throw error
 
-      const content = data && data.length > 0 ? data[0].content : DEFAULT_SPEC_CONTENT
+      // DB에 데이터 없으면 빈 문자열 사용 (기본값 제거)
+      const content = data && data.length > 0 ? data[0].content : ''
       setMemoContent(content)
       setMemoOriginalContent(content)
     } catch (error) {
       console.error('메모 내용 가져오기 오류:', error.message)
-      setMemoContent(DEFAULT_SPEC_CONTENT)
-      setMemoOriginalContent(DEFAULT_SPEC_CONTENT)
+      // 에러 시에도 빈 문자열 사용
+      setMemoContent('')
+      setMemoOriginalContent('')
     }
   }
 
