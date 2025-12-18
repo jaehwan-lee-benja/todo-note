@@ -13,6 +13,7 @@ export function useKeyThoughts(session) {
   ])
   const [isSavingKeyThoughts, setIsSavingKeyThoughts] = useState(false)
   const lastSavedKeyThoughtsRef = useRef(null)
+  const lastHistoryCleanupRef = useRef(null) // localStorage 대신 메모리 state 사용
   const [focusedBlockId, setFocusedBlockId] = useState(null)
   const [keyThoughtsHistory, setKeyThoughtsHistory] = useState([])
   const [showKeyThoughtsHistory, setShowKeyThoughtsHistory] = useState(false)
@@ -45,16 +46,8 @@ export function useKeyThoughts(session) {
         const normalized = normalizeBlocks(blocks)
         setKeyThoughtsBlocks(normalized)
         lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(normalized))
-      } else {
-        // DB에 없으면 localStorage에서 불러오기
-        const saved = localStorage.getItem('keyThoughtsBlocks')
-        if (saved) {
-          const blocks = JSON.parse(saved)
-          const normalized = normalizeBlocks(blocks)
-          setKeyThoughtsBlocks(normalized)
-          lastSavedKeyThoughtsRef.current = JSON.parse(JSON.stringify(normalized))
-        }
       }
+      // DB에 데이터 없으면 초기값 사용 (localStorage fallback 제거)
     } catch (error) {
       console.error('주요 생각정리 불러오기 오류:', error.message)
     }
@@ -65,8 +58,6 @@ export function useKeyThoughts(session) {
     if (!session?.user?.id) return
 
     try {
-      localStorage.setItem('keyThoughtsBlocks', JSON.stringify(keyThoughtsBlocks))
-
       const { data: existing, error: selectError } = await supabase
         .from('user_settings')
         .select('id')
@@ -133,10 +124,10 @@ export function useKeyThoughts(session) {
   // 30일 이상된 히스토리 자동 삭제
   const cleanupOldHistory = async () => {
     try {
-      const lastCleanup = localStorage.getItem('lastHistoryCleanup')
       const today = new Date().toDateString()
 
-      if (lastCleanup === today) {
+      // 메모리 state로 중복 실행 방지 (localStorage 제거)
+      if (lastHistoryCleanupRef.current === today) {
         return
       }
 
@@ -151,7 +142,7 @@ export function useKeyThoughts(session) {
       if (error) {
         console.error('오래된 히스토리 삭제 오류:', error.message)
       } else {
-        localStorage.setItem('lastHistoryCleanup', today)
+        lastHistoryCleanupRef.current = today
         console.log('오래된 히스토리 정리 완료')
       }
     } catch (error) {
@@ -235,8 +226,6 @@ export function useKeyThoughts(session) {
       setKeyThoughtsBlocks(restoredBlocks)
 
       // 3. DB에 저장 (user_settings 테이블)
-      localStorage.setItem('keyThoughtsBlocks', JSON.stringify(restoredBlocks))
-
       const { data: existing, error: selectError } = await supabase
         .from('user_settings')
         .select('id')

@@ -15,12 +15,8 @@ export function useSectionOrder(session) {
 
   // 섹션 순서 불러오기
   const fetchSectionOrder = async () => {
-    // 로그인하지 않은 상태에서는 localStorage만 확인
+    // 로그인하지 않은 상태에서는 초기값 사용 (localStorage 제거)
     if (!session?.user?.id) {
-      const saved = localStorage.getItem('sectionOrder')
-      if (saved) {
-        setSectionOrder(JSON.parse(saved))
-      }
       return
     }
 
@@ -39,34 +35,20 @@ export function useSectionOrder(session) {
       if (data && data.setting_value) {
         const order = JSON.parse(data.setting_value)
         setSectionOrder(order)
-        localStorage.setItem('sectionOrder', JSON.stringify(order))
-      } else {
-        // DB에 없으면 localStorage에서 불러오기
-        const saved = localStorage.getItem('sectionOrder')
-        if (saved) {
-          setSectionOrder(JSON.parse(saved))
-        }
       }
+      // DB에 데이터 없으면 초기값 사용 (localStorage fallback 제거)
     } catch (error) {
       console.error('섹션 순서 불러오기 오류:', error.message)
-      // 실패하면 localStorage에서 불러오기
-      const saved = localStorage.getItem('sectionOrder')
-      if (saved) {
-        setSectionOrder(JSON.parse(saved))
-      }
     }
   }
 
   // 섹션 순서 저장하기
   const saveSectionOrder = async (newOrder) => {
+    // 로그인하지 않은 경우 state만 업데이트 (저장 안됨, localStorage 제거)
+    if (!session?.user?.id) return
+
     try {
-      // localStorage에 저장
-      localStorage.setItem('sectionOrder', JSON.stringify(newOrder))
-
-      // 로그인하지 않은 경우 Supabase에 저장하지 않음
-      if (!session?.user?.id) return
-
-      // Supabase에 저장
+      // Supabase에만 저장
       const { data: existing, error: selectError } = await supabase
         .from('user_settings')
         .select('id')
