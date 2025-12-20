@@ -34,6 +34,7 @@ import RoutineModal from './components/Routine/RoutineModal'
 import RoutineHistoryModal from './components/Routine/RoutineHistoryModal'
 import MemoSection from './components/Memo/MemoSection'
 import KeyThoughtsSection from './components/KeyThoughts/KeyThoughtsSection'
+import KeyThoughtsViewerPage from './components/KeyThoughts/KeyThoughtsViewerPage'
 import TrashModal from './components/Modals/TrashModal'
 import DummyModal from './components/Modals/DummyModal'
 import GanttChartModal from './components/Modals/GanttChartModal'
@@ -152,6 +153,7 @@ function App() {
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [showSidebar, setShowSidebar] = useState(false)
+  const [currentPage, setCurrentPage] = useState('home') // 'home' | 'keyThoughtsViewer'
   const recentlyEditedIds = useRef(new Set())
 
   // DnD sensors 설정
@@ -955,6 +957,17 @@ function App() {
   const authScreen = GoogleAuthButton({ authLoading, session, handleGoogleLogin })
   if (authScreen) return authScreen
 
+  // 주요 생각정리 뷰어 페이지
+  if (currentPage === 'keyThoughtsViewer') {
+    return (
+      <KeyThoughtsViewerPage
+        blocks={keyThoughtsBlocks}
+        setBlocks={setKeyThoughtsBlocks}
+        onClose={() => setCurrentPage('home')}
+      />
+    )
+  }
+
   return (
     <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
       <Sidebar
@@ -1477,6 +1490,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 setBlocks={setKeyThoughtsBlocks}
                                 focusedBlockId={focusedBlockId}
                                 setFocusedBlockId={setFocusedBlockId}
+                                onOpenViewer={() => setCurrentPage('keyThoughtsViewer')}
                                 onShowHistory={() => {
                                   fetchKeyThoughtsHistory()
                                   setShowKeyThoughtsHistory(true)

@@ -1,0 +1,308 @@
+/* 주요 생각정리 뷰어 페이지 */
+.key-thoughts-viewer-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #f9fafb;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 뷰어 헤더 */
+.viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #ffffff;
+}
+
+/* X 버튼 (햄버거 메뉴 위치) */
+.viewer-close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 24px;
+  color: #374151;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.viewer-close-button:hover {
+  background-color: #f3f4f6;
+}
+
+.viewer-close-button:active {
+  background-color: #e5e7eb;
+}
+
+/* 뷰어 타이틀 */
+.viewer-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+/* 뷰어 콘텐츠 */
+.viewer-content {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+}
+
+/* 컬럼 컨테이너 */
+.columns-container {
+  display: flex;
+  gap: 0;
+  height: 100%;
+  min-width: min-content;
+}
+
+/* 개별 컬럼 */
+.viewer-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: 320px;
+  height: 100%;
+  border-right: 1px solid #e5e7eb;
+  background-color: #ffffff;
+}
+
+.viewer-column:last-child {
+  border-right: none;
+}
+
+/* 컬럼 헤더 (A, B, C) */
+.column-header {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+/* 컬럼 내 블럭들 */
+.column-blocks {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* 개별 블럭 */
+.viewer-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin-bottom: 6px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  cursor: grab;
+  transition: background-color 0.2s;
+  position: relative;
+  touch-action: none;
+}
+
+.viewer-block:hover {
+  background-color: #f3f4f6;
+}
+
+.viewer-block:active {
+  cursor: grabbing;
+}
+
+.viewer-block.selected {
+  background-color: #fef3c7;
+}
+
+.viewer-block.has-children {
+  padding-right: 40px;
+}
+
+/* 드롭 위치 표시 - 상단 */
+.viewer-block.show-drop-line-top::before {
+  content: '';
+  position: absolute;
+  top: -4px; /* 블럭 위쪽 공간 */
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: rgba(59, 130, 246, 0.8);
+  border-radius: 2px;
+  z-index: 10;
+}
+
+/* 드롭 위치 표시 - 하단 */
+.viewer-block.show-drop-line-bottom::after {
+  content: '';
+  position: absolute;
+  bottom: -4px; /* 블럭 아래쪽 공간 */
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: rgba(59, 130, 246, 0.8);
+  border-radius: 2px;
+  z-index: 10;
+}
+
+/* 드롭 위치 표시 - children으로 추가 (블럭 중앙) */
+.viewer-block.show-as-child-target {
+  background-color: #dbeafe !important;
+  border: 2px dashed #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 디버그: 드래그 중일 때 블럭의 영역 표시 */
+.viewer-block[data-block-id]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* 드래그 중일 때만 영역 표시 */
+body.dragging .viewer-block[data-block-id] {
+  position: relative;
+}
+
+/* 상단 25% 영역 (붉은색 - 기본) */
+body.dragging .viewer-block[data-block-id]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+  background-color: rgba(239, 68, 68, 0.15);
+  pointer-events: none;
+  z-index: 100;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  transition: all 0.15s;
+}
+
+/* 하단 25% 영역 (붉은색 - 기본) */
+body.dragging .viewer-block[data-block-id]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 25%;
+  background-color: rgba(239, 68, 68, 0.15);
+  pointer-events: none;
+  z-index: 100;
+  opacity: 1;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  transition: all 0.15s;
+}
+
+/* 중앙 50% 영역은 남은 공간 (초록색 - 기본) */
+body.dragging .viewer-block[data-block-id] .block-text::before {
+  content: '';
+  position: absolute;
+  top: 25%;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background-color: rgba(34, 197, 94, 0.1);
+  pointer-events: none;
+  z-index: 99;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  transition: all 0.15s;
+}
+
+/* ====== 선택된 영역 강조 ====== */
+
+/* 상단 영역 선택됨 */
+body.dragging .viewer-block[data-drop-zone="top"]::before {
+  background-color: rgba(239, 68, 68, 0.5) !important;
+  border: 2px solid rgba(239, 68, 68, 0.8) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+/* 중앙 영역 선택됨 */
+body.dragging .viewer-block[data-drop-zone="center"] .block-text::before {
+  background-color: rgba(34, 197, 94, 0.4) !important;
+  border: 2px solid rgba(34, 197, 94, 0.7) !important;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+}
+
+/* 하단 영역 선택됨 */
+body.dragging .viewer-block[data-drop-zone="bottom"]::after {
+  background-color: rgba(239, 68, 68, 0.5) !important;
+  border: 2px solid rgba(239, 68, 68, 0.8) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+/* 드래그 오버레이 (따라다니는 투명한 복사본) */
+.dragging-overlay {
+  opacity: 0.8;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  cursor: grabbing;
+  background-color: #ffffff;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  transform: rotate(3deg);
+  padding-right: 40px;
+}
+
+/* 블럭 텍스트 */
+.block-text {
+  flex: 1;
+  font-size: 14px;
+  color: #111827;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.viewer-block.selected .block-text {
+  font-weight: 600;
+}
+
+/* 블럭 화살표 */
+.block-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.viewer-block.selected .block-arrow {
+  color: #fbbf24;
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .viewer-column {
+    min-width: 240px;
+    max-width: 280px;
+  }
+
+  .viewer-block {
+    padding: 10px 14px;
+  }
+
+  .block-text {
+    font-size: 13px;
+  }
+}

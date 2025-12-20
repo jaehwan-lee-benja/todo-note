@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { SortableNotionBlock, NotionBlock } from './NotionBlock'
 
-function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId, onShowHistory }) {
+function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId, onShowHistory, onOpenViewer }) {
   const [activeBlock, setActiveBlock] = useState(null)
   const [overId, setOverId] = useState(null)
 
@@ -255,6 +255,13 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
       <div className="section-header">
         <h3 className="section-title">💡 주요 생각정리</h3>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            className="toggle-all-button"
+            onClick={() => onOpenViewer && onOpenViewer()}
+            title="뷰어 모드로 보기"
+          >
+            📖 뷰어
+          </button>
           <button
             className="toggle-all-button"
             onClick={() => onShowHistory && onShowHistory()}
