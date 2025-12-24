@@ -504,15 +504,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
                 dropPosition === 'center' &&
                 activeBlock
 
-              // 디버그 로그 - 선이 표시될 때만
-              if (showChildDropLine) {
-                console.log('✅ 하위 칼럼 드롭 라인 표시!', {
-                  depth,
-                  overId,
-                  hoverBlockDepth
-                })
-              }
-
               return (
                 <div key={depth} className="viewer-column">
                   <div className="column-header">
