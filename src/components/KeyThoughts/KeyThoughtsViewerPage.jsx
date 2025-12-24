@@ -18,7 +18,7 @@ import './KeyThoughtsViewerPage.css'
 /**
  * 드래그 가능한 블럭 컴포넌트
  */
-function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeId, hasChildren, text, onClick }) {
+function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeId, hasChildren, text, onClick, showBottomLine: showChildDropBottomLine }) {
   const {
     attributes,
     listeners,
@@ -28,7 +28,7 @@ function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeI
   // 노션 방식: 드래그 중에는 블록들이 움직이지 않음
   const isActive = block.id === activeId
   const showTopLine = isOver && dropPosition === 'top' && activeId && activeId !== block.id
-  const showBottomLine = isOver && dropPosition === 'bottom' && activeId && activeId !== block.id
+  const showBottomLine = (isOver && dropPosition === 'bottom' && activeId && activeId !== block.id) || showChildDropBottomLine
   const showAsChild = isOver && dropPosition === 'center' && activeId && activeId !== block.id
 
   const style = {
@@ -68,7 +68,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
   const [activeBlock, setActiveBlock] = useState(null)
   const [overId, setOverId] = useState(null)
   const [dropPosition, setDropPosition] = useState(null) // 'top' | 'center' | 'bottom'
-  const [debugInfo, setDebugInfo] = useState(null) // 디버그 정보 표시용
 
   // 마우스 위치를 useRef로 즉시 접근 가능하게 (state 지연 없음)
   const pointerPositionRef = useRef({ x: 0, y: 0 })
@@ -151,7 +150,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
     // over된 요소의 위치 정보 가져오기
     const overElement = document.querySelector(`[data-block-id="${overId}"]`)
     if (!overElement) {
-      console.log('❌ overElement not found for id:', overId)
       return 'top'
     }
 
@@ -173,21 +171,10 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
       position = 'center'
     }
 
-    // 화면에 표시할 디버그 정보
-    setDebugInfo({
-      overId: overId,
-      mouseY: mouseY.toFixed(0),
-      percentage: (percentage * 100).toFixed(0) + '%',
-      position: position,
-      isCenter: position === 'center',
-      rectTop: rect.top.toFixed(0),
-      rectBottom: rect.bottom.toFixed(0)
-    })
-
-    // 중앙 영역에 드래그 중이면 해당 블럭의 하위 컬럼 열기
+    // 중앙 영역에 드래그 중이면 해당 블럭의 하위 컬럼 열기 (children이 없어도 열림)
     if (position === 'center') {
       const overBlock = findBlockById(blocks, overId)
-      if (overBlock && overBlock.children && overBlock.children.length > 0) {
+      if (overBlock) {
         const depth = findBlockDepth(blocks, overId)
         if (depth !== -1) {
           // 해당 depth까지의 경로를 유지하고 overId 추가
@@ -339,7 +326,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
           x: activatorEvent.clientX || 0,
           y: activatorEvent.clientY
         }
-        console.log('🎯 드래그 시작 위치:', pointerPositionRef.current)
       }
     }
 
@@ -350,7 +336,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
       // 드래그 중이고 over 블럭이 있으면 매 마우스 이동마다 위치 재계산
       // currentOverIdRef가 없어도 activeBlockId로 자기 자신 체크
       const targetId = currentOverIdRef.current || activeBlockIdRef.current
-      console.log('🖱️ targetId:', targetId, 'currentOver:', currentOverIdRef.current, 'active:', activeBlockIdRef.current)
       if (targetId) {
         const position = calculateDropPosition(targetId, e.clientY)
         if (position) {
@@ -388,13 +373,10 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
   const handleDragOver = (event) => {
     const { over } = event
 
-    console.log('🎯 handleDragOver - over:', over?.id, 'active:', activeBlockIdRef.current)
-
     if (!over) {
       setOverId(null)
       setDropPosition(null)
       currentOverIdRef.current = null
-      console.log('❌ over가 null')
       return
     }
 
@@ -431,7 +413,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
     setActiveBlock(null)
     setOverId(null)
     setDropPosition(null)
-    setDebugInfo(null)
     currentOverIdRef.current = null
     activeBlockIdRef.current = null
     // 디버그용: body에서 dragging 클래스 제거
@@ -449,7 +430,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
     setActiveBlock(null)
     setOverId(null)
     setDropPosition(null)
-    setDebugInfo(null)
     currentOverIdRef.current = null
     activeBlockIdRef.current = null
     // 디버그용: body에서 dragging 클래스 제거
@@ -495,42 +475,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
             ✕
           </button>
           <h2 className="viewer-title">💡 주요 생각정리</h2>
-
-          {/* 디버그 정보 표시 */}
-          {debugInfo && activeBlock && (
-            <div style={{
-              position: 'fixed',
-              top: '80px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: debugInfo.isCenter ? '#22c55e' : '#ef4444',
-              color: 'white',
-              padding: '12px 20px',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              zIndex: 10000,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              display: 'flex',
-              gap: '16px',
-              alignItems: 'center'
-            }}>
-              <div>블럭: {debugInfo.overId}</div>
-              <div>|</div>
-              <div>위치: {debugInfo.percentage}</div>
-              <div>|</div>
-              <div style={{
-                fontSize: '20px',
-                padding: '4px 12px',
-                background: 'rgba(255,255,255,0.2)',
-                borderRadius: '4px'
-              }}>
-                {debugInfo.position === 'top' && '⬆️ 위'}
-                {debugInfo.position === 'center' && '🎯 중앙'}
-                {debugInfo.position === 'bottom' && '⬇️ 아래'}
-              </div>
-            </div>
-          )}
         </header>
 
         <main className="viewer-content">
@@ -539,11 +483,35 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
               const blocksAtDepth = getBlocksAtDepth(depth)
               const selectedBlockId = selectedPath[depth]
 
+              // 드래그 중이고 이전 depth의 블럭이 선택되었으면 빈 컬럼도 표시
               if (blocksAtDepth.length === 0 && depth > 0) {
-                return null // 블럭이 없으면 컬럼 표시 안 함
+                const prevDepthHasSelection = selectedPath[depth - 1] !== undefined
+                // 드래그 중이 아니거나, 이전 depth에 선택된 블럭이 없으면 컬럼 숨김
+                if (!activeBlock || !prevDepthHasSelection) {
+                  return null
+                }
+                // 드래그 중이고 부모가 선택되었으면 빈 컬럼 표시 (아래에서 계속)
               }
 
               const blockIds = blocksAtDepth.map(b => b.id)
+
+              // 부모 블럭에 center hover 중인지 확인 (하위 칼럼 drop line 표시용)
+              // overId의 depth를 찾아서, 그 depth+1이 현재 칼럼 depth와 같으면 선 표시
+              const hoverBlockDepth = overId ? findBlockDepth(blocks, overId) : -1
+              const showChildDropLine =
+                hoverBlockDepth !== -1 &&
+                hoverBlockDepth + 1 === depth &&
+                dropPosition === 'center' &&
+                activeBlock
+
+              // 디버그 로그 - 선이 표시될 때만
+              if (showChildDropLine) {
+                console.log('✅ 하위 칼럼 드롭 라인 표시!', {
+                  depth,
+                  overId,
+                  hoverBlockDepth
+                })
+              }
 
               return (
                 <div key={depth} className="viewer-column">
@@ -552,27 +520,36 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
                   </div>
                   <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
                     <div className="column-blocks">
-                      {blocksAtDepth.map((block) => {
-                        const isSelected = block.id === selectedBlockId
-                        const isOver = block.id === overId
-                        const hasChildren = block.children && block.children.length > 0
-                        const text = getBlockText(block)
+                      {blocksAtDepth.length === 0 && showChildDropLine ? (
+                        // 빈 칼럼인 경우 맨 위에 드롭 라인 표시
+                        <div className="empty-column-drop-line"></div>
+                      ) : (
+                        blocksAtDepth.map((block, index) => {
+                          const isSelected = block.id === selectedBlockId
+                          const isOver = block.id === overId
+                          const hasChildren = block.children && block.children.length > 0
+                          const text = getBlockText(block)
+                          // 마지막 블럭이고 부모에 center hover 중이면 하단 라인 표시
+                          const isLastBlock = index === blocksAtDepth.length - 1
+                          const showBottomLine = isLastBlock && showChildDropLine
 
-                        return (
-                          <SortableBlock
-                            key={block.id}
-                            block={block}
-                            depth={depth}
-                            isSelected={isSelected}
-                            isOver={isOver}
-                            dropPosition={dropPosition}
-                            activeId={activeBlock?.id}
-                            hasChildren={hasChildren}
-                            text={text}
-                            onClick={() => handleBlockClick(depth, block.id)}
-                          />
-                        )
-                      })}
+                          return (
+                            <SortableBlock
+                              key={block.id}
+                              block={block}
+                              depth={depth}
+                              isSelected={isSelected}
+                              isOver={isOver}
+                              dropPosition={dropPosition}
+                              activeId={activeBlock?.id}
+                              hasChildren={hasChildren}
+                              text={text}
+                              onClick={() => handleBlockClick(depth, block.id)}
+                              showBottomLine={showBottomLine}
+                            />
+                          )
+                        })
+                      )}
                     </div>
                   </SortableContext>
                 </div>

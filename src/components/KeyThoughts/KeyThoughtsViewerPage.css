@@ -101,6 +101,17 @@
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  position: relative;
+}
+
+/* 빈 칼럼 드롭 라인 (부모 블럭에 center hover 시, 빈 칼럼) */
+.empty-column-drop-line {
+  width: calc(100% - 16px);
+  height: 3px;
+  background-color: rgba(59, 130, 246, 0.8);
+  border-radius: 2px;
+  margin: 8px;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
 }
 
 /* 개별 블럭 */
@@ -165,91 +176,6 @@
   background-color: #dbeafe !important;
   border: 2px dashed #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* 디버그: 드래그 중일 때 블럭의 영역 표시 */
-.viewer-block[data-block-id]::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-/* 드래그 중일 때만 영역 표시 */
-body.dragging .viewer-block[data-block-id] {
-  position: relative;
-}
-
-/* 상단 25% 영역 (붉은색 - 기본) */
-body.dragging .viewer-block[data-block-id]::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 25%;
-  background-color: rgba(239, 68, 68, 0.15);
-  pointer-events: none;
-  z-index: 100;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  transition: all 0.15s;
-}
-
-/* 하단 25% 영역 (붉은색 - 기본) */
-body.dragging .viewer-block[data-block-id]::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 25%;
-  background-color: rgba(239, 68, 68, 0.15);
-  pointer-events: none;
-  z-index: 100;
-  opacity: 1;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  transition: all 0.15s;
-}
-
-/* 중앙 50% 영역은 남은 공간 (초록색 - 기본) */
-body.dragging .viewer-block[data-block-id] .block-text::before {
-  content: '';
-  position: absolute;
-  top: 25%;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background-color: rgba(34, 197, 94, 0.1);
-  pointer-events: none;
-  z-index: 99;
-  border: 1px solid rgba(34, 197, 94, 0.25);
-  transition: all 0.15s;
-}
-
-/* ====== 선택된 영역 강조 ====== */
-
-/* 상단 영역 선택됨 */
-body.dragging .viewer-block[data-drop-zone="top"]::before {
-  background-color: rgba(239, 68, 68, 0.5) !important;
-  border: 2px solid rgba(239, 68, 68, 0.8) !important;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
-}
-
-/* 중앙 영역 선택됨 */
-body.dragging .viewer-block[data-drop-zone="center"] .block-text::before {
-  background-color: rgba(34, 197, 94, 0.4) !important;
-  border: 2px solid rgba(34, 197, 94, 0.7) !important;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
-}
-
-/* 하단 영역 선택됨 */
-body.dragging .viewer-block[data-drop-zone="bottom"]::after {
-  background-color: rgba(239, 68, 68, 0.5) !important;
-  border: 2px solid rgba(239, 68, 68, 0.8) !important;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 
 /* 드래그 오버레이 (따라다니는 투명한 복사본) */
