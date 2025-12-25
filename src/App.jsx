@@ -43,7 +43,7 @@ import KeyThoughtsHistoryModal from './components/Modals/KeyThoughtsHistoryModal
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
-import { useKeyThoughts } from './hooks/useKeyThoughts'
+import { useKeyThoughtBlocks } from './hooks/useKeyThoughtBlocks'
 import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
 import { useTodoHistory } from './hooks/useTodoHistory'
@@ -374,22 +374,30 @@ function App() {
     handleResetMemo,
   } = useMemoHook(session)
 
+  // 주요 생각정리 (key_thought_blocks 테이블 사용)
   const {
-    isSavingKeyThoughts,
-    keyThoughtsBlocks, setKeyThoughtsBlocks,
-    lastSavedKeyThoughtsRef,
-    focusedBlockId, setFocusedBlockId,
-    keyThoughtsHistory, setKeyThoughtsHistory,
-    showKeyThoughtsHistory, setShowKeyThoughtsHistory,
-    normalizeBlocks,
-    fetchKeyThoughtsContent,
-    handleSaveKeyThoughts,
-    hasSignificantChange,
+    blocks: keyThoughtsBlocks,
+    setBlocks: setKeyThoughtsBlocks,
+    loading: loadingKeyThoughts,
+    isSaving: isSavingKeyThoughts,
+    lastSavedBlocksRef: lastSavedKeyThoughtsRef,
+    focusedBlockId,
+    setFocusedBlockId,
+    keyThoughtsHistory,
+    setKeyThoughtsHistory,
+    showKeyThoughtsHistory,
+    setShowKeyThoughtsHistory,
+    fetchBlocks: fetchKeyThoughtsContent,
+    saveAllBlocks: handleSaveKeyThoughts,
     cleanupOldHistory,
-    saveKeyThoughtsVersion,
     fetchKeyThoughtsHistory,
     restoreKeyThoughtsVersion,
-  } = useKeyThoughts(session)
+    normalizeBlocks,
+    createBlock,
+    updateBlock,
+    deleteBlock,
+    moveBlock,
+  } = useKeyThoughtBlocks(session)
 
   const {
     encouragementMessages,

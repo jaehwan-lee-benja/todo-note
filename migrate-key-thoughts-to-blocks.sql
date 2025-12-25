@@ -12,20 +12,20 @@ CREATE OR REPLACE FUNCTION migrate_blocks_recursive(
 ) RETURNS VOID AS $$
 DECLARE
   block JSONB;
-  block_id TEXT;
-  block_content TEXT;
-  block_type TEXT;
-  block_is_open BOOLEAN;
-  position INTEGER := 0;
+  v_block_id TEXT;
+  v_block_content TEXT;
+  v_block_type TEXT;
+  v_block_is_open BOOLEAN;
+  v_position INTEGER := 0;
 BEGIN
   -- blocks 배열의 각 요소를 순회
   FOR block IN SELECT * FROM jsonb_array_elements(p_blocks)
   LOOP
     -- 블럭 정보 추출
-    block_id := block->>'id';
-    block_content := COALESCE(block->>'content', '');
-    block_type := COALESCE(block->>'type', 'toggle');
-    block_is_open := COALESCE((block->>'isOpen')::BOOLEAN, true);
+    v_block_id := block->>'id';
+    v_block_content := COALESCE(block->>'content', '');
+    v_block_type := COALESCE(block->>'type', 'toggle');
+    v_block_is_open := COALESCE((block->>'isOpen')::BOOLEAN, true);
 
     -- 블럭 삽입
     INSERT INTO key_thought_blocks (
@@ -39,13 +39,13 @@ BEGIN
       is_open
     ) VALUES (
       p_user_id,
-      block_id,
-      block_content,
-      block_type,
+      v_block_id,
+      v_block_content,
+      v_block_type,
       p_parent_id,
-      position,
+      v_position,
       p_depth,
-      block_is_open
+      v_block_is_open
     )
     ON CONFLICT (user_id, block_id) DO UPDATE
     SET
@@ -62,12 +62,12 @@ BEGIN
       PERFORM migrate_blocks_recursive(
         p_user_id,
         block->'children',
-        block_id,
+        v_block_id,
         p_depth + 1
       );
     END IF;
 
-    position := position + 1;
+    v_position := v_position + 1;
   END LOOP;
 END;
 $$ LANGUAGE plpgsql;
