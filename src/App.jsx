@@ -971,6 +971,7 @@ function App() {
       <KeyThoughtsViewerPage
         blocks={keyThoughtsBlocks}
         setBlocks={setKeyThoughtsBlocks}
+        onSave={handleSaveKeyThoughts}
         onClose={() => setCurrentPage('home')}
       />
     )

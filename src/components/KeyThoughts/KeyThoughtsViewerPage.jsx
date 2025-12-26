@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -18,12 +18,41 @@ import './KeyThoughtsViewerPage.css'
 /**
  * 드래그 가능한 블럭 컴포넌트
  */
-function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeId, hasChildren, text, onClick, showBottomLine: showChildDropBottomLine }) {
+function SortableBlock({
+  block,
+  depth,
+  isSelected,
+  isOver,
+  dropPosition,
+  activeId,
+  hasChildren,
+  text,
+  onClick,
+  showBottomLine: showChildDropBottomLine,
+  isEditing,
+  editingText,
+  onDoubleClick,
+  onEditChange,
+  onSaveEdit,
+  onCancelEdit,
+  onAddChildBlock,
+  onDeleteBlock
+}) {
   const {
     attributes,
     listeners,
     setNodeRef,
   } = useSortable({ id: block.id })
+
+  const textareaRef = useRef(null)
+
+  // textarea 높이 자동 조정
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
+    }
+  }, [isEditing, editingText])
 
   // 노션 방식: 드래그 중에는 블록들이 움직이지 않음
   const isActive = block.id === activeId
@@ -33,9 +62,12 @@ function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeI
 
   const style = {
     // transform 제거 - 블록이 움직이지 않도록
-    cursor: 'grab',
+    cursor: isEditing ? 'text' : 'grab',
     opacity: isActive ? 0.4 : 1, // 드래그 중인 블록은 약간 투명하게
   }
+
+  // 편집 중일 때는 드래그 비활성화
+  const dragHandlers = isEditing ? {} : { ...attributes, ...listeners }
 
   return (
     <div
@@ -43,13 +75,68 @@ function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeI
       style={style}
       data-block-id={block.id}
       data-drop-zone={isOver ? dropPosition : ''}
-      className={`viewer-block ${isSelected ? 'selected' : ''} ${hasChildren ? 'has-children' : ''} ${showTopLine ? 'show-drop-line-top' : ''} ${showBottomLine ? 'show-drop-line-bottom' : ''} ${showAsChild ? 'show-as-child-target' : ''}`}
-      onClick={onClick}
-      {...attributes}
-      {...listeners}
+      className={`viewer-block ${isSelected ? 'selected' : ''} ${hasChildren ? 'has-children' : ''} ${showTopLine ? 'show-drop-line-top' : ''} ${showBottomLine ? 'show-drop-line-bottom' : ''} ${showAsChild ? 'show-as-child-target' : ''} ${isEditing ? 'editing' : ''}`}
+      onClick={isEditing ? undefined : onClick}
+      onDoubleClick={isEditing ? undefined : onDoubleClick}
+      {...dragHandlers}
     >
-      <div className="block-text">{text || '(추가하기: 더블 클릭)'}</div>
-      {hasChildren && <div className="block-arrow">▶</div>}
+      <div className="block-content-area">
+        {isEditing ? (
+          <textarea
+            ref={textareaRef}
+            className="block-edit-input"
+            value={editingText}
+            onChange={(e) => onEditChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                onSaveEdit()
+              } else if (e.key === 'Escape') {
+                onCancelEdit()
+              }
+            }}
+            onBlur={onSaveEdit}
+            autoFocus
+            rows={1}
+          />
+        ) : (
+          <div className="block-text">{text || '내용 입력'}</div>
+        )}
+      </div>
+
+      <div className="block-actions-area">
+        {isEditing ? (
+          <div className="block-edit-buttons">
+            <button
+              className="add-child-button"
+              onMouseDown={(e) => e.preventDefault()} // blur 방지
+              onClick={(e) => {
+                e.stopPropagation()
+                onSaveEdit() // 먼저 저장
+                onAddChildBlock(block.id)
+              }}
+              title="하위 블럭 만들기"
+            >
+              추가
+            </button>
+            <button
+              className="delete-block-button"
+              onMouseDown={(e) => e.preventDefault()} // blur 방지
+              onClick={(e) => {
+                e.stopPropagation()
+                if (window.confirm('이 블럭을 삭제하시겠습니까?')) {
+                  onDeleteBlock(block.id)
+                }
+              }}
+              title="블럭 삭제"
+            >
+              삭제
+            </button>
+          </div>
+        ) : (
+          hasChildren && <div className="block-arrow">{isSelected ? '▶' : '▷'}</div>
+        )}
+      </div>
     </div>
   )
 }
@@ -58,9 +145,13 @@ function SortableBlock({ block, depth, isSelected, isOver, dropPosition, activeI
  * 주요 생각정리 뷰어 페이지 (전체 화면 모드)
  * @param {Array} blocks - 주요 생각정리 블럭 데이터
  * @param {Function} setBlocks - 블럭 데이터 업데이트 함수
+ * @param {Function} onSave - 블럭 데이터 저장 함수
  * @param {Function} onClose - 뷰어 닫기 핸들러
  */
-function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
+function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
+  // 다크모드 상태 (기본값: 다크모드)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
   // 각 컬럼에서 선택된 블럭 추적
   const [selectedPath, setSelectedPath] = useState([]) // [blockId1, blockId2, ...]
 
@@ -68,6 +159,10 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
   const [activeBlock, setActiveBlock] = useState(null)
   const [overId, setOverId] = useState(null)
   const [dropPosition, setDropPosition] = useState(null) // 'top' | 'center' | 'bottom'
+
+  // 편집 상태
+  const [editingBlockId, setEditingBlockId] = useState(null)
+  const [editingText, setEditingText] = useState('')
 
   // 마우스 위치를 useRef로 즉시 접근 가능하게 (state 지연 없음)
   const pointerPositionRef = useRef({ x: 0, y: 0 })
@@ -107,6 +202,8 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
 
   // 블럭 클릭 핸들러
   const handleBlockClick = (depth, blockId, e) => {
+    // 편집 중이면 무시
+    if (editingBlockId) return
     // 드래그 중이면 무시
     if (activeBlock) return
 
@@ -114,6 +211,212 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
     const newPath = selectedPath.slice(0, depth)
     newPath[depth] = blockId
     setSelectedPath(newPath)
+  }
+
+  // 블럭 더블클릭 핸들러 (편집 모드)
+  const handleBlockDoubleClick = (blockId, e) => {
+    e.stopPropagation()
+    const block = findBlockById(blocks, blockId)
+    if (block) {
+      setEditingBlockId(blockId)
+      setEditingText(getBlockText(block))
+    }
+  }
+
+  // 블럭 편집 저장
+  const handleSaveEdit = () => {
+    if (!editingBlockId || !setBlocks) return
+
+    const clonedBlocks = JSON.parse(JSON.stringify(blocks))
+
+    // 블럭 찾아서 내용 업데이트
+    const updateBlockContent = (blockList, targetId, newContent) => {
+      for (let i = 0; i < blockList.length; i++) {
+        if (blockList[i].id === targetId) {
+          // content 구조 유지하며 업데이트
+          if (Array.isArray(blockList[i].content)) {
+            blockList[i].content = [{ text: newContent }]
+          } else {
+            blockList[i].content = newContent
+          }
+          return true
+        }
+        if (blockList[i].children) {
+          if (updateBlockContent(blockList[i].children, targetId, newContent)) return true
+        }
+      }
+      return false
+    }
+
+    updateBlockContent(clonedBlocks, editingBlockId, editingText)
+    setBlocks(clonedBlocks)
+    setEditingBlockId(null)
+    setEditingText('')
+
+    // 편집 완료 후 저장
+    if (onSave) {
+      setTimeout(() => {
+        onSave()
+      }, 100)
+    }
+  }
+
+  // 편집 취소
+  const handleCancelEdit = () => {
+    setEditingBlockId(null)
+    setEditingText('')
+  }
+
+  // 하위 블럭 추가
+  const handleAddChildBlock = (parentId) => {
+    if (!setBlocks) return
+
+    const clonedBlocks = JSON.parse(JSON.stringify(blocks))
+
+    // 부모 블럭 찾아서 빈 하위 블럭 추가
+    const addEmptyChild = (blockList, targetId) => {
+      for (let i = 0; i < blockList.length; i++) {
+        if (blockList[i].id === targetId) {
+          // 고유 ID 생성
+          const newBlockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          const emptyBlock = {
+            id: newBlockId,
+            content: '',
+            children: []
+          }
+
+          if (!blockList[i].children) {
+            blockList[i].children = []
+          }
+          blockList[i].children.push(emptyBlock)
+          return newBlockId
+        }
+        if (blockList[i].children) {
+          const result = addEmptyChild(blockList[i].children, targetId)
+          if (result) return result
+        }
+      }
+      return null
+    }
+
+    const newBlockId = addEmptyChild(clonedBlocks, parentId)
+    if (newBlockId) {
+      setBlocks(clonedBlocks)
+
+      // 편집 모드 종료하고 새 블럭으로 경로 업데이트
+      setEditingBlockId(null)
+      setEditingText('')
+
+      // 부모 블럭의 depth 찾기
+      const parentDepth = findBlockDepth(clonedBlocks, parentId)
+      if (parentDepth !== -1) {
+        const newPath = selectedPath.slice(0, parentDepth)
+        newPath[parentDepth] = parentId
+        setSelectedPath(newPath)
+      }
+
+      // 하위 블럭 추가 후 저장
+      if (onSave) {
+        setTimeout(() => {
+          onSave()
+        }, 100)
+      }
+    }
+  }
+
+  // 블럭 삭제
+  const handleDeleteBlock = (blockId) => {
+    if (!setBlocks) return
+
+    const clonedBlocks = JSON.parse(JSON.stringify(blocks))
+
+    // 블럭 찾아서 삭제
+    const deleteBlock = (blockList, targetId) => {
+      for (let i = 0; i < blockList.length; i++) {
+        if (blockList[i].id === targetId) {
+          blockList.splice(i, 1)
+          return true
+        }
+        if (blockList[i].children) {
+          if (deleteBlock(blockList[i].children, targetId)) return true
+        }
+      }
+      return false
+    }
+
+    if (deleteBlock(clonedBlocks, blockId)) {
+      setBlocks(clonedBlocks)
+
+      // 편집 모드 종료
+      setEditingBlockId(null)
+      setEditingText('')
+
+      // 선택된 경로 초기화 (삭제된 블럭이 경로에 포함되어 있을 수 있음)
+      const newPath = selectedPath.filter(id => id !== blockId)
+      setSelectedPath(newPath)
+
+      // 블럭 삭제 후 저장
+      if (onSave) {
+        setTimeout(() => {
+          onSave()
+        }, 100)
+      }
+    }
+  }
+
+  // 컬럼에 새 블럭 추가 (제일 아래)
+  const handleAddBlockToColumn = (depth) => {
+    if (!setBlocks) return
+
+    const clonedBlocks = JSON.parse(JSON.stringify(blocks))
+    const newBlockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const emptyBlock = {
+      id: newBlockId,
+      content: '',
+      children: []
+    }
+
+    if (depth === 0) {
+      // 최상위 레벨에 추가
+      clonedBlocks.push(emptyBlock)
+    } else {
+      // 하위 레벨에 추가 - 선택된 경로의 마지막 블럭의 children에 추가
+      const parentId = selectedPath[depth - 1]
+      if (!parentId) return
+
+      const addToParent = (blockList) => {
+        for (let i = 0; i < blockList.length; i++) {
+          if (blockList[i].id === parentId) {
+            if (!blockList[i].children) {
+              blockList[i].children = []
+            }
+            blockList[i].children.push(emptyBlock)
+            return true
+          }
+          if (blockList[i].children) {
+            if (addToParent(blockList[i].children)) return true
+          }
+        }
+        return false
+      }
+
+      addToParent(clonedBlocks)
+    }
+
+    setBlocks(clonedBlocks)
+
+    // 새로 추가된 블럭을 자동으로 편집 모드로 전환
+    setTimeout(() => {
+      setEditingBlockId(newBlockId)
+      setEditingText('')
+    }, 50)
+
+    // 블럭 추가 후 저장
+    if (onSave) {
+      setTimeout(() => {
+        onSave()
+      }, 100)
+    }
   }
 
   // 블럭을 ID로 찾기 (재귀)
@@ -397,16 +700,20 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
 
 
   // 드래그 종료
-  const handleDragEnd = (event) => {
+  const handleDragEnd = async (event) => {
     const { active, over } = event
+
+    let hasChanged = false
 
     if (over && active.id !== over.id) {
       if (dropPosition === 'center') {
         // children으로 추가
         moveBlockAsChild(active.id, over.id)
+        hasChanged = true
       } else {
         // 같은 레벨에서 순서 변경
         moveBlock(active.id, over.id, dropPosition)
+        hasChanged = true
       }
     }
 
@@ -422,6 +729,13 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
     if (window._dragMoveCleanup) {
       window._dragMoveCleanup()
       window._dragMoveCleanup = null
+    }
+
+    // 순서가 변경되었으면 저장
+    if (hasChanged && onSave) {
+      setTimeout(() => {
+        onSave()
+      }, 100) // 약간의 지연을 두어 state 업데이트 완료 대기
     }
   }
 
@@ -465,7 +779,7 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="key-thoughts-viewer-page">
+      <div className={`key-thoughts-viewer-page ${isDarkMode ? 'dark-mode' : ''}`}>
         <header className="viewer-header">
           <button
             className="viewer-close-button"
@@ -474,7 +788,14 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
           >
             ✕
           </button>
-          <h2 className="viewer-title">💡 주요 생각정리</h2>
+          <h2 className="viewer-title">주요 생각정리</h2>
+          <button
+            className="dark-mode-toggle"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            aria-label={isDarkMode ? '라이트 모드로 전환' : '다크 모드로 전환'}
+          >
+            {isDarkMode ? 'Light' : 'Dark'}
+          </button>
         </header>
 
         <main className="viewer-content">
@@ -537,10 +858,25 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
                               text={text}
                               onClick={() => handleBlockClick(depth, block.id)}
                               showBottomLine={showBottomLine}
+                              isEditing={editingBlockId === block.id}
+                              editingText={editingText}
+                              onDoubleClick={(e) => handleBlockDoubleClick(block.id, e)}
+                              onEditChange={setEditingText}
+                              onSaveEdit={handleSaveEdit}
+                              onCancelEdit={handleCancelEdit}
+                              onAddChildBlock={handleAddChildBlock}
+                              onDeleteBlock={handleDeleteBlock}
                             />
                           )
                         })
                       )}
+                      {/* 새 블럭 추가 버튼 */}
+                      <button
+                        className="add-block-button"
+                        onClick={() => handleAddBlockToColumn(depth)}
+                      >
+                        + 새 블럭
+                      </button>
                     </div>
                   </SortableContext>
                 </div>
@@ -553,10 +889,14 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onClose }) {
         <DragOverlay>
           {activeBlock ? (
             <div className="viewer-block dragging-overlay">
-              <div className="block-text">{getBlockText(activeBlock) || '(추가하기: 더블 클릭)'}</div>
-              {activeBlock.children && activeBlock.children.length > 0 && (
-                <div className="block-arrow">▶</div>
-              )}
+              <div className="block-content-area">
+                <div className="block-text">{getBlockText(activeBlock) || '내용 입력'}</div>
+              </div>
+              <div className="block-actions-area">
+                {activeBlock.children && activeBlock.children.length > 0 && (
+                  <div className="block-arrow">▶</div>
+                )}
+              </div>
             </div>
           ) : null}
         </DragOverlay>
