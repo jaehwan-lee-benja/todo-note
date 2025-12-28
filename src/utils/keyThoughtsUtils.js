@@ -23,6 +23,9 @@ export function buildTree(flatBlocks) {
       type: block.type || 'toggle',
       content: block.content || '',
       isOpen: block.is_open !== undefined ? block.is_open : true,
+      isTodo: block.is_todo || false,
+      isCompleted: block.is_completed || false,
+      memo: block.memo || '',
       children: [],
       // DB 메타데이터 (필요시 사용)
       _dbId: block.id,
@@ -96,7 +99,10 @@ export function flattenTree(tree, parentId = null, depth = 0) {
       parent_id: parentId,
       position: index,
       depth: depth,
-      is_open: blockData.isOpen !== undefined ? blockData.isOpen : true
+      is_open: blockData.isOpen !== undefined ? blockData.isOpen : true,
+      is_todo: blockData.isTodo || false,
+      is_completed: blockData.isCompleted || false,
+      memo: blockData.memo || ''
     }
 
     result.push(flatBlock)

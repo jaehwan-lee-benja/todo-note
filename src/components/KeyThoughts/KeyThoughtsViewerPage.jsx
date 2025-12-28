@@ -22,6 +22,7 @@ function SortableBlock({
   block,
   depth,
   isSelected,
+  isCurrent,
   isOver,
   dropPosition,
   activeId,
@@ -36,7 +37,9 @@ function SortableBlock({
   onSaveEdit,
   onCancelEdit,
   onAddChildBlock,
-  onDeleteBlock
+  onDeleteBlock,
+  onToggleTodo,
+  onToggleMemo
 }) {
   const {
     attributes,
@@ -45,6 +48,7 @@ function SortableBlock({
   } = useSortable({ id: block.id })
 
   const textareaRef = useRef(null)
+  const skipBlurRef = useRef(false)
 
   // textarea 높이 자동 조정
   useEffect(() => {
@@ -75,7 +79,7 @@ function SortableBlock({
       style={style}
       data-block-id={block.id}
       data-drop-zone={isOver ? dropPosition : ''}
-      className={`viewer-block ${isSelected ? 'selected' : ''} ${hasChildren ? 'has-children' : ''} ${showTopLine ? 'show-drop-line-top' : ''} ${showBottomLine ? 'show-drop-line-bottom' : ''} ${showAsChild ? 'show-as-child-target' : ''} ${isEditing ? 'editing' : ''}`}
+      className={`viewer-block ${isSelected ? 'selected' : ''} ${isCurrent ? 'current-selected' : ''} ${hasChildren ? 'has-children' : ''} ${showTopLine ? 'show-drop-line-top' : ''} ${showBottomLine ? 'show-drop-line-bottom' : ''} ${showAsChild ? 'show-as-child-target' : ''} ${isEditing ? 'editing' : ''}`}
       onClick={isEditing ? undefined : onClick}
       onDoubleClick={isEditing ? undefined : onDoubleClick}
       {...dragHandlers}
@@ -90,12 +94,28 @@ function SortableBlock({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
+                e.stopPropagation()
+                skipBlurRef.current = true
                 onSaveEdit()
+                if (textareaRef.current) {
+                  textareaRef.current.blur()
+                }
               } else if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+                skipBlurRef.current = true
                 onCancelEdit()
+                if (textareaRef.current) {
+                  textareaRef.current.blur()
+                }
               }
             }}
-            onBlur={onSaveEdit}
+            onBlur={() => {
+              if (!skipBlurRef.current) {
+                onSaveEdit()
+              }
+              skipBlurRef.current = false
+            }}
             autoFocus
             rows={1}
           />
@@ -107,6 +127,28 @@ function SortableBlock({
       <div className="block-actions-area">
         {isEditing ? (
           <div className="block-edit-buttons">
+            <button
+              className={`todo-button ${block.isTodo ? 'active' : ''}`}
+              onMouseDown={(e) => e.preventDefault()} // blur 방지
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleTodo(block.id)
+              }}
+              title="TODO 체크박스 토글"
+            >
+              {block.isTodo ? '☑' : '□'}
+            </button>
+            <button
+              className={`memo-button ${block.memo ? 'has-memo' : ''}`}
+              onMouseDown={(e) => e.preventDefault()} // blur 방지
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleMemo(block.id)
+              }}
+              title="메모"
+            >
+              📝
+            </button>
             <button
               className="add-child-button"
               onMouseDown={(e) => e.preventDefault()} // blur 방지
@@ -178,6 +220,196 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
       },
     })
   )
+
+  // 선택된 블럭으로 자동 스크롤
+  useEffect(() => {
+    if (selectedPath.length === 0) return
+
+    const currentDepth = selectedPath.length - 1
+    const currentBlockId = selectedPath[currentDepth]
+
+    if (currentBlockId) {
+      // 약간의 지연을 두어 DOM이 업데이트되도록 함
+      setTimeout(() => {
+        let element = null
+
+        if (currentBlockId === 'ADD_BUTTON') {
+          // '+ 새 블럭' 버튼 찾기
+          const columns = document.querySelectorAll('.viewer-column')
+          if (columns[currentDepth]) {
+            element = columns[currentDepth].querySelector('.add-block-button')
+          }
+        } else {
+          // 일반 블럭 찾기
+          element = document.querySelector(`[data-block-id="${currentBlockId}"]`)
+        }
+
+        if (element) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'center'
+          })
+        }
+      }, 50)
+    }
+  }, [selectedPath])
+
+  // 키보드 내비게이션
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // 편집 모드일 때는 키보드 이벤트 무시
+      if (editingBlockId) return
+
+      // 현재 선택된 depth와 blockId 계산
+      const currentDepth = selectedPath.length > 0 ? selectedPath.length - 1 : 0
+      const currentBlockId = selectedPath[currentDepth]
+
+      // '+ 새 블럭' 버튼이 선택되었는지 확인
+      const isAddButtonSelected = currentBlockId === 'ADD_BUTTON'
+
+      // 현재 depth의 블럭들
+      const currentBlocks = getBlocksAtDepth(currentDepth)
+      const currentIndex = currentBlocks.findIndex(b => b.id === currentBlockId)
+
+      switch (e.key) {
+        case 'Enter': {
+          e.preventDefault()
+          if (isAddButtonSelected) {
+            // '+ 새 블럭' 버튼에서 Enter 누르면 새 블럭 추가
+            handleAddBlockToColumn(currentDepth)
+          } else if (currentBlockId) {
+            // 선택된 블럭을 편집 모드로 전환
+            const block = findBlockById(blocks, currentBlockId)
+            if (block) {
+              setEditingBlockId(currentBlockId)
+              setEditingText(getBlockText(block))
+            }
+          }
+          break
+        }
+
+        case 'ArrowUp': {
+          e.preventDefault()
+          if (isAddButtonSelected) {
+            // '+ 새 블럭' 버튼에서 위로 가면 마지막 블럭으로
+            if (currentBlocks.length > 0) {
+              const newBlockId = currentBlocks[currentBlocks.length - 1].id
+              const newPath = selectedPath.slice(0, currentDepth)
+              newPath[currentDepth] = newBlockId
+              setSelectedPath(newPath)
+            }
+          } else if (currentIndex > 0) {
+            // 같은 컬럼에서 위로 이동
+            const newBlockId = currentBlocks[currentIndex - 1].id
+            const newPath = selectedPath.slice(0, currentDepth)
+            newPath[currentDepth] = newBlockId
+            setSelectedPath(newPath)
+          }
+          break
+        }
+
+        case 'ArrowDown': {
+          e.preventDefault()
+          if (currentIndex === currentBlocks.length - 1) {
+            // 마지막 블럭에서 아래로 가면 '+ 새 블럭' 버튼 선택
+            const newPath = selectedPath.slice(0, currentDepth)
+            newPath[currentDepth] = 'ADD_BUTTON'
+            setSelectedPath(newPath)
+          } else if (currentIndex < currentBlocks.length - 1 && !isAddButtonSelected) {
+            // 같은 컬럼에서 아래로 이동
+            const newBlockId = currentBlocks[currentIndex + 1].id
+            const newPath = selectedPath.slice(0, currentDepth)
+            newPath[currentDepth] = newBlockId
+            setSelectedPath(newPath)
+          }
+          break
+        }
+
+        case 'ArrowLeft': {
+          e.preventDefault()
+          // 왼쪽 컬럼 (부모 레벨)로 이동
+          if (selectedPath.length > 0) {
+            setSelectedPath(selectedPath.slice(0, -1))
+          }
+          break
+        }
+
+        case 'ArrowRight': {
+          e.preventDefault()
+          // 오른쪽 컬럼 (자식 레벨)로 이동
+          if (currentBlockId && currentBlockId !== 'ADD_BUTTON') {
+            const currentBlock = findBlockById(blocks, currentBlockId)
+            if (currentBlock) {
+              if (currentBlock.children && currentBlock.children.length > 0) {
+                // 첫 번째 자식 선택
+                const newPath = [...selectedPath, currentBlock.children[0].id]
+                setSelectedPath(newPath)
+              } else {
+                // 자식이 없으면 '+ 새 블럭' 버튼 선택
+                const newPath = [...selectedPath, 'ADD_BUTTON']
+                setSelectedPath(newPath)
+              }
+            }
+          } else if (currentBlocks.length > 0) {
+            // 선택된 블럭이 없으면 첫 번째 블럭 선택
+            setSelectedPath([currentBlocks[0].id])
+          }
+          break
+        }
+
+        case 'Tab': {
+          e.preventDefault()
+          // 하위 레벨로 이동 (ArrowRight와 동일)
+          if (currentBlockId && currentBlockId !== 'ADD_BUTTON') {
+            const currentBlock = findBlockById(blocks, currentBlockId)
+            if (currentBlock) {
+              if (currentBlock.children && currentBlock.children.length > 0) {
+                const newPath = [...selectedPath, currentBlock.children[0].id]
+                setSelectedPath(newPath)
+              } else {
+                // 자식이 없으면 '+ 새 블럭' 버튼 선택
+                const newPath = [...selectedPath, 'ADD_BUTTON']
+                setSelectedPath(newPath)
+              }
+            }
+          } else if (currentBlocks.length > 0) {
+            setSelectedPath([currentBlocks[0].id])
+          }
+          break
+        }
+
+        default:
+          break
+      }
+
+      // Shift+Tab 처리
+      if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault()
+        // 상위 레벨로 이동 (ArrowLeft와 동일)
+        if (selectedPath.length > 0) {
+          setSelectedPath(selectedPath.slice(0, -1))
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedPath, editingBlockId, blocks])
+
+  // 블럭을 ID로 찾기 (재귀)
+  const findBlockById = (blockList, id) => {
+    for (const block of blockList) {
+      if (block.id === id) return block
+      if (block.children) {
+        const found = findBlockById(block.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
 
   // 특정 깊이의 블럭들을 가져오기
   const getBlocksAtDepth = (depth) => {
@@ -364,6 +596,84 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
     }
   }
 
+  // TODO 체크박스 토글
+  const handleToggleTodo = (blockId) => {
+    if (!setBlocks) return
+
+    const clonedBlocks = JSON.parse(JSON.stringify(blocks))
+
+    // 블럭 찾아서 isTodo 토글
+    const toggleTodo = (blockList, targetId) => {
+      for (let i = 0; i < blockList.length; i++) {
+        if (blockList[i].id === targetId) {
+          blockList[i].isTodo = !blockList[i].isTodo
+          // TODO가 비활성화되면 완료 상태도 초기화
+          if (!blockList[i].isTodo) {
+            blockList[i].isCompleted = false
+          }
+          return true
+        }
+        if (blockList[i].children) {
+          if (toggleTodo(blockList[i].children, targetId)) return true
+        }
+      }
+      return false
+    }
+
+    if (toggleTodo(clonedBlocks, blockId)) {
+      setBlocks(clonedBlocks)
+
+      // TODO 상태 변경 후 저장
+      if (onSave) {
+        setTimeout(() => {
+          onSave()
+        }, 100)
+      }
+    }
+  }
+
+  // 메모 토글
+  const handleToggleMemo = (blockId) => {
+    if (!setBlocks) return
+
+    const block = findBlockById(blocks, blockId)
+    if (!block) return
+
+    // 메모 입력 프롬프트
+    const currentMemo = block.memo || ''
+    const newMemo = prompt('메모를 입력하세요:', currentMemo)
+
+    // 취소하면 null 반환됨
+    if (newMemo === null) return
+
+    const clonedBlocks = JSON.parse(JSON.stringify(blocks))
+
+    // 블럭 찾아서 memo 업데이트
+    const updateMemo = (blockList, targetId, memoText) => {
+      for (let i = 0; i < blockList.length; i++) {
+        if (blockList[i].id === targetId) {
+          blockList[i].memo = memoText
+          return true
+        }
+        if (blockList[i].children) {
+          if (updateMemo(blockList[i].children, targetId, memoText)) return true
+        }
+      }
+      return false
+    }
+
+    if (updateMemo(clonedBlocks, blockId, newMemo)) {
+      setBlocks(clonedBlocks)
+
+      // 메모 변경 후 저장
+      if (onSave) {
+        setTimeout(() => {
+          onSave()
+        }, 100)
+      }
+    }
+  }
+
   // 컬럼에 새 블럭 추가 (제일 아래)
   const handleAddBlockToColumn = (depth) => {
     if (!setBlocks) return
@@ -417,18 +727,6 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
         onSave()
       }, 100)
     }
-  }
-
-  // 블럭을 ID로 찾기 (재귀)
-  const findBlockById = (blockList, id) => {
-    for (const block of blockList) {
-      if (block.id === id) return block
-      if (block.children) {
-        const found = findBlockById(block.children, id)
-        if (found) return found
-      }
-    }
-    return null
   }
 
   // 블럭의 depth 찾기
@@ -804,14 +1102,14 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
               const blocksAtDepth = getBlocksAtDepth(depth)
               const selectedBlockId = selectedPath[depth]
 
-              // 드래그 중이고 이전 depth의 블럭이 선택되었으면 빈 컬럼도 표시
+              // 이전 depth의 블럭이 선택되었으면 빈 컬럼도 표시
               if (blocksAtDepth.length === 0 && depth > 0) {
-                const prevDepthHasSelection = selectedPath[depth - 1] !== undefined
-                // 드래그 중이 아니거나, 이전 depth에 선택된 블럭이 없으면 컬럼 숨김
-                if (!activeBlock || !prevDepthHasSelection) {
+                const prevDepthSelection = selectedPath[depth - 1]
+                // 이전 depth에 선택된 것이 없으면 컬럼 숨김
+                if (!prevDepthSelection) {
                   return null
                 }
-                // 드래그 중이고 부모가 선택되었으면 빈 컬럼 표시 (아래에서 계속)
+                // 부모가 선택되었으면 빈 컬럼 표시 (아래에서 계속)
               }
 
               const blockIds = blocksAtDepth.map(b => b.id)
@@ -844,6 +1142,8 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
                           // 마지막 블럭이고 부모에 center hover 중이면 하단 라인 표시
                           const isLastBlock = index === blocksAtDepth.length - 1
                           const showBottomLine = isLastBlock && showChildDropLine
+                          // 현재 실제로 선택된 블럭인지 확인 (경로의 마지막)
+                          const isCurrent = selectedPath.length > 0 && selectedPath[selectedPath.length - 1] === block.id
 
                           return (
                             <SortableBlock
@@ -851,6 +1151,7 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
                               block={block}
                               depth={depth}
                               isSelected={isSelected}
+                              isCurrent={isCurrent}
                               isOver={isOver}
                               dropPosition={dropPosition}
                               activeId={activeBlock?.id}
@@ -866,17 +1167,21 @@ function KeyThoughtsViewerPage({ blocks = [], setBlocks, onSave, onClose }) {
                               onCancelEdit={handleCancelEdit}
                               onAddChildBlock={handleAddChildBlock}
                               onDeleteBlock={handleDeleteBlock}
+                              onToggleTodo={handleToggleTodo}
+                              onToggleMemo={handleToggleMemo}
                             />
                           )
                         })
                       )}
-                      {/* 새 블럭 추가 버튼 */}
-                      <button
-                        className="add-block-button"
-                        onClick={() => handleAddBlockToColumn(depth)}
-                      >
-                        + 새 블럭
-                      </button>
+                      {/* 새 블럭 추가 버튼 - 부모가 ADD_BUTTON이 아닐 때만 표시 */}
+                      {(depth === 0 || selectedPath[depth - 1] !== 'ADD_BUTTON') && (
+                        <button
+                          className={`add-block-button ${selectedBlockId === 'ADD_BUTTON' ? 'selected' : ''}`}
+                          onClick={() => handleAddBlockToColumn(depth)}
+                        >
+                          + 새 블럭
+                        </button>
+                      )}
                     </div>
                   </SortableContext>
                 </div>
