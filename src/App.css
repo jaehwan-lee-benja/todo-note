@@ -383,6 +383,16 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   transform: translateX(2px);
 }
 
+.sidebar-menu-item.active {
+  background: rgba(100, 108, 255, 0.15);
+  border-color: #646cff;
+  color: #646cff;
+}
+
+.sidebar-menu-item.active:hover {
+  background: rgba(100, 108, 255, 0.25);
+}
+
 .sidebar-icon {
   font-size: 1.5rem;
   display: flex;
@@ -2262,6 +2272,16 @@ h1 {
     border-color: #646cff;
   }
 
+  .sidebar-menu-item.active {
+    background: rgba(100, 108, 255, 0.1);
+    border-color: #646cff;
+    color: #646cff;
+  }
+
+  .sidebar-menu-item.active:hover {
+    background: rgba(100, 108, 255, 0.2);
+  }
+
   .date-nav-button {
     background: rgba(0, 0, 0, 0.03);
     color: rgba(0, 0, 0, 0.6);
@@ -2421,10 +2441,7 @@ h1 {
 
 @media (max-width: 768px) {
   /* 첫 번째 섹션 위 여백 제거 */
-  .sections-container > .section-block:first-child .memo-section,
-  .sections-container > .section-block:first-child .routine-section,
-  .sections-container > .section-block:first-child .normal-section,
-  .sections-container > .section-block:first-child .key-thoughts-section {
+  .sections-container > .section-block:first-child {
     margin-top: 0;
   }
 
@@ -3645,11 +3662,8 @@ h1 {
 }
 
 
-/* 섹션 공통 스타일 */
-.memo-section,
-.routine-section,
-.normal-section,
-.key-thoughts-section {
+/* 섹션 공통 스타일 - 모든 섹션에 적용 */
+.section-block {
   margin-bottom: 12px;
   background: #242424;
   border-radius: 12px;
@@ -3662,18 +3676,12 @@ h1 {
 }
 
 /* 순서 수정 모드일 때 시각적 강조 */
-.reorder-mode .memo-section,
-.reorder-mode .routine-section,
-.reorder-mode .normal-section,
-.reorder-mode .key-thoughts-section {
+.reorder-mode .section-block {
   border: 3px solid #007aff;
   background: rgba(0, 122, 255, 0.05);
 }
 
-.reorder-mode .memo-section:hover,
-.reorder-mode .routine-section:hover,
-.reorder-mode .normal-section:hover,
-.reorder-mode .key-thoughts-section:hover {
+.reorder-mode .section-block:hover {
   border-color: #0a84ff;
   background: rgba(0, 122, 255, 0.08);
 }
@@ -3712,43 +3720,39 @@ h1 {
   cursor: grabbing;
 }
 
-.memo-section::-webkit-scrollbar,
-.routine-section::-webkit-scrollbar,
-.normal-section::-webkit-scrollbar,
-.key-thoughts-section::-webkit-scrollbar,
-.memo-section *::-webkit-scrollbar,
-.routine-section *::-webkit-scrollbar,
-.normal-section *::-webkit-scrollbar,
-.key-thoughts-section *::-webkit-scrollbar {
+/* 섹션 스크롤바 스타일 - 모든 섹션에 적용 */
+.section-block::-webkit-scrollbar,
+.section-block *::-webkit-scrollbar {
   width: 6px !important;
 }
 
-.memo-section::-webkit-scrollbar-thumb,
-.routine-section::-webkit-scrollbar-thumb,
-.normal-section::-webkit-scrollbar-thumb,
-.key-thoughts-section::-webkit-scrollbar-thumb,
-.memo-section *::-webkit-scrollbar-thumb,
-.routine-section *::-webkit-scrollbar-thumb,
-.normal-section *::-webkit-scrollbar-thumb,
-.key-thoughts-section *::-webkit-scrollbar-thumb {
+.section-block::-webkit-scrollbar-thumb,
+.section-block *::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2) !important;
   border-radius: 3px !important;
   border: none !important;
 }
 
-.memo-section::-webkit-scrollbar-thumb:hover,
-.routine-section::-webkit-scrollbar-thumb:hover,
-.normal-section::-webkit-scrollbar-thumb:hover,
-.key-thoughts-section::-webkit-scrollbar-thumb:hover,
-.memo-section *::-webkit-scrollbar-thumb:hover,
-.routine-section *::-webkit-scrollbar-thumb:hover,
-.normal-section *::-webkit-scrollbar-thumb:hover,
-.key-thoughts-section *::-webkit-scrollbar-thumb:hover {
+.section-block::-webkit-scrollbar-thumb:hover,
+.section-block *::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* 메모 섹션 */
-.memo-section {
+/* 개별 섹션별 제목 색상만 정의 */
+.memo-section .section-title {
+  color: #FFC107;
+}
+
+.routine-section .section-title {
+  color: #646cff;
+}
+
+.normal-section .section-title {
+  color: #888;
+}
+
+.custom-section .section-title {
+  color: #4CAF50;
 }
 
 .section-header {
@@ -3762,6 +3766,30 @@ h1 {
   gap: 0.5rem;
 }
 
+/* Unified section action button style */
+.section-action-button {
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.section-action-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.section-action-button:active {
+  transform: scale(0.95);
+}
+
+/* Backward compatibility aliases */
 .toggle-all-button {
   padding: 0.35rem 0.75rem;
   background: rgba(255, 255, 255, 0.05);
@@ -3785,20 +3813,21 @@ h1 {
 }
 
 .memo-edit-button-inline {
-  padding: 0.25rem 0.5rem;
-  font-size: 1rem;
+  padding: 0.35rem 0.75rem;
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
+  font-size: 0.8rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .memo-edit-button-inline:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #646cff;
-  border-color: #646cff;
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .memo-preview {
@@ -4003,16 +4032,199 @@ h1 {
   gap: 8px;
 }
 
-.memo-section .section-title {
-  color: #FFC107;
+.section-title.editable {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
 }
 
-.routine-section .section-title {
-  color: #646cff;
+.section-title.editable:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-.normal-section .section-title {
-  color: #888;
+.section-title-edit {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+  padding: 4px 8px;
+  border: 2px solid #646cff;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  outline: none;
+  width: 200px;
+  font-family: inherit;
+}
+
+/* Delete section button - unified inline style */
+.delete-section-button {
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 100, 100, 0.05);
+  color: rgba(255, 100, 100, 0.8);
+  border: 1px solid rgba(255, 100, 100, 0.2);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.delete-section-button:hover {
+  background: rgba(255, 100, 100, 0.15);
+  color: rgba(255, 100, 100, 1);
+  border-color: rgba(255, 100, 100, 0.4);
+}
+
+.delete-section-button:active {
+  transform: scale(0.95);
+}
+
+/* 섹션 추가 모달 스타일 */
+.add-section-modal {
+  max-width: 500px;
+  width: 90vw;
+}
+
+.add-section-form {
+  padding: 1rem 0;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.section-name-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.section-name-input:focus {
+  border-color: #646cff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.emoji-button {
+  width: 100%;
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emoji-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.emoji-button.selected {
+  background: rgba(100, 108, 255, 0.2);
+  border-color: #646cff;
+}
+
+.custom-emoji-input {
+  margin-top: 0.5rem;
+}
+
+.emoji-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+  text-align: center;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.emoji-input:focus {
+  border-color: #646cff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.section-preview {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  color: #4CAF50;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.cancel-button,
+.submit-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cancel-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.submit-button {
+  background: #646cff;
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.submit-button:hover:not(:disabled) {
+  background: #535bf2;
+  transform: translateY(-1px);
+}
+
+.submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 메모 모달 스타일 */
@@ -4632,10 +4844,7 @@ h1 {
   }
 
   /* 모바일에서 섹션 패딩 및 여백 조정 */
-  .memo-section,
-  .routine-section,
-  .normal-section,
-  .key-thoughts-section {
+  .section-block {
     padding: 0.75rem;
     margin-bottom: 0.75rem;
   }

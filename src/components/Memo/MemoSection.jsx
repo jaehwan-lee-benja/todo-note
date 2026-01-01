@@ -23,7 +23,7 @@ function MemoSection({
           {!isEditing && (
             <button
               onClick={onStartEdit}
-              className="memo-edit-button-inline"
+              className="section-action-button"
               title="메모 편집"
             >
               ✏️ 편집

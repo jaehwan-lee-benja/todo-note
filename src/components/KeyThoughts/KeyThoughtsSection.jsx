@@ -256,21 +256,21 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
         <h3 className="section-title">💡 주요 생각정리</h3>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            className="toggle-all-button"
+            className="section-action-button"
             onClick={() => onOpenViewer && onOpenViewer()}
             title="뷰어 모드로 보기"
           >
             📖 뷰어
           </button>
           <button
-            className="toggle-all-button"
+            className="section-action-button"
             onClick={() => onShowHistory && onShowHistory()}
             title="버전 히스토리 보기"
           >
             🕐 히스토리
           </button>
           <button
-            className="toggle-all-button"
+            className="section-action-button"
             onClick={() => toggleAllBlocks(!allOpen)}
             title={allOpen ? "전체 접기" : "전체 펴기"}
           >

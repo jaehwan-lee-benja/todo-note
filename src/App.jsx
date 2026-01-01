@@ -40,6 +40,7 @@ import DummyModal from './components/Modals/DummyModal'
 import GanttChartModal from './components/Modals/GanttChartModal'
 import EncouragementModal from './components/Modals/EncouragementModal'
 import KeyThoughtsHistoryModal from './components/Modals/KeyThoughtsHistoryModal'
+import AddSectionModal from './components/Modals/AddSectionModal'
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
@@ -424,12 +425,26 @@ function App() {
     const saved = localStorage.getItem('viewMode')
     return saved || 'horizontal' // 기본값: horizontal
   })
+
+  // 섹션 제목 관리
+  const [sectionTitles, setSectionTitles] = useState({
+    normal: '📝 일반 투두',
+    routine: '🔄 루틴 투두',
+    memo: '📋 메모',
+    'key-thoughts': '💡 주요 생각정리'
+  })
+
+  // 사용자 정의 섹션 관리
+  const [customSections, setCustomSections] = useState([])
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false)
+  const [customSectionAdding, setCustomSectionAdding] = useState(false)
+
   // 섹션 순서 관리
   const sectionOrderHook = useSectionOrder(session)
   const {
     sectionOrder, setSectionOrder,
     isReorderMode, setIsReorderMode,
-    fetchSectionOrder, moveSectionLeft, moveSectionRight,
+    fetchSectionOrder, saveSectionOrder, moveSectionLeft, moveSectionRight,
     handleSectionDragEnd, handleSectionsContainerDoubleClick,
   } = sectionOrderHook
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
@@ -456,6 +471,232 @@ function App() {
     setSelectedDate(newDate)
   }
 
+  // 섹션 제목 불러오기
+  const fetchSectionTitles = async () => {
+    if (!session?.user?.id) return
+
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('setting_value')
+        .eq('setting_key', 'section_titles')
+        .maybeSingle()
+
+      if (error) {
+        console.error('섹션 제목 불러오기 오류:', error.message)
+        return
+      }
+
+      if (data && data.setting_value) {
+        const titles = JSON.parse(data.setting_value)
+        setSectionTitles(prev => ({ ...prev, ...titles }))
+      }
+    } catch (error) {
+      console.error('섹션 제목 불러오기 오류:', error.message)
+    }
+  }
+
+  // 섹션 제목 저장하기
+  const saveSectionTitle = async (sectionId, newTitle) => {
+    if (!session?.user?.id) return
+
+    const updatedTitles = {
+      ...sectionTitles,
+      [sectionId]: newTitle
+    }
+
+    setSectionTitles(updatedTitles)
+
+    try {
+      const { data: existing, error: selectError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('setting_key', 'section_titles')
+        .maybeSingle()
+
+      if (selectError) {
+        console.error('섹션 제목 조회 오류:', selectError.message)
+        return
+      }
+
+      if (existing) {
+        // 업데이트
+        await supabase
+          .from('user_settings')
+          .update({ setting_value: JSON.stringify(updatedTitles), updated_at: new Date().toISOString() })
+          .eq('setting_key', 'section_titles')
+      } else {
+        // 신규 생성
+        await supabase
+          .from('user_settings')
+          .insert([{
+            setting_key: 'section_titles',
+            setting_value: JSON.stringify(updatedTitles),
+            user_id: session.user.id
+          }])
+      }
+    } catch (error) {
+      console.error('섹션 제목 저장 오류:', error.message)
+    }
+  }
+
+  // 사용자 정의 섹션 불러오기
+  const fetchCustomSections = async () => {
+    if (!session?.user?.id) return
+
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('setting_value')
+        .eq('setting_key', 'custom_sections')
+        .maybeSingle()
+
+      if (error) {
+        console.error('사용자 정의 섹션 불러오기 오류:', error.message)
+        return
+      }
+
+      if (data && data.setting_value) {
+        const sections = JSON.parse(data.setting_value)
+        setCustomSections(sections)
+      }
+    } catch (error) {
+      console.error('사용자 정의 섹션 불러오기 오류:', error.message)
+    }
+  }
+
+  // 사용자 정의 섹션 저장하기
+  const saveCustomSections = async (sections) => {
+    if (!session?.user?.id) return
+
+    try {
+      const { data: existing, error: selectError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('setting_key', 'custom_sections')
+        .maybeSingle()
+
+      if (selectError) {
+        console.error('사용자 정의 섹션 조회 오류:', selectError.message)
+        return
+      }
+
+      if (existing) {
+        await supabase
+          .from('user_settings')
+          .update({ setting_value: JSON.stringify(sections), updated_at: new Date().toISOString() })
+          .eq('setting_key', 'custom_sections')
+      } else {
+        await supabase
+          .from('user_settings')
+          .insert([{
+            setting_key: 'custom_sections',
+            setting_value: JSON.stringify(sections),
+            user_id: session.user.id
+          }])
+      }
+    } catch (error) {
+      console.error('사용자 정의 섹션 저장 오류:', error.message)
+    }
+  }
+
+  // 섹션 추가
+  const handleAddSection = ({ name, icon }) => {
+    const newSection = {
+      id: `custom-${Date.now()}`,
+      name,
+      icon
+    }
+    const updatedSections = [...customSections, newSection]
+    setCustomSections(updatedSections)
+    saveCustomSections(updatedSections)
+
+    // 섹션 순서에도 추가
+    const updatedOrder = [...sectionOrder, newSection.id]
+    setSectionOrder(updatedOrder)
+    saveSectionOrder(updatedOrder)
+  }
+
+  // 사용자 정의 섹션에 투두 추가
+  const handleAddCustomSectionTodo = async (sectionId) => {
+    if (!normalInputValue.trim() || customSectionAdding) return
+    if (!session) {
+      alert('로그인이 필요합니다')
+      return
+    }
+
+    setCustomSectionAdding(true)
+
+    try {
+      // 해당 섹션의 투두들의 최대 order_index 찾기
+      const sectionTodos = todos.filter(t => !t.parent_id && t.section_id === sectionId)
+      const newOrderIndex = sectionTodos.length > 0 ? Math.max(...sectionTodos.map(t => t.order_index)) + 1 : 1
+
+      const dateStr = formatDateForDB(selectedDate)
+      const newTodo = {
+        text: normalInputValue.trim(),
+        completed: false,
+        order_index: newOrderIndex,
+        date: dateStr,
+        visible_dates: [dateStr],
+        hidden_dates: [],
+        user_id: session.user.id,
+        section_id: sectionId,
+      }
+
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([newTodo])
+        .select()
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        setTodos(prev => [...prev, data[0]])
+        setNormalInputValue('')
+      }
+    } catch (error) {
+      console.error('투두 추가 오류:', error.message)
+    } finally {
+      setCustomSectionAdding(false)
+    }
+  }
+
+  // 섹션 삭제
+  const handleDeleteSection = async (sectionId) => {
+    if (!confirm('이 섹션을 삭제하시겠습니까? 섹션 내의 모든 투두도 함께 삭제됩니다.')) {
+      return
+    }
+
+    // 해당 섹션의 모든 투두 삭제
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .eq('section_id', sectionId)
+
+      if (error) {
+        console.error('섹션 투두 삭제 오류:', error.message)
+        return
+      }
+    } catch (error) {
+      console.error('섹션 투두 삭제 오류:', error.message)
+      return
+    }
+
+    // customSections에서 제거
+    const updatedSections = customSections.filter(s => s.id !== sectionId)
+    setCustomSections(updatedSections)
+    saveCustomSections(updatedSections)
+
+    // 섹션 순서에서도 제거
+    const updatedOrder = sectionOrder.filter(id => id !== sectionId)
+    setSectionOrder(updatedOrder)
+    saveSectionOrder(updatedOrder)
+
+    // 로컬 상태에서 해당 섹션의 투두 제거
+    setTodos(prev => prev.filter(t => t.section_id !== sectionId))
+  }
 
   // 전날 미완료 항목을 다음 날로 이월 (JSON 방식)
   const moveIncompleteTodosToNextDay = async (fromDate, toDate) => {
@@ -559,6 +800,8 @@ function App() {
     fetchKeyThoughtsContent()
     fetchRoutines()
     fetchSectionOrder()
+    fetchSectionTitles()
+    fetchCustomSections()
   }, [session])
 
   // 가로/세로 레이아웃에서 드래그로 스크롤 기능
@@ -985,6 +1228,8 @@ function App() {
         session={session}
         viewMode={viewMode}
         setViewMode={setViewMode}
+        isReorderMode={isReorderMode}
+        setIsReorderMode={setIsReorderMode}
         onOpenTrash={handleOpenTrash}
         onOpenRoutine={handleOpenRoutine}
         onOpenMemo={handleOpenMemo}
@@ -997,6 +1242,7 @@ function App() {
         onOpenGanttChart={handleOpenGanttChart}
         onOpenEncouragementModal={() => setShowEncouragementModal(true)}
         onOpenDummyModal={() => setShowDummyModal(true)}
+        onOpenAddSection={() => setShowAddSectionModal(true)}
         onLogout={handleLogout}
       />
 
@@ -1412,13 +1658,15 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               onLongPress={() => setIsReorderMode(true)}
                             >
                               <TodoSection
-                                title="📝 일반 투두"
+                                title={sectionTitles.normal}
                                 className="normal-section section-block"
                                 inputValue={normalInputValue}
                                 setInputValue={setNormalInputValue}
                                 onAddTodo={handleAddNormalTodo}
                                 isAdding={isAdding}
                                 placeholder="일반 할 일 추가..."
+                                editable={true}
+                                onTitleChange={(newTitle) => saveSectionTitle('normal', newTitle)}
                               >
                     {normalTodos.length > 0 && (
                       <SortableContext
@@ -1505,6 +1753,87 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                   setShowKeyThoughtsHistory(true)
                                 }}
                               />
+                            </SortableSection>
+                          )
+                        } else {
+                          // 사용자 정의 섹션
+                          const customSection = customSections.find(s => s.id === sectionId)
+                          if (!customSection) return null
+
+                          const customSectionTodos = todos.filter(t =>
+                            !t.parent_id &&
+                            t.section_id === sectionId
+                          )
+
+                          return (
+                            <SortableSection
+                              key={sectionId}
+                              id={sectionId}
+                              disabled={!isReorderMode}
+                              onLongPress={() => setIsReorderMode(true)}
+                            >
+                              <TodoSection
+                                title={`${customSection.icon} ${customSection.name}`}
+                                className="custom-section section-block"
+                                inputValue={normalInputValue}
+                                setInputValue={setNormalInputValue}
+                                onAddTodo={() => handleAddCustomSectionTodo(sectionId)}
+                                isAdding={customSectionAdding}
+                                placeholder={`${customSection.name} 할 일 추가...`}
+                                editable={true}
+                                onTitleChange={(newTitle) => {
+                                  const updatedSections = customSections.map(s =>
+                                    s.id === sectionId ? { ...s, name: newTitle } : s
+                                  )
+                                  setCustomSections(updatedSections)
+                                  saveCustomSections(updatedSections)
+                                }}
+                                headerActions={
+                                  <button
+                                    className="delete-section-button"
+                                    onClick={() => handleDeleteSection(sectionId)}
+                                    title="섹션 삭제"
+                                  >
+                                    🗑️ 삭제
+                                  </button>
+                                }
+                              >
+                                {customSectionTodos.length > 0 && (
+                                  <SortableContext
+                                    items={customSectionTodos.map(todo => todo.id)}
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    {customSectionTodos.map((todo, index) => {
+                                      const subtodos = todos.filter(t => t.parent_id === todo.id)
+                                      return (
+                                        <SortableTodoItem
+                                          key={todo.id}
+                                          todo={todo}
+                                          index={index}
+                                          onToggle={handleToggleTodo}
+                                          onDelete={handleDeleteTodo}
+                                          onEdit={handleEditTodo}
+                                          formatDate={formatDate}
+                                          formatDateOnly={formatDateOnly}
+                                          isFocused={focusedTodoId === todo.id}
+                                          onFocus={handleFocusTodo}
+                                          onAddSubTodo={handleAddSubTodo}
+                                          subtodos={subtodos}
+                                          level={0}
+                                          onCreateRoutine={handleCreateRoutineFromTodo}
+                                          routines={routines}
+                                          onShowRoutineHistory={fetchRoutineHistory}
+                                          onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
+                                          onOpenHistoryModal={handleOpenTodoHistoryModal}
+                                          currentPageDate={formatDateForDB(selectedDate)}
+                                          onRemoveFromUI={handleRemoveTodoFromUI}
+                                          showSuccessMessage={showSuccessMessage}
+                                        />
+                                      )
+                                    })}
+                                  </SortableContext>
+                                )}
+                              </TodoSection>
                             </SortableSection>
                           )
                         }
@@ -1885,6 +2214,12 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           setEditingEncouragementText={setEditingEncouragementText}
           onUpdateEncouragementMessage={updateEncouragementMessage}
           onDeleteEncouragementMessage={deleteEncouragementMessage}
+        />
+
+        <AddSectionModal
+          isOpen={showAddSectionModal}
+          onClose={() => setShowAddSectionModal(false)}
+          onAddSection={handleAddSection}
         />
 
         <KeyThoughtsHistoryModal
