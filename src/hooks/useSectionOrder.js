@@ -134,6 +134,7 @@ export function useSectionOrder(session) {
     isReorderMode,
     setIsReorderMode,
     fetchSectionOrder,
+    saveSectionOrder,
     moveSectionLeft,
     moveSectionRight,
     handleSectionDragEnd,
