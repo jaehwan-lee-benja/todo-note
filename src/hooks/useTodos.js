@@ -751,15 +751,50 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       return
     }
 
+    const activeTodo = todos.find((todo) => todo.id === active.id)
+    const overTodo = todos.find((todo) => todo.id === over.id)
+
+    if (!activeTodo || !overTodo) return
+
+    // 섹션 간 이동 감지
+    const activeSectionId = activeTodo.section_id || null
+    const activeRoutineId = activeTodo.routine_id || null
+    const overSectionId = overTodo.section_id || null
+    const overRoutineId = overTodo.routine_id || null
+
+    const isCrossSectionMove = activeSectionId !== overSectionId || activeRoutineId !== overRoutineId
+
     const oldIndex = todos.findIndex((todo) => todo.id === active.id)
     const newIndex = todos.findIndex((todo) => todo.id === over.id)
 
     // 로컬 상태 즉시 업데이트
-    const newTodos = arrayMove(todos, oldIndex, newIndex)
+    let newTodos = arrayMove(todos, oldIndex, newIndex)
+
+    // 섹션 간 이동인 경우 section_id/routine_id 업데이트
+    if (isCrossSectionMove) {
+      newTodos = newTodos.map(todo =>
+        todo.id === active.id
+          ? { ...todo, section_id: overSectionId, routine_id: overRoutineId }
+          : todo
+      )
+    }
+
     setTodos(newTodos)
 
-    // Supabase에 새로운 순서 저장
+    // Supabase에 새로운 순서 및 섹션 저장
     try {
+      // 섹션 간 이동인 경우 section_id/routine_id 업데이트
+      if (isCrossSectionMove) {
+        await supabase
+          .from('todos')
+          .update({
+            section_id: overSectionId,
+            routine_id: overRoutineId
+          })
+          .eq('id', active.id)
+      }
+
+      // 순서 업데이트
       const updates = newTodos.map((todo, index) => ({
         id: todo.id,
         order_index: index + 1

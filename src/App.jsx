@@ -438,6 +438,7 @@ function App() {
   const [customSections, setCustomSections] = useState([])
   const [showAddSectionModal, setShowAddSectionModal] = useState(false)
   const [customSectionAdding, setCustomSectionAdding] = useState(false)
+  const [customSectionInputs, setCustomSectionInputs] = useState({})
 
   // 섹션 순서 관리
   const sectionOrderHook = useSectionOrder(session)
@@ -619,7 +620,8 @@ function App() {
 
   // 사용자 정의 섹션에 투두 추가
   const handleAddCustomSectionTodo = async (sectionId) => {
-    if (!normalInputValue.trim() || customSectionAdding) return
+    const inputValue = customSectionInputs[sectionId] || ''
+    if (!inputValue.trim() || customSectionAdding) return
     if (!session) {
       alert('로그인이 필요합니다')
       return
@@ -634,7 +636,7 @@ function App() {
 
       const dateStr = formatDateForDB(selectedDate)
       const newTodo = {
-        text: normalInputValue.trim(),
+        text: inputValue.trim(),
         completed: false,
         order_index: newOrderIndex,
         date: dateStr,
@@ -653,7 +655,7 @@ function App() {
 
       if (data && data.length > 0) {
         setTodos(prev => [...prev, data[0]])
-        setNormalInputValue('')
+        setCustomSectionInputs(prev => ({ ...prev, [sectionId]: '' }))
       }
     } catch (error) {
       console.error('투두 추가 오류:', error.message)
@@ -1271,6 +1273,7 @@ function App() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
+          {/* 섹션 간 드래그 앤 드롭을 위한 전역 SortableContext는 내부에서 allTodoIds로 생성 */}
           <div className="todo-list">
             {loading ? (
               <p className="empty-message">로딩 중...</p>
@@ -1278,9 +1281,23 @@ function App() {
               // 루틴 투두, 미정 루틴, 일반 투두 분리
               const routineTodos = todos.filter(t => !t.parent_id && t.routine_id !== null && !t.is_pending_routine)
               const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
-              const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine)
+              const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine && !t.section_id)
+
+              // 모든 투두 섹션의 투두 ID를 하나의 배열로 모으기 (섹션 간 드래그 앤 드롭 지원)
+              const allTodoIds = [
+                ...routineTodos.map(t => t.id),
+                ...pendingRoutineTodos.map(t => t.id),
+                ...normalTodos.map(t => t.id),
+                ...customSections.flatMap(section =>
+                  todos.filter(t => !t.parent_id && t.section_id === section.id).map(t => t.id)
+                )
+              ]
 
               return (
+                <SortableContext
+                  items={allTodoIds}
+                  strategy={verticalListSortingStrategy}
+                >
                 <DndContext
                   sensors={sectionSensors}
                   collisionDetection={closestCenter}
@@ -1775,8 +1792,8 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               <TodoSection
                                 title={`${customSection.icon} ${customSection.name}`}
                                 className="custom-section section-block"
-                                inputValue={normalInputValue}
-                                setInputValue={setNormalInputValue}
+                                inputValue={customSectionInputs[sectionId] || ''}
+                                setInputValue={(value) => setCustomSectionInputs(prev => ({ ...prev, [sectionId]: value }))}
                                 onAddTodo={() => handleAddCustomSectionTodo(sectionId)}
                                 isAdding={customSectionAdding}
                                 placeholder={`${customSection.name} 할 일 추가...`}
@@ -1842,6 +1859,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                     </div>
                   </SortableContext>
                 </DndContext>
+                </SortableContext>
               )
             })()}
           </div>
