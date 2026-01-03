@@ -15,8 +15,22 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { SortableNotionBlock, NotionBlock } from './NotionBlock'
+import SectionHeader from '../Common/SectionHeader'
 
-function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlockId, onShowHistory, onOpenViewer }) {
+function KeyThoughtsSection({
+  blocks,
+  setBlocks,
+  focusedBlockId,
+  setFocusedBlockId,
+  onShowHistory,
+  onOpenViewer,
+  showArrows = false,
+  onMoveLeft,
+  onMoveRight,
+  isFirst,
+  isLast,
+  settingsMenuItems = []
+}) {
   const [activeBlock, setActiveBlock] = useState(null)
   const [overId, setOverId] = useState(null)
 
@@ -252,32 +266,40 @@ function KeyThoughtsSection({ blocks, setBlocks, focusedBlockId, setFocusedBlock
 
   return (
     <div className="key-thoughts-section section-block">
-      <div className="section-header">
-        <h3 className="section-title">💡 주요 생각정리</h3>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            className="section-action-button"
-            onClick={() => onOpenViewer && onOpenViewer()}
-            title="뷰어 모드로 보기"
-          >
-            📖 뷰어
-          </button>
-          <button
-            className="section-action-button"
-            onClick={() => onShowHistory && onShowHistory()}
-            title="버전 히스토리 보기"
-          >
-            🕐 히스토리
-          </button>
-          <button
-            className="section-action-button"
-            onClick={() => toggleAllBlocks(!allOpen)}
-            title={allOpen ? "전체 접기" : "전체 펴기"}
-          >
-            {allOpen ? "전체 접기" : "전체 펴기"}
-          </button>
-        </div>
-      </div>
+      <SectionHeader
+        title="💡 주요 생각정리"
+        showArrows={showArrows}
+        onMoveLeft={onMoveLeft}
+        onMoveRight={onMoveRight}
+        isFirst={isFirst}
+        isLast={isLast}
+        settingsMenuItems={settingsMenuItems}
+        customActions={(
+          <>
+            <button
+              className="section-action-button"
+              onClick={() => onOpenViewer && onOpenViewer()}
+              title="뷰어 모드로 보기"
+            >
+              📖 뷰어
+            </button>
+            <button
+              className="section-action-button"
+              onClick={() => onShowHistory && onShowHistory()}
+              title="버전 히스토리 보기"
+            >
+              🕐 히스토리
+            </button>
+            <button
+              className="section-action-button"
+              onClick={() => toggleAllBlocks(!allOpen)}
+              title={allOpen ? "전체 접기" : "전체 펴기"}
+            >
+              {allOpen ? "전체 접기" : "전체 펴기"}
+            </button>
+          </>
+        )}
+      />
       <div
         className="key-thoughts-content notion-editor"
       >

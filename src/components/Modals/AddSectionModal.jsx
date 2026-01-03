@@ -61,10 +61,13 @@ function AddSectionModal({ isOpen, onClose, onAddSection }) {
               <input
                 type="text"
                 value={sectionIcon}
-                onChange={(e) => setSectionIcon(e.target.value.slice(0, 2))}
+                onChange={(e) => {
+                  // Use Array.from to properly handle multi-byte UTF-8 characters and emojis
+                  const graphemes = Array.from(e.target.value)
+                  setSectionIcon(graphemes.slice(0, 2).join(''))
+                }}
                 placeholder="직접 입력"
                 className="emoji-input"
-                maxLength={2}
               />
             </div>
           </div>

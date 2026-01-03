@@ -16,8 +16,6 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  horizontalListSortingStrategy,
-  useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DAYS } from './utils/constants'
@@ -25,6 +23,7 @@ import { formatDateForDB, formatDateOnly, formatDate } from './utils/dateUtils'
 import { useAuth } from './hooks/useAuth'
 import AppleTimePicker from './components/Common/AppleTimePicker'
 import Toast from './components/Common/Toast'
+import SectionHeader from './components/Common/SectionHeader'
 import Sidebar from './components/Navigation/Sidebar'
 import Header from './components/Navigation/Header'
 import SectionPagination from './components/Navigation/SectionPagination'
@@ -41,6 +40,7 @@ import GanttChartModal from './components/Modals/GanttChartModal'
 import EncouragementModal from './components/Modals/EncouragementModal'
 import KeyThoughtsHistoryModal from './components/Modals/KeyThoughtsHistoryModal'
 import AddSectionModal from './components/Modals/AddSectionModal'
+import HiddenSectionsModal from './components/Modals/HiddenSectionsModal'
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
@@ -54,97 +54,6 @@ import { useDummyData } from './hooks/useDummyData'
 import { useEncouragement } from './hooks/useEncouragement'
 import { useGanttChart } from './hooks/useGanttChart'
 import './App.css'
-
-// 드래그 가능한 섹션 래퍼 컴포넌트
-function SortableSection({ id, children, disabled, onLongPress }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id, disabled })
-
-  const longPressTimerRef = useRef(null)
-  const [isPressed, setIsPressed] = useState(false)
-
-  const handlePointerDown = (e) => {
-    if (disabled && onLongPress) {
-      // section-header 영역인지 확인
-      const isSectionHeader = e.target.closest('.section-header')
-      if (!isSectionHeader) {
-        // 헤더가 아니면 long press 무시
-        return
-      }
-
-      setIsPressed(true)
-      longPressTimerRef.current = setTimeout(() => {
-        onLongPress()
-        setIsPressed(false)
-      }, 500) // 500ms 길게 누르기
-    }
-  }
-
-  const handlePointerMove = () => {
-    // 포인터가 움직이면 long press 취소 (텍스트 선택 중)
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-      setIsPressed(false)
-    }
-  }
-
-  const handlePointerUp = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-    setIsPressed(false)
-  }
-
-  const handlePointerCancel = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-    setIsPressed(false)
-  }
-
-  // translate만 사용 (scale 제거하여 텍스트 렌더링 개선)
-  const transformString = transform
-    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
-    : undefined
-
-  const style = {
-    transform: transformString,
-    transition,
-  }
-
-  const eventHandlers = disabled
-    ? {
-        onPointerDown: handlePointerDown,
-        onPointerMove: handlePointerMove,
-        onPointerUp: handlePointerUp,
-        onPointerCancel: handlePointerCancel,
-        onPointerLeave: handlePointerCancel,
-      }
-    : { ...attributes, ...listeners }
-
-  // 순서 수정 모드일 때 클래스 추가
-  const classNames = [
-    !disabled && 'reorder-mode',
-    isDragging && 'dragging'
-  ].filter(Boolean).join(' ')
-
-  return (
-    <div ref={setNodeRef} style={style} className={classNames} {...eventHandlers}>
-      {children}
-    </div>
-  )
-}
-
-
 
 // 시간 입력은 AppleTimePicker 사용
 
@@ -161,31 +70,17 @@ function App() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 3, // 3px만 이동하면 드래그 시작 (더 민감하게)
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200,
-        tolerance: 8,
+        delay: 100, // 100ms로 줄여서 더 빠르게 반응
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
-
-  const sectionSensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200,
-        tolerance: 8,
-      },
     })
   )
 
@@ -291,6 +186,8 @@ function App() {
     focusedTodoId, setFocusedTodoId,
     showDeleteConfirmModal, setShowDeleteConfirmModal,
     todoToDelete, setTodoToDelete,
+    activeTodoId,
+    overId,
     fetchTodos,
     handleAddTodo,
     handleAddRoutineTodo,
@@ -302,6 +199,7 @@ function App() {
     handleAddSubTodo,
     handleEditTodo,
     handleDragStart,
+    handleDragOver,
     handleDragCancel,
     handleDragEnd,
     handleOpenTrash,
@@ -451,6 +349,43 @@ function App() {
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0) // 모바일 섹션 인덱스
   const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
+
+  // 숨긴 섹션 관리
+  const [hiddenSections, setHiddenSections] = useState([])
+  const [showHiddenSectionsModal, setShowHiddenSectionsModal] = useState(false)
+
+  // 숨긴 섹션 localStorage 저장/로드
+  const saveHiddenSections = (sections) => {
+    try {
+      localStorage.setItem('hiddenSections', JSON.stringify(sections))
+    } catch (error) {
+      console.error('숨긴 섹션 저장 오류:', error)
+    }
+  }
+
+  const fetchHiddenSections = () => {
+    try {
+      const saved = localStorage.getItem('hiddenSections')
+      if (saved) {
+        setHiddenSections(JSON.parse(saved))
+      }
+    } catch (error) {
+      console.error('숨긴 섹션 로드 오류:', error)
+    }
+  }
+
+  // 섹션 숨기기/보이기
+  const handleHideSection = (sectionId) => {
+    const updated = [...hiddenSections, sectionId]
+    setHiddenSections(updated)
+    saveHiddenSections(updated)
+  }
+
+  const handleShowSection = (sectionId) => {
+    const updated = hiddenSections.filter(id => id !== sectionId)
+    setHiddenSections(updated)
+    saveHiddenSections(updated)
+  }
 
   // 랜덤 격려 문구 선택
   // 날짜 변경 핸들러
@@ -804,6 +739,7 @@ function App() {
     fetchSectionOrder()
     fetchSectionTitles()
     fetchCustomSections()
+    fetchHiddenSections()
   }, [session])
 
   // 가로/세로 레이아웃에서 드래그로 스크롤 기능
@@ -1245,6 +1181,7 @@ function App() {
         onOpenEncouragementModal={() => setShowEncouragementModal(true)}
         onOpenDummyModal={() => setShowDummyModal(true)}
         onOpenAddSection={() => setShowAddSectionModal(true)}
+        onOpenHiddenSections={() => setShowHiddenSectionsModal(true)}
         onLogout={handleLogout}
       />
 
@@ -1270,8 +1207,14 @@ function App() {
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
+          measuring={{
+            droppable: {
+              strategy: MeasuringStrategy.Always,
+            },
+          }}
         >
           {/* 섹션 간 드래그 앤 드롭을 위한 전역 SortableContext는 내부에서 allTodoIds로 생성 */}
           <div className="todo-list">
@@ -1298,29 +1241,31 @@ function App() {
                   items={allTodoIds}
                   strategy={verticalListSortingStrategy}
                 >
-                <DndContext
-                  sensors={sectionSensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleSectionDragEnd}
-                >
-                  <SortableContext
-                    items={sectionOrder}
-                    strategy={horizontalListSortingStrategy}
+                  <div
+                    ref={sectionsContainerRef}
+                    className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
                   >
-                    <div
-                      ref={sectionsContainerRef}
-                      className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
-                      onDoubleClick={handleSectionsContainerDoubleClick}
-                    >
-                      {sectionOrder.map((sectionId) => {
+                      {sectionOrder
+                        .filter(sectionId => !hiddenSections.includes(sectionId)) // 숨긴 섹션 제외
+                        .map((sectionId, sectionIndex) => {
+                        // 섹션 순서 변경을 위한 정보 계산
+                        const filteredSectionOrder = sectionOrder.filter(id => !hiddenSections.includes(id))
+                        const filteredIndex = filteredSectionOrder.indexOf(sectionId)
+                        const isFirst = filteredIndex === 0
+                        const isLast = filteredIndex === filteredSectionOrder.length - 1
+
+                        // 기본 설정 메뉴 아이템 (숨기기)
+                        const baseSettingsMenuItems = [
+                          {
+                            icon: '📦',
+                            label: '숨기기',
+                            onClick: () => handleHideSection(sectionId)
+                          }
+                        ]
+
                         if (sectionId === 'memo') {
                           return (
-                            <SortableSection
-                              key="memo"
-                              id="memo"
-                              disabled={!isReorderMode}
-                              onLongPress={() => setIsReorderMode(true)}
-                            >
+                            <div key="memo">
                               <MemoSection
                                 title="📋 생각 메모"
                                 className="memo-section section-block"
@@ -1335,6 +1280,12 @@ function App() {
                                 onKeyDown={handleMemoKeyDown}
                                 placeholder="메모를 작성해보세요..."
                                 emptyMessage="메모를 작성해보세요"
+                                showArrows={true}
+                                onMoveLeft={() => moveSectionLeft(sectionId)}
+                                onMoveRight={() => moveSectionRight(sectionId)}
+                                isFirst={isFirst}
+                                isLast={isLast}
+                                settingsMenuItems={baseSettingsMenuItems}
                               >
                     {/* SQL 버튼 */}
                     {!isEditingMemoInline && (
@@ -1563,16 +1514,11 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                       </div>
                     )}
                               </MemoSection>
-                            </SortableSection>
+                            </div>
                           )
                         } else if (sectionId === 'routine') {
                           return (
-                            <SortableSection
-                              key="routine"
-                              id="routine"
-                              disabled={!isReorderMode}
-                              onLongPress={() => setIsReorderMode(true)}
-                            >
+                            <div key="routine">
                               <TodoSection
                                 title="📌 루틴"
                                 className="routine-section section-block"
@@ -1581,6 +1527,12 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 onAddTodo={handleAddRoutineTodo}
                                 isAdding={isAdding}
                                 placeholder="루틴 할 일 추가..."
+                                showArrows={true}
+                                onMoveLeft={() => moveSectionLeft(sectionId)}
+                                onMoveRight={() => moveSectionRight(sectionId)}
+                                isFirst={isFirst}
+                                isLast={isLast}
+                                settingsMenuItems={baseSettingsMenuItems}
                               >
                     {/* 확정 루틴 */}
                     {routineTodos.length > 0 && (
@@ -1613,6 +1565,8 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               currentPageDate={formatDateForDB(selectedDate)}
                               onRemoveFromUI={handleRemoveTodoFromUI}
                               showSuccessMessage={showSuccessMessage}
+                              activeId={activeTodoId}
+                              overId={overId}
                             />
                           )
                         })}
@@ -1658,22 +1612,39 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                               isPendingRoutine={true}
                               onRemoveFromUI={handleRemoveTodoFromUI}
                               showSuccessMessage={showSuccessMessage}
+                              activeId={activeTodoId}
+                              overId={overId}
                             />
                           )
                         })}
                       </SortableContext>
                     )}
                               </TodoSection>
-                            </SortableSection>
+                            </div>
                           )
                         } else if (sectionId === 'normal') {
+                          // normal 섹션은 기본 섹션이므로 삭제 불가
+                          const normalSettingsMenuItems = [
+                            {
+                              icon: '📦',
+                              label: '숨기기',
+                              onClick: () => {
+                                if (confirm('일반 할 일 섹션을 숨기시겠습니까?\n\n숨긴 섹션 관리에서 다시 표시할 수 있습니다.')) {
+                                  handleHideSection('normal')
+                                }
+                              }
+                            },
+                            {
+                              icon: '🗑️',
+                              label: '삭제',
+                              onClick: () => {
+                                alert('⚠️ 기본 투두 섹션은 삭제할 수 없습니다.\n\n필요하지 않은 경우 "숨기기" 기능을 사용해주세요.')
+                              }
+                            }
+                          ]
+
                           return (
-                            <SortableSection
-                              key="normal"
-                              id="normal"
-                              disabled={!isReorderMode}
-                              onLongPress={() => setIsReorderMode(true)}
-                            >
+                            <div key="normal">
                               <TodoSection
                                 title={sectionTitles.normal}
                                 className="normal-section section-block"
@@ -1684,81 +1655,58 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 placeholder="일반 할 일 추가..."
                                 editable={true}
                                 onTitleChange={(newTitle) => saveSectionTitle('normal', newTitle)}
+                                showArrows={true}
+                                onMoveLeft={() => moveSectionLeft(sectionId)}
+                                onMoveRight={() => moveSectionRight(sectionId)}
+                                isFirst={isFirst}
+                                isLast={isLast}
+                                settingsMenuItems={normalSettingsMenuItems}
                               >
                     {normalTodos.length > 0 && (
                       <SortableContext
                         items={normalTodos.map(todo => todo.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        {normalTodos.map((todo, index, array) => {
+                        {normalTodos.map((todo, index) => {
                   const subtodos = todos.filter(t => t.parent_id === todo.id)
-
-                  // 현재 보고 있는 페이지의 날짜 (selectedDate)
                   const currentPageDate = formatDateForDB(selectedDate)
 
-                  // 투두의 생성일 (created_at에서 날짜만 추출)
-                  const todoCreatedDate = todo.created_at ? todo.created_at.split('T')[0] : todo.date
-
-                  // 다음 투두의 생성일
-                  const nextTodo = array[index + 1]
-                  const nextTodoCreatedDate = nextTodo
-                    ? (nextTodo.created_at ? nextTodo.created_at.split('T')[0] : nextTodo.date)
-                    : null
-
-                  // 현재 투두는 페이지 날짜 이전에 생성, 다음 투두는 페이지 날짜에 생성된 경우 구분선 표시
-                  const showSeparator = todoCreatedDate < currentPageDate && nextTodoCreatedDate >= currentPageDate
-
-                  // 디버깅
-                  if (index < 5) {
-                  }
-
                   return (
-                    <React.Fragment key={todo.id}>
-                      <SortableTodoItem
-                        todo={todo}
-                        index={index}
-                        onToggle={handleToggleTodo}
-                        onDelete={handleDeleteTodo}
-                        onEdit={handleEditTodo}
-                        formatDate={formatDate}
-                        formatDateOnly={formatDateOnly}
-                        isFocused={focusedTodoId === todo.id}
-                        onFocus={handleFocusTodo}
-                        onAddSubTodo={handleAddSubTodo}
-                        subtodos={subtodos}
-                        level={0}
-                        onCreateRoutine={handleCreateRoutineFromTodo}
-                        routines={routines}
-                        onShowRoutineHistory={fetchRoutineHistory}
-                        onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
-                        onOpenHistoryModal={handleOpenTodoHistoryModal}
-                        currentPageDate={currentPageDate}
-                        onRemoveFromUI={handleRemoveTodoFromUI}
-                        showSuccessMessage={showSuccessMessage}
-                      />
-                      {showSeparator && (
-                        <div className="todo-date-separator">
-                          <div className="separator-line"></div>
-                          <div className="separator-text">이전에서 넘어옴</div>
-                          <div className="separator-line"></div>
-                        </div>
-                      )}
-                    </React.Fragment>
+                    <SortableTodoItem
+                      key={todo.id}
+                      todo={todo}
+                      index={index}
+                      onToggle={handleToggleTodo}
+                      onDelete={handleDeleteTodo}
+                      onEdit={handleEditTodo}
+                      formatDate={formatDate}
+                      formatDateOnly={formatDateOnly}
+                      isFocused={focusedTodoId === todo.id}
+                      onFocus={handleFocusTodo}
+                      onAddSubTodo={handleAddSubTodo}
+                      subtodos={subtodos}
+                      level={0}
+                      onCreateRoutine={handleCreateRoutineFromTodo}
+                      routines={routines}
+                      onShowRoutineHistory={fetchRoutineHistory}
+                      onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
+                      onOpenHistoryModal={handleOpenTodoHistoryModal}
+                      currentPageDate={currentPageDate}
+                      onRemoveFromUI={handleRemoveTodoFromUI}
+                      showSuccessMessage={showSuccessMessage}
+                      activeId={activeTodoId}
+                      overId={overId}
+                    />
                   )
                               })}
                             </SortableContext>
                           )}
                               </TodoSection>
-                            </SortableSection>
+                            </div>
                           )
                         } else if (sectionId === 'key-thoughts') {
                           return (
-                            <SortableSection
-                              key="key-thoughts"
-                              id="key-thoughts"
-                              disabled={!isReorderMode}
-                              onLongPress={() => setIsReorderMode(true)}
-                            >
+                            <div key="key-thoughts">
                               <KeyThoughtsSection
                                 blocks={keyThoughtsBlocks}
                                 setBlocks={setKeyThoughtsBlocks}
@@ -1769,8 +1717,14 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                   fetchKeyThoughtsHistory()
                                   setShowKeyThoughtsHistory(true)
                                 }}
+                                showArrows={true}
+                                onMoveLeft={() => moveSectionLeft(sectionId)}
+                                onMoveRight={() => moveSectionRight(sectionId)}
+                                isFirst={isFirst}
+                                isLast={isLast}
+                                settingsMenuItems={baseSettingsMenuItems}
                               />
-                            </SortableSection>
+                            </div>
                           )
                         } else {
                           // 사용자 정의 섹션
@@ -1782,13 +1736,22 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                             t.section_id === sectionId
                           )
 
+                          // 커스텀 섹션 설정 메뉴 (숨기기 + 삭제)
+                          const customSettingsMenuItems = [
+                            {
+                              icon: '📦',
+                              label: '숨기기',
+                              onClick: () => handleHideSection(sectionId)
+                            },
+                            {
+                              icon: '🗑️',
+                              label: '삭제',
+                              onClick: () => handleDeleteSection(sectionId)
+                            }
+                          ]
+
                           return (
-                            <SortableSection
-                              key={sectionId}
-                              id={sectionId}
-                              disabled={!isReorderMode}
-                              onLongPress={() => setIsReorderMode(true)}
-                            >
+                            <div key={sectionId}>
                               <TodoSection
                                 title={`${customSection.icon} ${customSection.name}`}
                                 className="custom-section section-block"
@@ -1805,15 +1768,12 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                   setCustomSections(updatedSections)
                                   saveCustomSections(updatedSections)
                                 }}
-                                headerActions={
-                                  <button
-                                    className="delete-section-button"
-                                    onClick={() => handleDeleteSection(sectionId)}
-                                    title="섹션 삭제"
-                                  >
-                                    🗑️ 삭제
-                                  </button>
-                                }
+                                showArrows={true}
+                                onMoveLeft={() => moveSectionLeft(sectionId)}
+                                onMoveRight={() => moveSectionRight(sectionId)}
+                                isFirst={isFirst}
+                                isLast={isLast}
+                                settingsMenuItems={customSettingsMenuItems}
                               >
                                 {customSectionTodos.length > 0 && (
                                   <SortableContext
@@ -1845,24 +1805,57 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                           currentPageDate={formatDateForDB(selectedDate)}
                                           onRemoveFromUI={handleRemoveTodoFromUI}
                                           showSuccessMessage={showSuccessMessage}
+                                          activeId={activeTodoId}
+                                          overId={overId}
                                         />
                                       )
                                     })}
                                   </SortableContext>
                                 )}
                               </TodoSection>
-                            </SortableSection>
+                            </div>
                           )
                         }
                         return null
                       })}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                  </div>
                 </SortableContext>
               )
             })()}
           </div>
+          <DragOverlay>
+            {activeTodoId ? (() => {
+              const activeTodo = todos.find(t => t.id === activeTodoId)
+              if (!activeTodo) return null
+              const subtodos = todos.filter(t => t.parent_id === activeTodo.id)
+              return (
+                <div className="drag-overlay-todo">
+                  <SortableTodoItem
+                    todo={activeTodo}
+                    index={0}
+                    onToggle={() => {}}
+                    onDelete={() => {}}
+                    onEdit={() => {}}
+                    formatDate={formatDate}
+                    formatDateOnly={formatDateOnly}
+                    isFocused={false}
+                    onFocus={() => {}}
+                    onAddSubTodo={() => {}}
+                    subtodos={subtodos}
+                    level={0}
+                    onCreateRoutine={() => {}}
+                    routines={routines}
+                    onShowRoutineHistory={() => {}}
+                    onOpenRoutineSetupModal={() => {}}
+                    onOpenHistoryModal={() => {}}
+                    currentPageDate={formatDateForDB(selectedDate)}
+                    onRemoveFromUI={() => {}}
+                    showSuccessMessage={() => {}}
+                  />
+                </div>
+              )
+            })() : null}
+          </DragOverlay>
         </DndContext>
 
         <SectionPagination
@@ -2238,6 +2231,16 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           isOpen={showAddSectionModal}
           onClose={() => setShowAddSectionModal(false)}
           onAddSection={handleAddSection}
+        />
+
+        <HiddenSectionsModal
+          show={showHiddenSectionsModal}
+          onClose={() => setShowHiddenSectionsModal(false)}
+          hiddenSections={hiddenSections}
+          sectionOrder={sectionOrder}
+          sectionTitles={sectionTitles}
+          customSections={customSections}
+          onShowSection={handleShowSection}
         />
 
         <KeyThoughtsHistoryModal

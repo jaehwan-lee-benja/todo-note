@@ -65,6 +65,15 @@ function Header({
           )}
         </div>
 
+        {/* 섹션 이동 토글 버튼 */}
+        <button
+          className={`section-reorder-toggle ${isReorderMode ? 'active' : ''}`}
+          onClick={() => setIsReorderMode(!isReorderMode)}
+          title={isReorderMode ? '섹션 이동 종료' : '섹션 이동'}
+        >
+          ↕️
+        </button>
+
         {/* 섹션 순서 수정 모드 */}
         {isReorderMode && (
           <div style={{

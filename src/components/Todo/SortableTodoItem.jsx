@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import ReactDOM from 'react-dom'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '../../supabaseClient'
@@ -6,7 +7,7 @@ import { DAYS } from '../../utils/constants'
 import { formatDateForDB, formatDateOnly } from '../../utils/dateUtils'
 import AppleTimePicker from '../Common/AppleTimePicker'
 
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage, activeId, overId }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -53,10 +54,14 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
     id: todo.id,
   })
 
+  // 드래그 개선: 드래그 중인 블록인지, 드롭 위치인지 체크
+  const isActive = todo.id === activeId
+  const isOver = todo.id === overId && activeId && activeId !== overId
+
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    // transform 제거 - 블록이 움직이지 않도록
+    cursor: 'grab',
+    opacity: isActive ? 0.4 : 1, // 드래그 중인 블록은 반투명
   }
 
   // 텍스트가 길면 펼치기 버튼 표시
@@ -532,7 +537,12 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        borderTop: isOver
+          ? '2px solid rgba(99, 102, 241, 0.8)' // 드롭 위치 표시선
+          : '2px solid transparent', // 기본은 투명 (공간 확보)
+      }}
       className={`todo-item-container ${isFocused ? 'focused' : ''}`}
     >
       <span className="todo-number" onClick={() => onFocus(todo.id)}>
@@ -742,7 +752,7 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
       </div>
 
       {/* 액션 모달 */}
-      {showActionsModal && (
+      {showActionsModal && ReactDOM.createPortal(
         <div className="modal-overlay" onClick={() => setShowActionsModal(false)}>
           <div className="actions-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="actions-modal-header">
@@ -1416,7 +1426,8 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

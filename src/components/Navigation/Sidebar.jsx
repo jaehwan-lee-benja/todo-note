@@ -15,6 +15,7 @@ function Sidebar({
   onOpenEncouragementModal,
   onOpenDummyModal,
   onOpenAddSection,
+  onOpenHiddenSections,
   onLogout
 }) {
   return (
@@ -106,6 +107,16 @@ function Sidebar({
           >
             <span className="sidebar-icon">➕</span>
             <span>섹션 추가</span>
+          </button>
+          <button
+            className="sidebar-menu-item"
+            onClick={() => {
+              onOpenHiddenSections()
+              setShowSidebar(false)
+            }}
+          >
+            <span className="sidebar-icon">🗂️</span>
+            <span>숨긴 섹션 관리</span>
           </button>
           <button
             className="sidebar-menu-item"

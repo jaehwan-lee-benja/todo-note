@@ -1,3 +1,5 @@
+import SectionHeader from '../Common/SectionHeader'
+
 // 재사용 가능한 메모 섹션 컴포넌트
 function MemoSection({
   title,
@@ -13,42 +15,56 @@ function MemoSection({
   onKeyDown,
   placeholder,
   emptyMessage,
+  showArrows = false,
+  onMoveLeft,
+  onMoveRight,
+  isFirst,
+  isLast,
+  settingsMenuItems = [],
   children,
 }) {
   return (
     <div className={className}>
-      <div className="section-header">
-        <h3 className="section-title">{title}</h3>
-        <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
-          {!isEditing && (
-            <button
-              onClick={onStartEdit}
-              className="section-action-button"
-              title="메모 편집"
-            >
-              ✏️ 편집
-            </button>
-          )}
-          {isEditing && (
-            <div className="memo-edit-actions">
+      <SectionHeader
+        title={title}
+        showArrows={showArrows}
+        onMoveLeft={onMoveLeft}
+        onMoveRight={onMoveRight}
+        isFirst={isFirst}
+        isLast={isLast}
+        settingsMenuItems={settingsMenuItems}
+        customActions={(
+          <>
+            {!isEditing && (
               <button
-                onClick={onSave}
-                className="memo-save-button"
-                disabled={isSaving}
+                onClick={onStartEdit}
+                className="section-action-button"
+                title="메모 편집"
               >
-                💾 저장
+                ✏️ 편집
               </button>
-              <button
-                onClick={onCancel}
-                className="memo-cancel-button"
-                disabled={isSaving}
-              >
-                ✕ 취소
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+            {isEditing && (
+              <div className="memo-edit-actions">
+                <button
+                  onClick={onSave}
+                  className="memo-save-button"
+                  disabled={isSaving}
+                >
+                  💾 저장
+                </button>
+                <button
+                  onClick={onCancel}
+                  className="memo-cancel-button"
+                  disabled={isSaving}
+                >
+                  ✕ 취소
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      />
       {isEditing ? (
         <textarea
           ref={textareaRef}

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { arrayMove } from '@dnd-kit/sortable'
 import { formatDateForDB } from '../utils/dateUtils'
 
 export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal) => {
@@ -21,6 +22,9 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   // selectedTodoForModal은 App.jsx에서 전달받음
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
   const [todoToDelete, setTodoToDelete] = useState(null)
+  // 드래그 앤 드롭 개선을 위한 state
+  const [activeTodoId, setActiveTodoId] = useState(null)
+  const [overId, setOverId] = useState(null)
 
   // Refs
   const routineCreationInProgress = useRef(new Set())
@@ -732,18 +736,30 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   }
 
   // 드래그 시작
-  const handleDragStart = () => {
+  const handleDragStart = (event) => {
+    const { active } = event
     setIsDraggingAny(true)
+    setActiveTodoId(active.id)
+  }
+
+  // 드래그 오버
+  const handleDragOver = (event) => {
+    const { over } = event
+    setOverId(over?.id || null)
   }
 
   // 드래그 취소
   const handleDragCancel = () => {
     setIsDraggingAny(false)
+    setActiveTodoId(null)
+    setOverId(null)
   }
 
   // 드래그 종료
-  const handleDragEnd = async (event, arrayMove) => {
+  const handleDragEnd = async (event) => {
     setIsDraggingAny(false)
+    setActiveTodoId(null)
+    setOverId(null)
 
     const { active, over } = event
 
@@ -838,6 +854,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     setShowDeleteConfirmModal,
     todoToDelete,
     setTodoToDelete,
+    activeTodoId,
+    overId,
 
     // Functions
     fetchTodos,
@@ -861,6 +879,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleOpenTrash,
     handleCloseTrash,
     handleDragStart,
+    handleDragOver,
     handleDragCancel,
   }
 }

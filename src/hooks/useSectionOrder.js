@@ -109,6 +109,14 @@ export function useSectionOrder(session) {
   const handleSectionDragEnd = (event) => {
     const { active, over } = event
 
+    // 섹션 이동 모드가 아니면 아무 것도 하지 않음
+    if (!isReorderMode) return
+
+    // active.id가 섹션 ID가 아니면 (TODO ID인 경우) 무시
+    if (!sectionOrder.includes(active.id)) return
+
+    if (!over) return
+
     if (active.id !== over?.id) {
       setSectionOrder((items) => {
         const oldIndex = items.indexOf(active.id)
