@@ -1080,9 +1080,8 @@ function App() {
               if (currentTodos.some(t => t.id === payload.new.id)) {
                 return currentTodos
               }
-              // order_index에 따라 정렬된 위치에 삽입
-              const newTodos = [...currentTodos, payload.new]
-              return newTodos.sort((a, b) => a.order_index - b.order_index)
+              // order_index 전역 정렬 제거 (섹션별로 관리됨)
+              return [...currentTodos, payload.new]
             })
           } else if (payload.eventType === 'UPDATE') {
             // 항목 업데이트 (단, 최근에 로컬에서 수정한 항목은 무시)
@@ -1091,9 +1090,10 @@ function App() {
               if (recentlyEditedIds.current.has(payload.new.id)) {
                 return currentTodos
               }
+              // order_index 전역 정렬 제거 (섹션별로 관리됨)
               return currentTodos.map(todo =>
                 todo.id === payload.new.id ? payload.new : todo
-              ).sort((a, b) => a.order_index - b.order_index)
+              )
             })
           } else if (payload.eventType === 'DELETE') {
             // 항목 삭제
@@ -1222,9 +1222,16 @@ function App() {
               <p className="empty-message">로딩 중...</p>
             ) : (() => {
               // 루틴 투두, 미정 루틴, 일반 투두 분리
-              const routineTodos = todos.filter(t => !t.parent_id && t.routine_id !== null && !t.is_pending_routine)
-              const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
-              const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine && !t.section_id)
+              // 섹션별로 필터링 후 order_index로 정렬
+              const routineTodos = todos
+                .filter(t => !t.parent_id && t.routine_id !== null && !t.is_pending_routine)
+                .sort((a, b) => a.order_index - b.order_index)
+              const pendingRoutineTodos = todos
+                .filter(t => !t.parent_id && t.is_pending_routine)
+                .sort((a, b) => a.order_index - b.order_index)
+              const normalTodos = todos
+                .filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine && !t.section_id)
+                .sort((a, b) => a.order_index - b.order_index)
 
               // 모든 투두 섹션의 투두 ID를 하나의 배열로 모으기 (섹션 간 드래그 앤 드롭 지원)
               const allTodoIds = [
@@ -1731,10 +1738,12 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                           const customSection = customSections.find(s => s.id === sectionId)
                           if (!customSection) return null
 
-                          const customSectionTodos = todos.filter(t =>
-                            !t.parent_id &&
-                            t.section_id === sectionId
-                          )
+                          const customSectionTodos = todos
+                            .filter(t =>
+                              !t.parent_id &&
+                              t.section_id === sectionId
+                            )
+                            .sort((a, b) => a.order_index - b.order_index)
 
                           // 커스텀 섹션 설정 메뉴 (숨기기 + 삭제)
                           const customSettingsMenuItems = [
