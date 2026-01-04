@@ -565,8 +565,8 @@ function App() {
     setCustomSectionAdding(true)
 
     try {
-      // 해당 섹션의 투두들의 최대 order_index 찾기
-      const sectionTodos = todos.filter(t => !t.parent_id && t.section_id === sectionId)
+      // 해당 섹션의 투두들의 최대 order_index 찾기 (section_type 기반)
+      const sectionTodos = todos.filter(t => !t.parent_id && t.section_type === 'custom' && t.section_id === sectionId)
       const newOrderIndex = sectionTodos.length > 0 ? Math.max(...sectionTodos.map(t => t.order_index)) + 1 : 1
 
       const dateStr = formatDateForDB(selectedDate)
@@ -579,6 +579,7 @@ function App() {
         hidden_dates: [],
         user_id: session.user.id,
         section_id: sectionId,
+        section_type: 'custom',
       }
 
       const { data, error } = await supabase
@@ -1221,16 +1222,15 @@ function App() {
             {loading ? (
               <p className="empty-message">로딩 중...</p>
             ) : (() => {
-              // 루틴 투두, 미정 루틴, 일반 투두 분리
-              // 섹션별로 필터링 후 order_index로 정렬
+              // 섹션별로 필터링 후 order_index로 정렬 (section_type 기반)
               const routineTodos = todos
-                .filter(t => !t.parent_id && t.routine_id !== null && !t.is_pending_routine)
+                .filter(t => !t.parent_id && t.section_type === 'routine')
                 .sort((a, b) => a.order_index - b.order_index)
               const pendingRoutineTodos = todos
-                .filter(t => !t.parent_id && t.is_pending_routine)
+                .filter(t => !t.parent_id && t.section_type === 'pending_routine')
                 .sort((a, b) => a.order_index - b.order_index)
               const normalTodos = todos
-                .filter(t => !t.parent_id && t.routine_id === null && !t.is_pending_routine && !t.section_id)
+                .filter(t => !t.parent_id && t.section_type === 'normal')
                 .sort((a, b) => a.order_index - b.order_index)
 
               // 모든 투두 섹션의 투두 ID를 하나의 배열로 모으기 (섹션 간 드래그 앤 드롭 지원)
@@ -1239,7 +1239,7 @@ function App() {
                 ...pendingRoutineTodos.map(t => t.id),
                 ...normalTodos.map(t => t.id),
                 ...customSections.flatMap(section =>
-                  todos.filter(t => !t.parent_id && t.section_id === section.id).map(t => t.id)
+                  todos.filter(t => !t.parent_id && t.section_type === 'custom' && t.section_id === section.id).map(t => t.id)
                 )
               ]
 
@@ -1741,6 +1741,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                           const customSectionTodos = todos
                             .filter(t =>
                               !t.parent_id &&
+                              t.section_type === 'custom' &&
                               t.section_id === sectionId
                             )
                             .sort((a, b) => a.order_index - b.order_index)

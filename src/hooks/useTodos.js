@@ -132,6 +132,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
               hidden_dates: [],
               order_index: 0, // 루틴은 제일 위에
               routine_id: routine.id,
+              section_type: 'routine', // 루틴 섹션
               user_id: session?.user?.id
             }])
 
@@ -224,8 +225,9 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     try {
       setIsAdding(true)
 
-      // 새 항목은 맨 아래에 추가
-      const newOrderIndex = todos.length > 0 ? Math.max(...todos.map(t => t.order_index)) + 1 : 1
+      // 일반 섹션(normal)의 투두들만 필터링하여 최대 order_index 계산
+      const normalTodos = todos.filter(t => !t.parent_id && t.section_type === 'normal')
+      const newOrderIndex = normalTodos.length > 0 ? Math.max(...normalTodos.map(t => t.order_index)) + 1 : 1
 
       // 새 항목을 추가 (JSON 방식)
       const dateStr = formatDateForDB(selectedDate)
@@ -238,6 +240,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           date: dateStr,
           visible_dates: [dateStr], // JSON 방식: 현재 날짜를 배열로 설정
           hidden_dates: [],
+          section_type: 'normal', // 일반 투두
           user_id: session?.user?.id
         }])
         .select()
@@ -279,7 +282,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       const newRoutine = routineData[0]
 
       // 2. 미정 루틴 투두들의 최대 order_index 찾기
-      const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.is_pending_routine)
+      const pendingRoutineTodos = todos.filter(t => !t.parent_id && t.section_type === 'pending_routine')
       const newOrderIndex = pendingRoutineTodos.length > 0 ? Math.max(...pendingRoutineTodos.map(t => t.order_index)) + 1 : 1
 
       // 3. 투두 생성 (루틴 ID 연결, 미정 표시 유지)
@@ -294,6 +297,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           hidden_dates: [],
           routine_id: newRoutine.id, // 루틴 ID 연결
           is_pending_routine: true, // 미정 루틴으로 표시 (요일 미설정)
+          section_type: 'pending_routine', // 미정 루틴 섹션
           user_id: session?.user?.id
         }])
         .select()
@@ -319,7 +323,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       setIsAdding(true)
 
       // 일반 투두들의 최대 order_index 찾기
-      const normalTodos = todos.filter(t => !t.parent_id && t.routine_id === null)
+      const normalTodos = todos.filter(t => !t.parent_id && t.section_type === 'normal')
       const newOrderIndex = normalTodos.length > 0 ? Math.max(...normalTodos.map(t => t.order_index)) + 1 : 1
 
       // 새 항목을 추가 (JSON 방식)
@@ -333,6 +337,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           date: dateStr,
           visible_dates: [dateStr],
           hidden_dates: [],
+          section_type: 'normal', // 일반 투두
           user_id: session?.user?.id
         }])
         .select()
@@ -763,113 +768,92 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
     const { active, over } = event
 
-    console.log('=== DRAG END DEBUG ===')
-    console.log('Active ID:', active.id)
-    console.log('Over ID:', over?.id)
-
     if (!over || active.id === over.id) {
-      console.log('Drag cancelled or same position')
       return
     }
 
     const activeTodo = todos.find((todo) => todo.id === active.id)
     const overTodo = todos.find((todo) => todo.id === over.id)
 
-    console.log('Active Todo:', activeTodo)
-    console.log('Over Todo:', overTodo)
-
     if (!activeTodo || !overTodo) return
 
-    // 섹션 간 이동 감지
+    // section_type 기반 섹션 구분
+    const activeSectionType = activeTodo.section_type
     const activeSectionId = activeTodo.section_id || null
-    const activeRoutineId = activeTodo.routine_id || null
+    const overSectionType = overTodo.section_type
     const overSectionId = overTodo.section_id || null
-    const overRoutineId = overTodo.routine_id || null
 
-    console.log('Active Section/Routine:', activeSectionId, activeRoutineId)
-    console.log('Over Section/Routine:', overSectionId, overRoutineId)
+    // 섹션 간 이동 감지 (section_type이 다르거나 custom 섹션 내에서 section_id가 다른 경우)
+    const isCrossSectionMove =
+      activeSectionType !== overSectionType ||
+      (activeSectionType === 'custom' && activeSectionId !== overSectionId)
 
-    const isCrossSectionMove = activeSectionId !== overSectionId || activeRoutineId !== overRoutineId
-    console.log('Is Cross-Section Move:', isCrossSectionMove)
-
-    // 같은 섹션 내의 todos만 필터링 (parent가 아닌 것들만)
+    // 대상 섹션의 todos 필터링
+    const targetSectionType = overSectionType
     const targetSectionId = overSectionId
-    const targetRoutineId = overRoutineId
 
     const sectionTodos = todos
-      .filter(t =>
-        (t.section_id || null) === targetSectionId &&
-        (t.routine_id || null) === targetRoutineId &&
-        !t.parent_id // 서브투두는 제외
-      )
-      .sort((a, b) => a.order_index - b.order_index) // 렌더링과 동일한 순서로 정렬
-
-    console.log('Section Todos (detailed):')
-    sectionTodos.forEach((t, idx) => {
-      console.log(`  [${idx}] id:${t.id}, order_index:${t.order_index}, text:"${t.text.substring(0, 20)}"`)
-    })
+      .filter(t => {
+        if (t.parent_id) return false // 서브투두 제외
+        if (t.section_type !== targetSectionType) return false
+        if (targetSectionType === 'custom' && t.section_id !== targetSectionId) return false
+        return true
+      })
+      .sort((a, b) => a.order_index - b.order_index)
 
     const oldIndexInSection = sectionTodos.findIndex((todo) => todo.id === active.id)
     const newIndexInSection = sectionTodos.findIndex((todo) => todo.id === over.id)
 
-    console.log('Old Index in Section:', oldIndexInSection)
-    console.log('New Index in Section:', newIndexInSection)
-
     // 섹션 내에서 재정렬
     let newSectionTodos = [...sectionTodos]
 
-    // 섹션 간 이동인 경우 - activeTodo를 추가
+    // 섹션 간 이동인 경우
     if (isCrossSectionMove) {
-      // 기존 섹션에서는 없으므로 over 위치에 삽입
-      newSectionTodos.splice(newIndexInSection, 0, { ...activeTodo, section_id: targetSectionId, routine_id: targetRoutineId })
+      // over 위치에 activeTodo 삽입
+      newSectionTodos.splice(newIndexInSection, 0, {
+        ...activeTodo,
+        section_type: targetSectionType,
+        section_id: targetSectionId,
+        // routine_id는 section_type에 따라 설정
+        routine_id: targetSectionType === 'routine' || targetSectionType === 'pending_routine'
+          ? activeTodo.routine_id
+          : null
+      })
     } else {
       // 같은 섹션 내 이동
       newSectionTodos = arrayMove(sectionTodos, oldIndexInSection, newIndexInSection)
     }
 
-    console.log('New Section Todos:', newSectionTodos.map(t => ({ id: t.id, text: t.text, order: t.order_index })))
-
-    // 전체 todos에 반영
+    // 로컬 상태 업데이트
     let newTodos = todos.map(todo => {
-      if (todo.id === active.id) {
-        // section_id/routine_id 업데이트
-        return { ...todo, section_id: targetSectionId, routine_id: targetRoutineId }
-      }
-      return todo
+      const updated = newSectionTodos.find(st => st.id === todo.id)
+      return updated || todo
     })
-
-    // 섹션 간 이동인 경우, 전체 배열에서도 위치 이동
-    if (isCrossSectionMove) {
-      // activeTodo를 제거
-      newTodos = newTodos.filter(t => t.id !== active.id)
-      // overTodo 위치에 삽입
-      const overIndexInFull = newTodos.findIndex(t => t.id === over.id)
-      newTodos.splice(overIndexInFull, 0, { ...activeTodo, section_id: targetSectionId, routine_id: targetRoutineId })
-    } else {
-      // 같은 섹션 내 이동
-      const oldIndex = newTodos.findIndex((todo) => todo.id === active.id)
-      const newIndex = newTodos.findIndex((todo) => todo.id === over.id)
-      newTodos = arrayMove(newTodos, oldIndex, newIndex)
-    }
-
-    console.log('New Todos (full):', newTodos.map(t => ({ id: t.id, text: t.text, section: t.section_id, routine: t.routine_id })))
 
     setTodos(newTodos)
 
-    // Supabase에 새로운 순서 및 섹션 저장
+    // DB 업데이트
     try {
-      // 섹션 간 이동인 경우 section_id/routine_id 업데이트
+      // 섹션 간 이동인 경우 section_type/section_id 업데이트
       if (isCrossSectionMove) {
+        const updateData = {
+          section_type: targetSectionType,
+          section_id: targetSectionId
+        }
+
+        // routine이나 pending_routine이 아닌 경우 routine_id 제거
+        if (targetSectionType !== 'routine' && targetSectionType !== 'pending_routine') {
+          updateData.routine_id = null
+          updateData.is_pending_routine = false
+        }
+
         await supabase
           .from('todos')
-          .update({
-            section_id: targetSectionId,
-            routine_id: targetRoutineId
-          })
+          .update(updateData)
           .eq('id', active.id)
       }
 
-      // 해당 섹션 내 todos의 order_index만 업데이트
+      // 섹션 내 order_index 재정규화 (1, 2, 3, ...)
       for (let i = 0; i < newSectionTodos.length; i++) {
         await supabase
           .from('todos')
@@ -878,7 +862,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       }
     } catch (error) {
       console.error('순서 업데이트 오류:', error.message)
-      // 오류 시 다시 가져오기 필요 (fetchTodos 호출 필요)
+      // 오류 시 원래 상태로 복구
+      setTodos(todos)
     }
   }
 
