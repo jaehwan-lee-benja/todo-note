@@ -57,19 +57,6 @@ function Header({
           onNextDay={onNextDay}
         />
 
-        {/* Quick 입력창 */}
-        <div className="quick-input-wrapper">
-          <input
-            type="text"
-            value={quickInput}
-            onChange={(e) => setQuickInput(e.target.value)}
-            onKeyDown={handleQuickAdd}
-            placeholder="⚡ Quick 투두 입력 (Enter로 추가)"
-            className="quick-input"
-            disabled={isQuickAdding}
-          />
-        </div>
-
         {/* 응원 메시지 */}
         <div className="encouragement-section">
           {isToday(selectedDate) ? (
@@ -93,6 +80,19 @@ function Header({
               오늘 페이지로 바로가기
             </button>
           )}
+        </div>
+
+        {/* Quick 입력창 */}
+        <div className="quick-input-wrapper">
+          <input
+            type="text"
+            value={quickInput}
+            onChange={(e) => setQuickInput(e.target.value)}
+            onKeyDown={handleQuickAdd}
+            placeholder="⚡ Quick 투두 입력 (Enter로 추가)"
+            className="quick-input"
+            disabled={isQuickAdding}
+          />
         </div>
       </div>
     </div>

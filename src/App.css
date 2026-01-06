@@ -1140,7 +1140,7 @@ h1 {
 
 @media (max-width: 768px) {
   .todo-item-container {
-    margin-bottom: 0.625rem;
+    margin-bottom: 0.208rem; /* 1/3로 감소 (0.625 / 3) */
   }
 
   .todo-item {
@@ -2563,6 +2563,12 @@ h1 {
     min-width: 0;
     justify-content: center;
     height: 32px;
+  }
+
+  .quick-input-wrapper {
+    order: 4;
+    width: 100%;
+    max-width: 100%;
   }
 
   .date-display-wrapper {
@@ -5003,10 +5009,14 @@ h1 {
     padding: 20px 32px;
   }
 
+  .sections-container.vertical-layout {
+    padding-top: 4.5rem; /* 터치 스크롤 영역 확보 (기존 1.5rem의 3배) */
+  }
+
   .sections-container.horizontal-layout {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
-    padding-top: 0;
+    padding-top: 4.5rem; /* 터치 스크롤 영역 확보 (기존 1.5rem의 3배) */
   }
 
   .sections-container.horizontal-layout .section-block {
