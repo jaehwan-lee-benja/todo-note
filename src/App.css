@@ -1034,51 +1034,50 @@ h1 {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.todo-item-container.focused .todo-number {
-  color: #ffd700;
-  font-weight: 700;
-}
-
 .todo-number {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
   color: rgba(255, 255, 255, 0.4);
-  width: 36px;
+  width: 32px;
   text-align: right;
   user-select: none;
   flex-shrink: 0;
-  cursor: pointer;
-  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.25rem;
+  box-sizing: border-box;
+  line-height: 1;
+  padding-right: 0.5rem;
+}
+
+/* 드래그 핸들 */
+.drag-handle {
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.3);
+  width: 28px;
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+  cursor: grab;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 6px;
   box-sizing: border-box;
   line-height: 1;
 }
 
-.todo-number:hover {
-  color: rgba(255, 255, 255, 0.7);
+.drag-handle:hover {
+  color: rgba(255, 255, 255, 0.6);
   background: rgba(255, 255, 255, 0.05);
 }
 
-.focus-icon {
-  font-size: 0.9rem;
-  animation: fadeIn 0.3s ease;
-  position: relative;
-  top: -2px;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.drag-handle:active {
+  cursor: grabbing;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .todo-item-wrapper {
@@ -1232,8 +1231,13 @@ h1 {
   }
 
   .todo-number {
+    font-size: 0.85rem;
+    width: 28px;
+  }
+
+  .drag-handle {
     font-size: 1rem;
-    width: 32px;
+    width: 24px;
   }
 }
 
@@ -2457,13 +2461,18 @@ h1 {
     color: rgba(0, 0, 0, 0.4);
   }
 
-  .todo-number:hover {
-    color: rgba(0, 0, 0, 0.7);
+  .drag-handle {
+    color: rgba(0, 0, 0, 0.3);
+  }
+
+  .drag-handle:hover {
+    color: rgba(0, 0, 0, 0.6);
     background: rgba(0, 0, 0, 0.05);
   }
 
-  .todo-item-container.focused .todo-number {
-    color: #d4af37;
+  .drag-handle:active {
+    color: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.1);
   }
 
   .add-subtodo-button-inline {
@@ -5016,7 +5025,7 @@ h1 {
   .sections-container.horizontal-layout {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
-    padding-top: 4.5rem; /* 터치 스크롤 영역 확보 (기존 1.5rem의 3배) */
+    padding-top: 2rem;
     padding-bottom: 80px; /* 네비게이션 점 영역 확보 */
   }
 
@@ -5025,8 +5034,8 @@ h1 {
     width: calc(100vw - 32px);
     min-width: calc(100vw - 32px);
     flex-shrink: 0;
-    /* 섹션 높이를 고정: 화면 높이 - 헤더 - 네비게이션 바 */
-    max-height: calc(100vh - 120px - 64px);
+    /* 섹션 높이를 고정: 화면 높이 - 헤더 - 네비게이션 점 영역 */
+    max-height: calc(90vh - 120px - 80px);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -5041,6 +5050,11 @@ h1 {
   .section-block {
     padding: 0.75rem;
     margin-bottom: 0.75rem;
+  }
+
+  /* 완료 날짜 배지 숨김 */
+  .completed-date-badge {
+    display: none;
   }
 }
 

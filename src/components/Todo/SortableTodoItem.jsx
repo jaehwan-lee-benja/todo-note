@@ -305,16 +305,21 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
           ? '2px solid rgba(99, 102, 241, 0.8)' // 드롭 위치 표시선
           : '2px solid transparent', // 기본은 투명 (공간 확보)
       }}
-      className={`todo-item-container ${isFocused ? 'focused' : ''}`}
+      className="todo-item-container"
     >
-      <span className="todo-number" onClick={() => onFocus(todo.id)}>
-        {isFocused && <span className="focus-icon">🔥</span>}
+      <span
+        className="drag-handle"
+        {...attributes}
+        {...listeners}
+        title="드래그하여 순서 변경"
+      >
+        ☰
+      </span>
+      <span className="todo-number">
         {index + 1}
       </span>
       <div className="todo-item-wrapper">
         <div
-          {...attributes}
-          {...(!isEditing ? listeners : {})}
           className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
         >
         <input

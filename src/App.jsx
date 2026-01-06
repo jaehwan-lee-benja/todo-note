@@ -66,19 +66,10 @@ function App() {
   const [currentPage, setCurrentPage] = useState('home') // 'home' | 'keyThoughtsViewer'
   const recentlyEditedIds = useRef(new Set())
 
-  // DnD sensors 설정
+  // DnD sensors 설정 (드래그 핸들 방식)
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3, // 3px만 이동하면 드래그 시작 (더 민감하게)
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 100, // 100ms로 줄여서 더 빠르게 반응
-        tolerance: 5,
-      },
-    }),
+    useSensor(PointerSensor),
+    useSensor(TouchSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
