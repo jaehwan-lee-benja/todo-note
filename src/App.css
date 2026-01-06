@@ -5017,6 +5017,7 @@ h1 {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     padding-top: 4.5rem; /* 터치 스크롤 영역 확보 (기존 1.5rem의 3배) */
+    padding-bottom: 80px; /* 네비게이션 점 영역 확보 */
   }
 
   .sections-container.horizontal-layout .section-block {
