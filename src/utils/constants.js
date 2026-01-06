@@ -42,6 +42,13 @@ export const DEFAULT_SPEC_CONTENT = `# Todo Note 간단 기획서
 - **배포 URL**: https://jaehwan-lee-benja.github.io/todo-note/
 - **개발 서버**: \`npm run dev\` → http://localhost:5173/todo-note/`
 
+// 삭제 타입
+export const DELETE_TYPE = {
+  THIS_ONLY: 'this-only',      // 이 할일 (오늘만 삭제, 내일부터 다시 표시)
+  FROM_NOW: 'from-now',         // 이번 및 향후 할일 (오늘부터 삭제, 이월 중단)
+  ALL: 'all'                    // 모든 할일 (완전 삭제)
+}
+
 // 기타 상수
 export const AUTO_SAVE_DELAY = 1000 // ms
 export const DEFAULT_HOUR = '09'

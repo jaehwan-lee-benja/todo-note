@@ -32,16 +32,11 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [selectedRoutineForHistory, setSelectedRoutineForHistory] = useState(null)
   const [routineHistoryData, setRoutineHistoryData] = useState([])
+  const [deleteOption, setDeleteOption] = useState('this-only')
+  const [showDeleteTooltip, setShowDeleteTooltip] = useState(null)
 
   // 현재 투두의 루틴 정보 찾기
   const currentRoutine = todo.routine_id ? routines.find(r => r.id === todo.routine_id) : null
-
-  // 스와이프 관련
-  const [swipeOffset, setSwipeOffset] = useState(0)
-  const [swipeStartX, setSwipeStartX] = useState(0)
-  const [swipeStartY, setSwipeStartY] = useState(0)
-  const [isSwiping, setIsSwiping] = useState(false)
-  const [isPointerDown, setIsPointerDown] = useState(false)
 
   const {
     attributes,
@@ -80,13 +75,14 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   }
 
   const handleKeyDown = async (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       await handleEditSubmit()
     } else if (e.key === 'Escape') {
       setIsEditing(false)
       setEditText(todo.text)
     }
+    // Shift+Enter는 줄바꿈 허용 (기본 동작)
   }
 
   // 루틴 요일 토글
@@ -102,167 +98,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const getDayKey = (dayNumber) => {
     const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
     return keys[dayNumber]
-  }
-
-  // 이 날짜에서만 숨김
-  const hideOnThisDateOnly = async (todo) => {
-    try {
-      // currentPageDate가 Date 객체인지 문자열인지 확인
-      const dateStr = typeof currentPageDate === 'string'
-        ? currentPageDate
-        : formatDateForDB(currentPageDate)
-      const currentHiddenDates = todo.hidden_dates || []
-
-      // hidden_dates에 현재 날짜 추가
-      const newHiddenDates = [...currentHiddenDates, dateStr]
-
-      // 루틴 투두인지 확인
-      const isRoutineTodo = todo.routine_id !== null && todo.routine_id !== undefined
-
-      let updateData = {
-        hidden_dates: newHiddenDates
-      }
-
-      // 루틴 투두가 아닌 경우에만 deleted 설정
-      if (!isRoutineTodo) {
-        updateData.deleted = true
-        updateData.deleted_date = new Date().toISOString()
-      }
-
-      const { error } = await supabase
-        .from('todos')
-        .update(updateData)
-        .eq('id', todo.id)
-
-      if (error) throw error
-
-      // 즉시 UI에서 제거
-      if (onRemoveFromUI) {
-        onRemoveFromUI(todo.id)
-      }
-
-      // 성공 메시지 표시 (실행 취소 정보 포함)
-      const isRoutine = todo.routine_id !== null && todo.routine_id !== undefined
-      showSuccessMessage(
-        isRoutine ? '✅ 오늘만 숨겨졌습니다' : '✅ 이 날짜에서 숨겨졌습니다',
-        {
-          type: 'hideOnDate',
-          todoId: todo.id,
-          hiddenDate: dateStr,
-          wasDeleted: !isRoutineTodo
-        }
-      )
-    } catch (error) {
-      console.error('숨김 처리 오류:', error.message)
-      alert('❌ 숨김 처리에 실패했습니다.')
-    }
-  }
-
-  // 완전 삭제
-  const deleteCompletely = async (todo) => {
-    try {
-      const { error } = await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: new Date().toISOString() })
-        .eq('id', todo.id)
-
-      if (error) throw error
-
-      // 즉시 UI에서 제거
-      if (onRemoveFromUI) {
-        onRemoveFromUI(todo.id)
-      }
-    } catch (error) {
-      console.error('삭제 오류:', error.message)
-      alert('삭제에 실패했습니다.')
-    }
-  }
-
-  // 루틴 투두 전용: 오늘부터 삭제 (루틴 중단)
-  const deleteRoutineFromToday = async (todo) => {
-    try {
-      if (!todo.routine_id) {
-        alert('루틴 투두가 아닙니다.')
-        return
-      }
-
-      // 루틴을 deleted: true로 설정하여 내일부터 생성되지 않도록
-      const { error: routineError } = await supabase
-        .from('routines')
-        .update({ deleted: true })
-        .eq('id', todo.routine_id)
-
-      if (routineError) throw routineError
-
-      // 현재 날짜를 hidden_dates에 추가하여 오늘도 숨김
-      const dateStr = typeof currentPageDate === 'string'
-        ? currentPageDate
-        : formatDateForDB(currentPageDate)
-      const currentHiddenDates = todo.hidden_dates || []
-      const newHiddenDates = [...currentHiddenDates, dateStr]
-
-      const { error: todoError } = await supabase
-        .from('todos')
-        .update({ hidden_dates: newHiddenDates })
-        .eq('id', todo.id)
-
-      if (todoError) throw todoError
-
-      // UI에서 제거
-      if (onRemoveFromUI) {
-        onRemoveFromUI(todo.id)
-      }
-
-      showSuccessMessage('✅ 오늘부터 루틴이 중단되었습니다', {
-        type: 'stopRoutineFromToday',
-        todoId: todo.id,
-        routineId: todo.routine_id,
-        hiddenDate: dateStr
-      })
-    } catch (error) {
-      console.error('루틴 중단 오류:', error.message)
-      alert('❌ 루틴 중단에 실패했습니다.')
-    }
-  }
-
-  // 루틴 투두 전용: 과거+오늘+미래 모두 삭제
-  const deleteRoutineCompletely = async (todo) => {
-    try {
-      if (!todo.routine_id) {
-        alert('루틴 투두가 아닙니다.')
-        return
-      }
-
-      // 1. 루틴을 deleted: true로 설정
-      const { error: routineError } = await supabase
-        .from('routines')
-        .update({ deleted: true })
-        .eq('id', todo.routine_id)
-
-      if (routineError) throw routineError
-
-      // 2. 루틴 투두도 deleted: true로 설정 (휴지통으로)
-      const { error: todoError } = await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: new Date().toISOString() })
-        .eq('id', todo.id)
-
-      if (todoError) throw todoError
-
-      // UI에서 제거
-      if (onRemoveFromUI) {
-        onRemoveFromUI(todo.id)
-      }
-
-      showSuccessMessage('✅ 루틴이 휴지통으로 이동되었습니다', {
-        type: 'deleteRoutineCompletely',
-        todoId: todo.id,
-        routineId: todo.routine_id
-      })
-    } catch (error) {
-      console.error('루틴 완전 삭제 오류:', error.message)
-      alert('❌ 루틴 삭제에 실패했습니다.')
-    }
   }
 
   // 히스토리 자동 로드 (selectedAction이 'history'일 때)
@@ -329,79 +164,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
     }
   }, [selectedAction, currentRoutine, selectedRoutineForHistory])
 
-  // 마우스/터치 시작
-  const handleStart = (e) => {
-    if (isEditing || isDragging) return
-
-    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX
-    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY
-    setSwipeStartX(clientX)
-    setSwipeStartY(clientY)
-    setIsSwiping(false)
-    setIsPointerDown(true)
-  }
-
-  // 마우스/터치 이동
-  const handleMove = (e) => {
-    if (isEditing || isDragging || !isPointerDown) return
-
-    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX
-    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY
-    const diffX = swipeStartX - clientX
-    const diffY = Math.abs(swipeStartY - clientY)
-
-    // 스와이프 감지 (수평 움직임이 확실할 때만)
-    if (!isSwiping) {
-      const totalDist = Math.abs(diffX) + diffY
-      if (totalDist > 10) {
-        // 수평 이동이 전체 이동의 80% 이상이면 스와이프
-        if (Math.abs(diffX) > totalDist * 0.8) {
-          setIsSwiping(true)
-          // 터치 이벤트 전파 막기
-          if (e.type.includes('touch')) {
-            e.preventDefault()
-          }
-        } else if (diffY > Math.abs(diffX)) {
-          // 수직 이동이 더 크면 포인터 해제 (드래그 모드로 전환)
-          setIsPointerDown(false)
-          return
-        }
-      }
-    }
-
-    // 스와이프 중일 때만 처리
-    if (isSwiping) {
-      if (e.type.includes('touch')) {
-        e.preventDefault()
-      }
-
-      if (diffX > 0 && diffX <= 100) {
-        // 왼쪽으로 스와이프 (삭제 버튼 열기)
-        setSwipeOffset(diffX)
-      } else if (diffX < 0 && swipeOffset > 0) {
-        // 오른쪽으로 스와이프 (삭제 버튼 닫기)
-        const newOffset = swipeOffset + diffX
-        setSwipeOffset(Math.max(0, newOffset))
-        setSwipeStartX(clientX)
-      }
-    }
-  }
-
-  // 마우스/터치 종료
-  const handleEnd = () => {
-    setIsPointerDown(false)
-
-    if (isSwiping) {
-      setIsSwiping(false)
-      // 40px 이상 열렸으면 80px로 고정, 아니면 닫기
-      setSwipeOffset(swipeOffset > 40 ? 80 : 0)
-    }
-  }
-
-  // 삭제 버튼 클릭
-  const handleDeleteClick = () => {
-    onDelete(todo.id)
-  }
 
   // 루틴 요일 토글
   const handleToggleRoutineDay = (dayKey) => {
@@ -550,31 +312,10 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
         {index + 1}
       </span>
       <div className="todo-item-wrapper">
-        <div className="swipe-background">
-          <button
-            onClick={handleDeleteClick}
-            className="swipe-delete-button"
-            title="삭제"
-          >
-            삭제
-          </button>
-        </div>
         <div
           {...attributes}
-          {...listeners}
+          {...(!isEditing ? listeners : {})}
           className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
-          style={{
-            transform: `translateX(-${swipeOffset}px)`,
-            transition: isSwiping || isDragging ? 'none' : 'transform 0.3s ease'
-          }}
-          onMouseDown={handleStart}
-          onMouseMove={handleMove}
-          onMouseUp={handleEnd}
-          onMouseLeave={handleEnd}
-          onTouchStart={handleStart}
-          onTouchMove={handleMove}
-          onTouchEnd={handleEnd}
-          onContextMenu={(e) => e.preventDefault()}
         >
         <input
           type="checkbox"
@@ -589,14 +330,23 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
           style={{ cursor: isEditing ? 'text' : (isLongText ? 'pointer' : 'default') }}
         >
           {isEditing ? (
-            <input
-              type="text"
+            <textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onBlur={handleEditSubmit}
               onKeyDown={handleKeyDown}
               className="todo-edit-input"
               autoFocus
+              rows={1}
+              style={{
+                minHeight: '1.35em',
+                resize: 'vertical',
+                overflow: 'hidden'
+              }}
+              onInput={(e) => {
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }}
             />
           ) : (
             <span className={`todo-text ${isExpanded ? 'expanded' : ''}`}>
@@ -1281,148 +1031,291 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                   )
                 })()}
 
-                {selectedAction === 'delete' && (
-                  <div className="actions-detail-content">
-                    <h4>🗑️ 삭제</h4>
-                    <p className="delete-confirm-text">
-                      <strong>{todo.text}</strong>
-                    </p>
-                    {(() => {
-                      // visible_dates 확인 (여러 날짜에 보이는 투두인지 체크)
-                      const visibleDates = (todo.visible_dates?.length > 0)
-                        ? todo.visible_dates
-                        : [todo.date || todo.created_date]
+                {selectedAction === 'delete' && (() => {
+                  const handleConfirmDelete = async () => {
+                    // 재확인 얼러트
+                    const confirmed = window.confirm(
+                      `⚠️ 정말로 삭제하시겠습니까?\n\n삭제 후 5초 이내에 실행취소할 수 있습니다.`
+                    )
 
-                      // 구 방식(복사 기반) 이월 투두인지 확인
-                      const isOldStyleCarryover = todo.original_todo_id !== null && todo.original_todo_id !== undefined
+                    if (!confirmed) return
 
-                      // 루틴 투두인지 확인
-                      const isRoutineTodo = todo.routine_id !== null && todo.routine_id !== undefined
+                    // Call onDelete with the selected option
+                    await onDelete(todo.id, deleteOption)
+                    setShowActionsModal(false)
+                  }
 
-                      // 루틴 투두인 경우 세 가지 옵션 표시
-                      if (isRoutineTodo) {
-                        return (
-                          <>
-                            <p className="delete-confirm-description">
-                              이 루틴을 어떻게 삭제하시겠습니까?
-                            </p>
-                            <div className="delete-options-simple">
-                              <button
-                                className="delete-option-button-simple option-hide"
-                                onClick={async () => {
-                                  if (window.confirm('오늘만 숨기시겠습니까?\n다른 날짜에서는 계속 보입니다.')) {
-                                    await hideOnThisDateOnly(todo)
-                                    setShowActionsModal(false)
-                                  }
-                                }}
-                              >
-                                <span className="option-icon">📅</span>
-                                <div className="option-content">
-                                  <span className="option-title">오늘만 숨김</span>
-                                  <span className="option-desc">다른 날짜에서는 계속 보임</span>
-                                </div>
-                              </button>
-                              <button
-                                className="delete-option-button-simple option-future"
-                                onClick={async () => {
-                                  if (window.confirm('오늘부터 루틴을 중단하시겠습니까?\n과거 기록은 유지됩니다.')) {
-                                    await deleteRoutineFromToday(todo)
-                                    setShowActionsModal(false)
-                                  }
-                                }}
-                              >
-                                <span className="option-icon">⏹️</span>
-                                <div className="option-content">
-                                  <span className="option-title">오늘부터 중단</span>
-                                  <span className="option-desc">내일부터 생성 안 됨 (과거 유지)</span>
-                                </div>
-                              </button>
-                              <button
-                                className="delete-option-button-simple option-delete"
-                                onClick={async () => {
-                                  if (window.confirm('⚠️ 루틴과 모든 기록을 삭제하시겠습니까?\n휴지통에서 복원 가능합니다.')) {
-                                    await deleteRoutineCompletely(todo)
-                                    setShowActionsModal(false)
-                                  }
-                                }}
-                              >
-                                <span className="option-icon">🗑️</span>
-                                <div className="option-content">
-                                  <span className="option-title">모두 삭제</span>
-                                  <span className="option-desc">과거+오늘+미래 모두 휴지통으로</span>
-                                </div>
-                              </button>
+                  return (
+                    <div className="actions-detail-content">
+                      <h4>🗑️ 할 일 삭제</h4>
+                      <p style={{ fontSize: '0.9rem', color: '#9ca3af', marginBottom: '1rem', lineHeight: '1.6' }}>
+                        완료되지 않은 할일은 다음날로 이월됩니다.<br/>
+                        아래 삭제 옵션 중 선택해주세요.
+                      </p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {/* 옵션 1: 이 할일 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.75rem',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '6px',
+                          background: deleteOption === 'this-only' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                          cursor: 'pointer',
+                          position: 'relative'
+                        }}
+                        onClick={() => setDeleteOption('this-only')}
+                        >
+                          <input
+                            type="radio"
+                            name="delete-option"
+                            value="this-only"
+                            checked={deleteOption === 'this-only'}
+                            onChange={(e) => setDeleteOption(e.target.value)}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: '600' }}>이 할일</span>
+                              <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>당일만 삭제</span>
                             </div>
-                          </>
-                        )
-                      }
-                      // 여러 날짜에 보이는 일반 투두인 경우 두 가지 옵션 표시
-                      else if (visibleDates.length > 1 || isOldStyleCarryover) {
-                        return (
-                          <>
-                            <p className="delete-confirm-description">
-                              이 투두는 여러 날짜에 보입니다. 어떻게 삭제하시겠습니까?
-                            </p>
-                            <div className="delete-options-simple">
-                              <button
-                                className="delete-option-button-simple option-hide"
-                                onClick={async () => {
-                                  if (window.confirm('이 날짜에서만 숨기시겠습니까?\n다른 날짜에서는 계속 보입니다.')) {
-                                    await hideOnThisDateOnly(todo)
-                                    setShowActionsModal(false)
-                                  }
-                                }}
-                              >
-                                <span className="option-icon">⊘</span>
-                                <div className="option-content">
-                                  <span className="option-title">이 날짜에서만 숨김</span>
-                                  <span className="option-desc">다른 날짜에서는 계속 보입니다</span>
-                                </div>
-                              </button>
-                              <button
-                                className="delete-option-button-simple option-delete"
-                                onClick={async () => {
-                                  await deleteCompletely(todo)
-                                  setShowActionsModal(false)
-                                }}
-                              >
-                                <span className="option-icon">🗑️</span>
-                                <div className="option-content">
-                                  <span className="option-title">휴지통으로 이동</span>
-                                  <span className="option-desc">모든 날짜에서 삭제 (복원 가능)</span>
-                                </div>
-                              </button>
+                          </div>
+                          <button
+                            onMouseEnter={() => setShowDeleteTooltip('this-only')}
+                            onMouseLeave={() => setShowDeleteTooltip(null)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShowDeleteTooltip(showDeleteTooltip === 'this-only' ? null : 'this-only')
+                            }}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              border: '1.5px solid #9ca3af',
+                              background: 'transparent',
+                              color: '#9ca3af',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0
+                            }}
+                          >
+                            ?
+                          </button>
+                          {showDeleteTooltip === 'this-only' && (
+                            <div style={{
+                              position: 'absolute',
+                              right: '2.5rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: '#1f2937',
+                              color: '#e5e7eb',
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              whiteSpace: 'nowrap',
+                              zIndex: 10,
+                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}>
+                              과거 기록 유지, 당일것만 삭제, 내일부터 다시 표시함
                             </div>
-                          </>
-                        )
-                      } else {
-                        // 단일 날짜 투두는 휴지통 이동만 표시
-                        return (
-                          <>
-                            <p className="delete-confirm-description">
-                              이 투두를 휴지통으로 이동하시겠습니까?
-                            </p>
-                            <div className="delete-options-simple">
-                              <button
-                                className="delete-option-button-simple option-delete"
-                                onClick={async () => {
-                                  await deleteCompletely(todo)
-                                  setShowActionsModal(false)
-                                }}
-                              >
-                                <span className="option-icon">🗑️</span>
-                                <div className="option-content">
-                                  <span className="option-title">휴지통으로 이동</span>
-                                  <span className="option-desc">복원 가능</span>
-                                </div>
-                              </button>
+                          )}
+                        </div>
+
+                        {/* 옵션 2: 이번 및 향후 할일 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.75rem',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '6px',
+                          background: deleteOption === 'from-now' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                          cursor: 'pointer',
+                          position: 'relative'
+                        }}
+                        onClick={() => setDeleteOption('from-now')}
+                        >
+                          <input
+                            type="radio"
+                            name="delete-option"
+                            value="from-now"
+                            checked={deleteOption === 'from-now'}
+                            onChange={(e) => setDeleteOption(e.target.value)}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: '600' }}>이번 및 향후 할일</span>
+                              <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>당일부터 삭제</span>
                             </div>
-                          </>
-                        )
-                      }
-                    })()}
-                  </div>
-                )}
+                          </div>
+                          <button
+                            onMouseEnter={() => setShowDeleteTooltip('from-now')}
+                            onMouseLeave={() => setShowDeleteTooltip(null)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShowDeleteTooltip(showDeleteTooltip === 'from-now' ? null : 'from-now')
+                            }}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              border: '1.5px solid #9ca3af',
+                              background: 'transparent',
+                              color: '#9ca3af',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0
+                            }}
+                          >
+                            ?
+                          </button>
+                          {showDeleteTooltip === 'from-now' && (
+                            <div style={{
+                              position: 'absolute',
+                              right: '2.5rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: '#1f2937',
+                              color: '#e5e7eb',
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              whiteSpace: 'nowrap',
+                              zIndex: 10,
+                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}>
+                              과거 기록 유지, 당일것 삭제, 내일부터도 표시 안함
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 옵션 3: 모든 할일 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.75rem',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '6px',
+                          background: deleteOption === 'all' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                          cursor: 'pointer',
+                          position: 'relative'
+                        }}
+                        onClick={() => setDeleteOption('all')}
+                        >
+                          <input
+                            type="radio"
+                            name="delete-option"
+                            value="all"
+                            checked={deleteOption === 'all'}
+                            onChange={(e) => setDeleteOption(e.target.value)}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: '600' }}>모든 할일</span>
+                              <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>모두 삭제</span>
+                            </div>
+                          </div>
+                          <button
+                            onMouseEnter={() => setShowDeleteTooltip('all')}
+                            onMouseLeave={() => setShowDeleteTooltip(null)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShowDeleteTooltip(showDeleteTooltip === 'all' ? null : 'all')
+                            }}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              border: '1.5px solid #9ca3af',
+                              background: 'transparent',
+                              color: '#9ca3af',
+                              cursor: 'pointer',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0
+                            }}
+                          >
+                            ?
+                          </button>
+                          {showDeleteTooltip === 'all' && (
+                            <div style={{
+                              position: 'absolute',
+                              right: '2.5rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: '#1f2937',
+                              color: '#e5e7eb',
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              whiteSpace: 'nowrap',
+                              zIndex: 10,
+                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}>
+                              과거 기록 삭제, 당일것 삭제, 내일부터도 표시 안함
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        justifyContent: 'flex-end',
+                        marginTop: '1.5rem',
+                        paddingTop: '1rem',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                      }}>
+                        <button
+                          onClick={() => setShowActionsModal(false)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            borderRadius: '6px',
+                            background: 'transparent',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            color: '#9ca3af',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={handleConfirmDelete}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            borderRadius: '6px',
+                            background: '#ef4444',
+                            border: 'none',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: '600'
+                          }}
+                        >
+                          확인
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
+
               </div>
             </div>
           </div>

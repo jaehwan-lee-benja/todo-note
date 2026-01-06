@@ -446,6 +446,53 @@ h1 {
   box-sizing: border-box;
 }
 
+/* Quick 입력창 */
+.quick-input-wrapper {
+  flex: 1;
+  max-width: 400px;
+  min-width: 200px;
+}
+
+.quick-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  background: rgba(100, 108, 255, 0.1);
+  border: 1px solid rgba(100, 108, 255, 0.3);
+  border-radius: 8px;
+  color: inherit;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.quick-input::placeholder {
+  color: rgba(100, 108, 255, 0.6);
+}
+
+.quick-input:focus {
+  background: rgba(100, 108, 255, 0.15);
+  border-color: rgba(100, 108, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.quick-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .quick-input-wrapper {
+    max-width: none;
+    flex: 1;
+  }
+
+  .quick-input {
+    font-size: 1rem;
+  }
+}
+
 .date-nav-section {
   display: flex;
   align-items: center;
@@ -1046,30 +1093,15 @@ h1 {
   background: transparent;
 }
 
-.swipe-background {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
-  padding: 1px;
-  border-radius: 12px;
-  overflow: hidden;
-  z-index: 1;
-}
-
 .todo-item {
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr) minmax(0, 60px) auto;
-  grid-template-rows: minmax(2.6rem, auto) auto auto auto auto;
+  grid-template-rows: minmax(2.2rem, auto) auto auto auto auto;
   align-items: center;
   column-gap: 0.5rem;
   row-gap: 0;
-  padding: 0.75rem 0.875rem;
+  padding: 0.5rem 0.75rem;
   background: #1a1a1a;
   border-radius: 8px;
   border: none;
@@ -1112,10 +1144,10 @@ h1 {
   }
 
   .todo-item {
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.875rem;
     touch-action: pan-y !important;
     grid-template-columns: auto minmax(150px, 1fr) minmax(0, 60px) auto;
-    grid-template-rows: minmax(2.8rem, auto) auto auto auto auto;
+    grid-template-rows: minmax(2.4rem, auto) auto auto auto auto;
     column-gap: 0.625rem;
   }
 
@@ -1164,23 +1196,25 @@ h1 {
   width: 100%;
   padding: 0 0.5rem;
   font-size: 0.95rem;
-  line-height: 1.3;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   box-sizing: border-box;
   user-select: none;
   word-break: break-word;
+  white-space: pre-wrap;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
 
 .todo-text.expanded {
-  white-space: normal;
+  white-space: pre-wrap;
   overflow: visible;
   word-break: break-word;
+  -webkit-line-clamp: unset;
 }
 
 @media (max-width: 768px) {
@@ -1193,9 +1227,7 @@ h1 {
   .todo-text {
     padding: 0 0.5rem;
     font-size: 1rem;
-    line-height: 1.4;
-    min-height: 2.8rem;
-    max-height: 2.8rem;
+    line-height: 1.35;
     max-width: 100%;
   }
 
@@ -1216,6 +1248,8 @@ h1 {
   font-family: inherit;
   outline: none;
   box-sizing: border-box;
+  white-space: pre-wrap;
+  line-height: 1.35;
 }
 
 .todo-date {
@@ -1453,34 +1487,6 @@ h1 {
   color: rgba(255, 255, 255, 0.3);
 }
 
-.swipe-delete-button {
-  width: 90px;
-  background: #ff3b30;
-  color: white;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s ease;
-  flex-shrink: 0;
-  border-radius: 0 12px 12px 0;
-  margin-left: -10px;
-  padding-left: 10px;
-  touch-action: auto;
-  pointer-events: auto;
-}
-
-.swipe-delete-button:hover {
-  background: #ff1f13;
-}
-
-.swipe-delete-button:active {
-  background: #cc2a21;
-}
-
 @media (max-width: 768px) {
   .todo-badges {
     gap: 0.3rem;
@@ -1558,8 +1564,8 @@ h1 {
   border-radius: 12px;
   width: 90vw;
   max-width: 700px;
-  height: 600px;
-  max-height: 80vh;
+  height: 700px;
+  max-height: 85vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;

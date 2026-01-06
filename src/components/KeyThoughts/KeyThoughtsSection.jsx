@@ -24,11 +24,6 @@ function KeyThoughtsSection({
   setFocusedBlockId,
   onShowHistory,
   onOpenViewer,
-  showArrows = false,
-  onMoveLeft,
-  onMoveRight,
-  isFirst,
-  isLast,
   settingsMenuItems = []
 }) {
   const [activeBlock, setActiveBlock] = useState(null)
@@ -268,36 +263,15 @@ function KeyThoughtsSection({
     <div className="key-thoughts-section section-block">
       <SectionHeader
         title="💡 주요 생각정리"
-        showArrows={showArrows}
-        onMoveLeft={onMoveLeft}
-        onMoveRight={onMoveRight}
-        isFirst={isFirst}
-        isLast={isLast}
         settingsMenuItems={settingsMenuItems}
         customActions={(
-          <>
-            <button
-              className="section-action-button"
-              onClick={() => onOpenViewer && onOpenViewer()}
-              title="뷰어 모드로 보기"
-            >
-              📖 뷰어
-            </button>
-            <button
-              className="section-action-button"
-              onClick={() => onShowHistory && onShowHistory()}
-              title="버전 히스토리 보기"
-            >
-              🕐 히스토리
-            </button>
-            <button
-              className="section-action-button"
-              onClick={() => toggleAllBlocks(!allOpen)}
-              title={allOpen ? "전체 접기" : "전체 펴기"}
-            >
-              {allOpen ? "전체 접기" : "전체 펴기"}
-            </button>
-          </>
+          <button
+            className="section-action-button"
+            onClick={() => toggleAllBlocks(!allOpen)}
+            title={allOpen ? "전체 접기" : "전체 펴기"}
+          >
+            {allOpen ? "전체 접기" : "전체 펴기"}
+          </button>
         )}
       />
       <div

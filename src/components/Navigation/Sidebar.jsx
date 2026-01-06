@@ -5,9 +5,6 @@ function Sidebar({
   session,
   viewMode,
   setViewMode,
-  isReorderMode,
-  setIsReorderMode,
-  onOpenTrash,
   onOpenRoutine,
   onOpenMemo,
   onScrollToKeyThoughts,
@@ -89,16 +86,6 @@ function Sidebar({
             <span>{viewMode === 'vertical' ? '가로 나열' : '세로 나열'}</span>
           </button>
           <button
-            className={`sidebar-menu-item ${isReorderMode ? 'active' : ''}`}
-            onClick={() => {
-              setIsReorderMode(!isReorderMode)
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">↕️</span>
-            <span>{isReorderMode ? '섹션 이동 종료' : '섹션 이동'}</span>
-          </button>
-          <button
             className="sidebar-menu-item"
             onClick={() => {
               onOpenAddSection()
@@ -117,16 +104,6 @@ function Sidebar({
           >
             <span className="sidebar-icon">🗂️</span>
             <span>숨긴 섹션 관리</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              onOpenTrash()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">🗑️</span>
-            <span>휴지통</span>
           </button>
           <button
             className="sidebar-menu-item"

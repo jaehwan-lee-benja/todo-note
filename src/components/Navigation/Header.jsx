@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { isToday } from '../../utils/dateUtils'
 import DateNavigation from './DateNavigation'
 
@@ -13,9 +14,25 @@ function Header({
   showEncouragementEmoji,
   currentEncouragementMessage,
   onEncouragementClick,
-  isReorderMode,
-  setIsReorderMode
+  onQuickAdd
 }) {
+  const [quickInput, setQuickInput] = useState('')
+  const [isQuickAdding, setIsQuickAdding] = useState(false)
+
+  const handleQuickAdd = async (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && quickInput.trim()) {
+      e.preventDefault()
+      setIsQuickAdding(true)
+      try {
+        await onQuickAdd(quickInput.trim())
+        setQuickInput('')
+      } catch (error) {
+        console.error('Quick add error:', error)
+      } finally {
+        setIsQuickAdding(false)
+      }
+    }
+  }
   return (
     <div className="header-fixed">
       <div className="settings-bar">
@@ -39,6 +56,19 @@ function Header({
           onPrevDay={onPrevDay}
           onNextDay={onNextDay}
         />
+
+        {/* Quick 입력창 */}
+        <div className="quick-input-wrapper">
+          <input
+            type="text"
+            value={quickInput}
+            onChange={(e) => setQuickInput(e.target.value)}
+            onKeyDown={handleQuickAdd}
+            placeholder="⚡ Quick 투두 입력 (Enter로 추가)"
+            className="quick-input"
+            disabled={isQuickAdding}
+          />
+        </div>
 
         {/* 응원 메시지 */}
         <div className="encouragement-section">
@@ -64,47 +94,6 @@ function Header({
             </button>
           )}
         </div>
-
-        {/* 섹션 이동 토글 버튼 */}
-        <button
-          className={`section-reorder-toggle ${isReorderMode ? 'active' : ''}`}
-          onClick={() => setIsReorderMode(!isReorderMode)}
-          title={isReorderMode ? '섹션 이동 종료' : '섹션 이동'}
-        >
-          ↕️
-        </button>
-
-        {/* 섹션 순서 수정 모드 */}
-        {isReorderMode && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: '8px',
-            fontSize: '0.9rem',
-            color: '#60a5fa'
-          }}>
-            <span>📌 섹션 순서 수정 중</span>
-            <button
-              onClick={() => setIsReorderMode(false)}
-              style={{
-                padding: '0.25rem 0.75rem',
-                background: 'rgba(59, 130, 246, 0.2)',
-                color: '#60a5fa',
-                border: '1px solid rgba(59, 130, 246, 0.4)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '500'
-              }}
-            >
-              완료
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

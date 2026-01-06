@@ -12,11 +12,6 @@ function TodoSection({
   children,
   editable = false,
   onTitleChange,
-  showArrows = false,
-  onMoveLeft,
-  onMoveRight,
-  isFirst,
-  isLast,
   settingsMenuItems = [],
   headerActions,
 }) {
@@ -26,11 +21,6 @@ function TodoSection({
         title={title}
         editable={editable}
         onTitleChange={onTitleChange}
-        showArrows={showArrows}
-        onMoveLeft={onMoveLeft}
-        onMoveRight={onMoveRight}
-        isFirst={isFirst}
-        isLast={isLast}
         settingsMenuItems={settingsMenuItems}
         customActions={headerActions}
       />

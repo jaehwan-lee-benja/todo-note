@@ -176,6 +176,10 @@ export const useTodoCarryOver = ({
 
           // 아직 이월되지 않은 항목만 필터링
           const todosNeedCarryOver = incompleteTodos.filter(todo => {
+            // stop_carryover_from 체크 (옵션 2: 이번 및 향후 할일 삭제)
+            if (todo.stop_carryover_from && fromDateStr >= todo.stop_carryover_from) {
+              return false // 이월 중단된 투두
+            }
             const originalId = todo.original_todo_id || todo.id
             return !alreadyCarriedOverIds.has(originalId)
           })

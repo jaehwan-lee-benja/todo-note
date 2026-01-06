@@ -5,11 +5,6 @@ function SectionHeader({
   title,
   editable = false,
   onTitleChange,
-  showArrows = false,
-  onMoveLeft,
-  onMoveRight,
-  isFirst = false,
-  isLast = false,
   showHideButton = false,
   onHide,
   showDeleteButton = false,
@@ -83,28 +78,6 @@ function SectionHeader({
       </div>
 
       <div className="section-actions">
-        {/* 화살표 버튼 */}
-        {showArrows && (
-          <div className="section-arrow-buttons">
-            <button
-              className="section-arrow-button"
-              onClick={onMoveLeft}
-              disabled={isFirst}
-              title="왼쪽으로 이동"
-            >
-              ←
-            </button>
-            <button
-              className="section-arrow-button"
-              onClick={onMoveRight}
-              disabled={isLast}
-              title="오른쪽으로 이동"
-            >
-              →
-            </button>
-          </div>
-        )}
-
         {/* 커스텀 액션 (다른 섹션 전용 버튼들) */}
         {customActions}
 

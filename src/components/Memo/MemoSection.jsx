@@ -15,11 +15,6 @@ function MemoSection({
   onKeyDown,
   placeholder,
   emptyMessage,
-  showArrows = false,
-  onMoveLeft,
-  onMoveRight,
-  isFirst,
-  isLast,
   settingsMenuItems = [],
   children,
 }) {
@@ -27,42 +22,24 @@ function MemoSection({
     <div className={className}>
       <SectionHeader
         title={title}
-        showArrows={showArrows}
-        onMoveLeft={onMoveLeft}
-        onMoveRight={onMoveRight}
-        isFirst={isFirst}
-        isLast={isLast}
         settingsMenuItems={settingsMenuItems}
-        customActions={(
-          <>
-            {!isEditing && (
-              <button
-                onClick={onStartEdit}
-                className="section-action-button"
-                title="메모 편집"
-              >
-                ✏️ 편집
-              </button>
-            )}
-            {isEditing && (
-              <div className="memo-edit-actions">
-                <button
-                  onClick={onSave}
-                  className="memo-save-button"
-                  disabled={isSaving}
-                >
-                  💾 저장
-                </button>
-                <button
-                  onClick={onCancel}
-                  className="memo-cancel-button"
-                  disabled={isSaving}
-                >
-                  ✕ 취소
-                </button>
-              </div>
-            )}
-          </>
+        customActions={isEditing && (
+          <div className="memo-edit-actions">
+            <button
+              onClick={onSave}
+              className="memo-save-button"
+              disabled={isSaving}
+            >
+              💾 저장
+            </button>
+            <button
+              onClick={onCancel}
+              className="memo-cancel-button"
+              disabled={isSaving}
+            >
+              ✕ 취소
+            </button>
+          </div>
         )}
       />
       {isEditing ? (

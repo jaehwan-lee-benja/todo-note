@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatDateForDB } from '../utils/dateUtils'
+import { useDeleteLogic } from './useDeleteLogic'
 
 // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
 const getDayKey = (dayNumber) => {
@@ -28,9 +29,27 @@ export const useRoutines = ({
   const [showRoutineHistory, setShowRoutineHistory] = useState(false)
   const [selectedRoutineForHistory, setSelectedRoutineForHistory] = useState(null)
   const [routineHistoryData, setRoutineHistoryData] = useState([])
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
+  const [routineToDelete, setRoutineToDelete] = useState(null)
 
   // Refs
   const routineCreationInProgress = useRef(new Set()) // 날짜별 루틴 생성 중 플래그
+
+  // 공통 삭제 로직 hook 사용
+  const { deleteThisOnly, deleteFromNow, deleteAll } = useDeleteLogic({
+    type: 'routine',
+    supabase,
+    selectedDate,
+    onDeleteSuccess: (id, deleteType) => {
+      // UI에서 루틴 제거
+      setRoutines(prevRoutines => prevRoutines.filter(r => r.id !== id))
+
+      // 루틴과 연결된 투두의 routine_id를 null로 (deleteAll의 경우만 필요하지만 hook에서 처리)
+      // 루틴 삭제 성공 메시지
+      setSuccessToastMessage('루틴이 삭제되었습니다')
+      setShowSuccessToast(true)
+    }
+  })
 
   // 루틴 목록 가져오기
   const fetchRoutines = async () => {
@@ -232,48 +251,14 @@ export const useRoutines = ({
     )
   }
 
-  // 루틴 삭제
+  // 루틴 삭제 (모달 표시)
   const handleDeleteRoutine = async (id) => {
     const routine = routines.find(r => r.id === id)
-    const routineName = routine ? routine.text : '이 루틴'
+    if (!routine) return
 
-    const confirmed = window.confirm(
-      `⚠️ 정말로 "${routineName}"을(를) 삭제하시겠습니까?\n\n이 루틴은 서버에서 완전히 삭제되며, 이 작업은 되돌릴 수 없습니다.\n(기존에 생성된 투두는 유지됩니다)`
-    )
-
-    if (!confirmed) return
-
-    try {
-      // 1. 루틴 삭제
-      const { error } = await supabase
-        .from('routines')
-        .update({ deleted: true })
-        .eq('id', id)
-
-      if (error) throw error
-
-      // 2. 해당 루틴을 사용하는 모든 투두의 routine_id를 null로 업데이트
-      const { error: updateError } = await supabase
-        .from('todos')
-        .update({ routine_id: null })
-        .eq('routine_id', id)
-
-      if (updateError) {
-        console.error('투두 루틴 ID 업데이트 오류:', updateError.message)
-      }
-
-      // 3. 로컬 상태에서 루틴 제거
-      setRoutines(routines.filter(routine => routine.id !== id))
-
-      // 4. 로컬 투두 상태에서 routine_id 제거
-      setTodos(prevTodos =>
-        prevTodos.map(todo =>
-          todo.routine_id === id ? { ...todo, routine_id: null } : todo
-        )
-      )
-    } catch (error) {
-      console.error('루틴 삭제 오류:', error.message)
-    }
+    // 모달 표시
+    setRoutineToDelete(routine)
+    setShowDeleteConfirmModal(true)
   }
 
   // 특정 날짜의 루틴 작업 자동 생성
@@ -486,6 +471,10 @@ export const useRoutines = ({
     selectedRoutineForHistory,
     routineHistoryData,
     routineCreationInProgress,
+    showDeleteConfirmModal,
+    setShowDeleteConfirmModal,
+    routineToDelete,
+    setRoutineToDelete,
 
     // Setters
     setRoutineInput,
@@ -495,6 +484,9 @@ export const useRoutines = ({
     fetchRoutines,
     handleAddRoutine,
     handleDeleteRoutine,
+    deleteThisOnly,
+    deleteFromNow,
+    deleteAll,
     handleStartEditRoutine,
     handleSaveEditRoutine,
     handleCancelEditRoutine,

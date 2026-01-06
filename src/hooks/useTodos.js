@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
 import { formatDateForDB } from '../utils/dateUtils'
+import { useDeleteLogic } from './useDeleteLogic'
 
 export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal) => {
   // State
@@ -16,8 +17,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   const [successToastMessage, setSuccessToastMessage] = useState('')
   const [lastDeleteAction, setLastDeleteAction] = useState(null)
-  const [showTrashModal, setShowTrashModal] = useState(false)
-  const [trashedItems, setTrashedItems] = useState([])
   const [focusedTodoId, setFocusedTodoId] = useState(null)
   // selectedTodoForModal은 App.jsx에서 전달받음
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
@@ -29,6 +28,37 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   // Refs
   const routineCreationInProgress = useRef(new Set())
   const recentlyEditedIds = useRef(new Set())
+
+  // 공통 삭제 로직 hook 사용
+  const { deleteThisOnly, deleteFromNow, deleteAll } = useDeleteLogic({
+    type: 'todo',
+    supabase,
+    selectedDate,
+    onDeleteSuccess: (id, deleteType) => {
+      // 삭제된 투두 찾기
+      const deletedItem = todos.find(t => t.id === id)
+      if (deletedItem) {
+        // Undo를 위해 저장
+        setDeletedTodo(deletedItem)
+        setLastDeleteAction({ id, deleteType, item: deletedItem })
+
+        // Undo 토스트 표시
+        setShowUndoToast(true)
+
+        // 5초 후 자동 숨김
+        setTimeout(() => {
+          setShowUndoToast(false)
+          setDeletedTodo(null)
+          setLastDeleteAction(null)
+        }, 5000)
+      }
+
+      // UI에서 제거
+      setTodos(prevTodos => prevTodos.filter(t => t.id !== id))
+      setShowDeleteConfirmModal(false)
+      setTodoToDelete(null)
+    }
+  })
 
   // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
   const getDayKey = (dayNumber) => {
@@ -101,6 +131,17 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
         const existingTodo = existingTodos && existingTodos.length > 0 ? existingTodos[0] : null
 
         if (existingTodo) {
+          // hidden_dates 체크: 오늘 날짜가 숨김 처리되어 있으면 스킵
+          const hiddenDates = existingTodo.hidden_dates || []
+          if (hiddenDates.includes(dateStr)) {
+            continue // 숨김 처리된 날짜는 visible_dates에 추가하지 않음
+          }
+
+          // stop_carryover_from 체크: 이번 및 향후 삭제된 경우 스킵
+          if (existingTodo.stop_carryover_from && dateStr >= existingTodo.stop_carryover_from) {
+            continue // 이월 중단된 날짜는 추가하지 않음
+          }
+
           // 기존 투두가 있으면 visible_dates에 날짜 추가
           const currentDates = existingTodo.visible_dates || []
 
@@ -177,19 +218,24 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
       // 클라이언트 사이드 필터링
       const filteredTodos = (data || []).filter(todo => {
+        // stop_carryover_from 체크 (이번 및 향후 삭제)
+        if (todo.stop_carryover_from && dateStr >= todo.stop_carryover_from) {
+          return false
+        }
+
         // hidden_dates 체크 (새 방식, 구 방식 모두 적용)
         const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(dateStr)
         if (isHidden) {
           return false // 숨김 처리된 투두는 표시하지 않음
         }
 
-        // 새 방식: visible_dates에 현재 날짜가 포함되어 있는지 확인
-        if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
-          const isVisible = todo.visible_dates.includes(dateStr)
-          return isVisible
+        // 새 방식: visible_dates 체크
+        if (todo.visible_dates && Array.isArray(todo.visible_dates)) {
+          // visible_dates가 있으면 (빈 배열이어도) visible_dates 기준으로만 판단
+          return todo.visible_dates.includes(dateStr)
         }
 
-        // 구 방식 (하위 호환): visible_dates가 없거나 빈 배열이면 date 컬럼 사용
+        // 구 방식 (하위 호환): visible_dates가 아예 없으면 date 컬럼 사용
         return todo.date === dateStr
       })
 
@@ -198,23 +244,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       console.error('할 일 가져오기 오류:', error.message)
     } finally {
       setLoading(false)
-    }
-  }
-
-  // 휴지통 가져오기
-  const fetchTrash = async () => {
-    try {
-      // 모든 삭제된 항목 가져오기 (날짜 구분 없이 통합)
-      const { data, error } = await supabase
-        .from('todos')
-        .select('*')
-        .eq('deleted', true)
-        .order('deleted_date', { ascending: false })
-
-      if (error) throw error
-      setTrashedItems(data || [])
-    } catch (error) {
-      console.error('휴지통 가져오기 오류:', error.message)
     }
   }
 
@@ -387,27 +416,25 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     setTodos(todos.filter(t => t.id !== id))
   }
 
-  // 투두 삭제
-  const handleDeleteTodo = async (id) => {
+  // 투두 삭제 (옵션 포함)
+  const handleDeleteTodo = async (id, deleteOption) => {
     // 삭제할 todo 찾기
     const todo = todos.find(t => t.id === id)
     if (!todo) return
 
-    // visible_dates 확인 (여러 날짜에 보이는 투두인지 체크)
-    const visibleDates = (todo.visible_dates?.length > 0)
-      ? todo.visible_dates
-      : [todo.date || todo.created_date]
-
-    // 구 방식(복사 기반) 이월 투두인지 확인
-    const isOldStyleCarryover = todo.original_todo_id !== null && todo.original_todo_id !== undefined
-
-    // 새 방식: 여러 날짜에 보이는 경우 OR 구 방식: 이월된 투두인 경우 → 모달 표시
-    if (visibleDates.length > 1 || isOldStyleCarryover) {
+    // deleteOption이 전달된 경우 직접 삭제 실행
+    if (deleteOption) {
+      if (deleteOption === 'this-only') {
+        await deleteThisOnly(todo)
+      } else if (deleteOption === 'from-now') {
+        await deleteFromNow(todo)
+      } else if (deleteOption === 'all') {
+        await deleteAll(todo)
+      }
+    } else {
+      // deleteOption이 없으면 모달 표시 (기존 동작)
       setTodoToDelete(todo)
       setShowDeleteConfirmModal(true)
-    } else {
-      // 단일 날짜 투두는 바로 삭제
-      await executeSimpleDelete(id)
     }
   }
 
@@ -445,68 +472,50 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
   }
 
-  // 이 날짜에서만 숨김
-  const hideOnThisDateOnly = async (todo) => {
-    try {
-      const dateStr = formatDateForDB(selectedDate)
-      const currentHiddenDates = todo.hidden_dates || []
-
-      // hidden_dates에 현재 날짜 추가
-      const newHiddenDates = [...currentHiddenDates, dateStr]
-
-      const { error } = await supabase
-        .from('todos')
-        .update({ hidden_dates: newHiddenDates })
-        .eq('id', todo.id)
-
-      if (error) throw error
-
-      // UI에서 제거
-      setTodos(todos.filter(t => t.id !== todo.id))
-      setShowDeleteConfirmModal(false)
-      setTodoToDelete(null)
-    } catch (error) {
-      console.error('숨김 오류:', error.message)
-    }
-  }
-
-  // 완전 삭제
-  const deleteCompletely = async (todo) => {
-    try {
-      const dateStr = formatDateForDB(selectedDate)
-
-      const { error } = await supabase
-        .from('todos')
-        .update({ deleted: true, deleted_date: dateStr })
-        .eq('id', todo.id)
-
-      if (error) throw error
-
-      // UI에서 제거
-      setTodos(todos.filter(t => t.id !== todo.id))
-      setShowDeleteConfirmModal(false)
-      setTodoToDelete(null)
-    } catch (error) {
-      console.error('삭제 오류:', error.message)
-    }
-  }
+  // 삭제 함수들은 useDeleteLogic hook에서 제공
+  // (deleteThisOnly, deleteFromNow, deleteAll)
 
   // 삭제 실행 취소
   const handleUndoDelete = async () => {
-    if (!deletedTodo) return
+    if (!deletedTodo || !lastDeleteAction) return
 
     try {
-      // Soft delete 취소: deleted=false, deleted_date=null
-      const { error } = await supabase
-        .from('todos')
-        .update({ deleted: false, deleted_date: null })
-        .eq('id', deletedTodo.id)
+      const { deleteType } = lastDeleteAction
+      const dateStr = formatDateForDB(selectedDate)
 
-      if (error) throw error
+      if (deleteType === 'this-only') {
+        // 옵션 1: hidden_dates에서 오늘 날짜 제거
+        const newHiddenDates = (deletedTodo.hidden_dates || []).filter(d => d !== dateStr)
+        const { error } = await supabase
+          .from('todos')
+          .update({ hidden_dates: newHiddenDates })
+          .eq('id', deletedTodo.id)
+
+        if (error) throw error
+      } else if (deleteType === 'from-now') {
+        // 옵션 2: visible_dates 복원, stop_carryover_from 제거
+        const { error } = await supabase
+          .from('todos')
+          .update({
+            visible_dates: deletedTodo.visible_dates,
+            stop_carryover_from: null
+          })
+          .eq('id', deletedTodo.id)
+
+        if (error) throw error
+      } else if (deleteType === 'all') {
+        // 옵션 3: deleted 플래그 제거
+        const { error } = await supabase
+          .from('todos')
+          .update({ deleted: false, deleted_date: null })
+          .eq('id', deletedTodo.id)
+
+        if (error) throw error
+      }
 
       // UI에 다시 추가
       setTodos(currentTodos => {
-        const restoredTodo = { ...deletedTodo, deleted: false, deleted_date: null }
+        const restoredTodo = { ...deletedTodo }
         const newTodos = [...currentTodos, restoredTodo]
         return newTodos.sort((a, b) => a.order_index - b.order_index)
       })
@@ -514,111 +523,10 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       // 토스트 숨김
       setShowUndoToast(false)
       setDeletedTodo(null)
+      setLastDeleteAction(null)
     } catch (error) {
       console.error('삭제 취소 오류:', error.message)
     }
-  }
-
-  // 휴지통에서 복원
-  const handleRestoreFromTrash = async (id) => {
-    const confirmed = window.confirm(
-      '이 항목을 복원하시겠습니까?\n\n복원된 항목은 원래 날짜 페이지에서 다시 보입니다.'
-    )
-
-    if (!confirmed) return
-
-    try {
-      const { error } = await supabase
-        .from('todos')
-        .update({
-          deleted: false,
-          deleted_date: null,
-          hidden_dates: []  // 복원 시 숨김 날짜도 초기화하여 모든 날짜에서 보이게
-        })
-        .eq('id', id)
-
-      if (error) throw error
-
-      // 휴지통에서 제거
-      setTrashedItems(trashedItems.filter(item => item.id !== id))
-
-      // 일반 리스트 새로고침 필요 (fetchTodos 호출 필요)
-
-      // 성공 알림
-      alert('✅ 복원되었습니다!')
-    } catch (error) {
-      console.error('복원 오류:', error.message)
-      alert('❌ 복원 실패: ' + error.message)
-    }
-  }
-
-  // 영구 삭제
-  const handlePermanentDelete = async (id) => {
-    const confirmed = window.confirm(
-      '⚠️ 정말로 이 항목을 영구적으로 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.'
-    )
-
-    if (!confirmed) return
-
-    try {
-      const { error } = await supabase
-        .from('todos')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-
-      // 휴지통에서 제거
-      setTrashedItems(trashedItems.filter(item => item.id !== id))
-
-      // 성공 알림
-      alert('🗑️ 영구적으로 삭제되었습니다.')
-    } catch (error) {
-      console.error('영구 삭제 오류:', error.message)
-      alert('❌ 영구 삭제 실패: ' + error.message)
-    }
-  }
-
-  // 휴지통 비우기
-  const handleEmptyTrash = async () => {
-    if (trashedItems.length === 0) return
-
-    const confirmed = window.confirm(
-      `⚠️ 정말로 휴지통을 비우시겠습니까?\n\n${trashedItems.length}개의 항목이 영구적으로 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`
-    )
-
-    if (!confirmed) return
-
-    try {
-      // 모든 휴지통 항목의 ID 수집
-      const idsToDelete = trashedItems.map(item => item.id)
-
-      // 한 번에 모두 삭제
-      const { error } = await supabase
-        .from('todos')
-        .delete()
-        .in('id', idsToDelete)
-
-      if (error) throw error
-
-      // UI 업데이트
-      setTrashedItems([])
-      alert(`✅ ${idsToDelete.length}개의 항목이 영구 삭제되었습니다.`)
-    } catch (error) {
-      console.error('휴지통 비우기 오류:', error.message)
-      alert('❌ 휴지통 비우기 실패: ' + error.message)
-    }
-  }
-
-  // 휴지통 열기
-  const handleOpenTrash = () => {
-    setShowTrashModal(true)
-    fetchTrash()
-  }
-
-  // 휴지통 닫기
-  const handleCloseTrash = () => {
-    setShowTrashModal(false)
   }
 
   // 투두 수정
@@ -825,10 +733,33 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
 
     // 로컬 상태 업데이트
-    let newTodos = todos.map(todo => {
-      const updated = newSectionTodos.find(st => st.id === todo.id)
-      return updated || todo
+    let newTodos = [...todos]
+
+    // 섹션 내 todos의 order_index 업데이트
+    newSectionTodos.forEach((sectionTodo, index) => {
+      const todoIndex = newTodos.findIndex(t => t.id === sectionTodo.id)
+      if (todoIndex !== -1) {
+        newTodos[todoIndex] = {
+          ...sectionTodo,
+          order_index: index + 1
+        }
+      }
     })
+
+    // 섹션 간 이동인 경우 section_type/section_id도 업데이트
+    if (isCrossSectionMove) {
+      const activeTodoIndex = newTodos.findIndex(t => t.id === active.id)
+      if (activeTodoIndex !== -1) {
+        newTodos[activeTodoIndex] = {
+          ...newTodos[activeTodoIndex],
+          section_type: targetSectionType,
+          section_id: targetSectionId,
+          routine_id: targetSectionType === 'routine' || targetSectionType === 'pending_routine'
+            ? newTodos[activeTodoIndex].routine_id
+            : null
+        }
+      }
+    }
 
     setTodos(newTodos)
 
@@ -884,8 +815,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     showSuccessToast,
     successToastMessage,
     lastDeleteAction,
-    showTrashModal,
-    trashedItems,
     focusedTodoId,
     setFocusedTodoId,
     selectedTodoForModal,
@@ -903,20 +832,14 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleAddNormalTodo,
     handleToggleTodo,
     handleDeleteTodo,
-    executeSimpleDelete,
-    hideOnThisDateOnly,
-    deleteCompletely,
+    deleteThisOnly,
+    deleteFromNow,
+    deleteAll,
     handleUndoDelete,
-    handleRestoreFromTrash,
-    handlePermanentDelete,
     handleEditTodo,
     handleAddSubTodo,
     handleDragEnd,
-    fetchTrash,
-    handleEmptyTrash,
     handleRemoveTodoFromUI,
-    handleOpenTrash,
-    handleCloseTrash,
     handleDragStart,
     handleDragOver,
     handleDragCancel,

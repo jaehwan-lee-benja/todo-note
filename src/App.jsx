@@ -34,13 +34,13 @@ import RoutineHistoryModal from './components/Routine/RoutineHistoryModal'
 import MemoSection from './components/Memo/MemoSection'
 import KeyThoughtsSection from './components/KeyThoughts/KeyThoughtsSection'
 import KeyThoughtsViewerPage from './components/KeyThoughts/KeyThoughtsViewerPage'
-import TrashModal from './components/Modals/TrashModal'
 import DummyModal from './components/Modals/DummyModal'
 import GanttChartModal from './components/Modals/GanttChartModal'
 import EncouragementModal from './components/Modals/EncouragementModal'
 import KeyThoughtsHistoryModal from './components/Modals/KeyThoughtsHistoryModal'
 import AddSectionModal from './components/Modals/AddSectionModal'
 import HiddenSectionsModal from './components/Modals/HiddenSectionsModal'
+import DeleteConfirmModal from './components/Modals/DeleteConfirmModal'
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
@@ -118,6 +118,10 @@ function App() {
     selectedRoutineForHistory, setSelectedRoutineForHistory,
     routineHistoryData, setRoutineHistoryData,
     editingRoutineDays, setEditingRoutineDays,
+    showDeleteConfirmModal: showRoutineDeleteModal,
+    setShowDeleteConfirmModal: setShowRoutineDeleteModal,
+    routineToDelete,
+    setRoutineToDelete,
     fetchRoutines,
     handleAddRoutine,
     handleCreateRoutineFromTodo,
@@ -126,6 +130,9 @@ function App() {
     handleSaveEditRoutine,
     handleToggleEditDay,
     handleDeleteRoutine,
+    deleteThisOnly: deleteRoutineThisOnly,
+    deleteFromNow: deleteRoutineFromNow,
+    deleteAll: deleteRoutineAll,
     fetchRoutineHistory,
     handleCloseRoutineHistory,
     handleOpenRoutine,
@@ -181,8 +188,6 @@ function App() {
     showSuccessToast,
     successToastMessage,
     lastDeleteAction,
-    showTrashModal,
-    trashedItems,
     focusedTodoId, setFocusedTodoId,
     showDeleteConfirmModal, setShowDeleteConfirmModal,
     todoToDelete, setTodoToDelete,
@@ -194,22 +199,16 @@ function App() {
     handleAddNormalTodo,
     handleToggleTodo,
     handleDeleteTodo,
-    handleRestoreFromTrash,
-    handlePermanentDelete,
     handleAddSubTodo,
     handleEditTodo,
     handleDragStart,
     handleDragOver,
     handleDragCancel,
     handleDragEnd,
-    handleOpenTrash,
-    handleCloseTrash,
-    fetchTrash,
-    handleEmptyTrash,
     handleUndoDelete,
-    executeSimpleDelete,
-    hideOnThisDateOnly,
-    deleteCompletely,
+    deleteThisOnly,
+    deleteFromNow,
+    deleteAll,
     handleRemoveTodoFromUI,
   } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal)
 
@@ -316,6 +315,65 @@ function App() {
     updateEncouragementMessage,
     deleteEncouragementMessage,
   } = useEncouragement(session, supabase)
+
+  // Quick Add 함수 (로딩과 무관하게 즉시 동작)
+  const handleQuickAdd = async (text) => {
+    try {
+      const dateStr = formatDateForDB(selectedDate)
+      const normalTodos = todos.filter(t => !t.parent_id && t.section_type === 'normal')
+      const newOrderIndex = normalTodos.length > 0 ? Math.max(...normalTodos.map(t => t.order_index)) + 1 : 1
+
+      // 임시 ID로 즉시 UI 업데이트 (낙관적 업데이트)
+      const tempId = `temp_${Date.now()}_${Math.random()}`
+      const optimisticTodo = {
+        id: tempId,
+        text,
+        completed: false,
+        order_index: newOrderIndex,
+        date: dateStr,
+        visible_dates: [dateStr],
+        hidden_dates: [],
+        section_type: 'normal',
+        user_id: session?.user?.id,
+        _isOptimistic: true
+      }
+
+      setTodos(prev => [...prev, optimisticTodo])
+
+      // 백그라운드에서 DB 저장
+      if (session?.user?.id && supabase) {
+        const { data, error } = await supabase
+          .from('todos')
+          .insert([{
+            text,
+            completed: false,
+            order_index: newOrderIndex,
+            date: dateStr,
+            visible_dates: [dateStr],
+            hidden_dates: [],
+            section_type: 'normal',
+            user_id: session.user.id
+          }])
+          .select()
+
+        if (error) throw error
+
+        // 실제 데이터로 교체
+        setTodos(prev => prev.map(t => t.id === tempId ? data[0] : t))
+      } else {
+        // 로그인 안 된 경우 로컬 스토리지에 저장
+        const pendingTodos = JSON.parse(localStorage.getItem('pendingQuickTodos') || '[]')
+        pendingTodos.push({ text, dateStr, timestamp: Date.now() })
+        localStorage.setItem('pendingQuickTodos', JSON.stringify(pendingTodos))
+      }
+    } catch (error) {
+      console.error('Quick add error:', error)
+      // 실패 시 로컬 스토리지에 저장
+      const pendingTodos = JSON.parse(localStorage.getItem('pendingQuickTodos') || '[]')
+      pendingTodos.push({ text, dateStr: formatDateForDB(selectedDate), timestamp: Date.now() })
+      localStorage.setItem('pendingQuickTodos', JSON.stringify(pendingTodos))
+    }
+  }
 
   // showTodoHistoryModal, showTodoRoutineSetupModal 등은 useTodos에서 관리됨
   const [viewMode, setViewMode] = useState(() => {
@@ -654,11 +712,13 @@ function App() {
 
       // 클라이언트 사이드 필터링: fromDateStr에 보이는 미완료 투두
       const incompleteTodos = (allTodos || []).filter(todo => {
-        // hidden_dates 체크 (새 방식, 구 방식 모두 적용)
-        const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(fromDateStr)
-        if (isHidden) {
-          return false // 숨김 처리된 투두는 이월하지 않음
+        // stop_carryover_from 체크 (옵션 2: 이번 및 향후 할일 삭제)
+        if (todo.stop_carryover_from && fromDateStr >= todo.stop_carryover_from) {
+          return false // 이월 중단된 투두
         }
+
+        // hidden_dates 체크는 무시 (옵션 1: 이 할일만 삭제 - 오늘 숨기고 내일 다시 표시)
+        // hidden_dates에 포함되어도 stop_carryover_from이 없으면 계속 이월
 
         // 새 방식: visible_dates 사용
         if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
@@ -1167,9 +1227,6 @@ function App() {
         session={session}
         viewMode={viewMode}
         setViewMode={setViewMode}
-        isReorderMode={isReorderMode}
-        setIsReorderMode={setIsReorderMode}
-        onOpenTrash={handleOpenTrash}
         onOpenRoutine={handleOpenRoutine}
         onOpenMemo={handleOpenMemo}
         onScrollToKeyThoughts={() => {
@@ -1197,9 +1254,8 @@ function App() {
           showEncouragementEmoji={showEncouragementEmoji}
           currentEncouragementMessage={currentEncouragementMessage}
           onEncouragementClick={handleEncouragementClick}
-          isReorderMode={isReorderMode}
-          setIsReorderMode={setIsReorderMode}
           setSelectedDate={setSelectedDate}
+          onQuickAdd={handleQuickAdd}
         />
 
         <div className="content-scrollable" ref={contentScrollableRef}>
@@ -1261,8 +1317,18 @@ function App() {
                         const isFirst = filteredIndex === 0
                         const isLast = filteredIndex === filteredSectionOrder.length - 1
 
-                        // 기본 설정 메뉴 아이템 (숨기기)
+                        // 기본 설정 메뉴 아이템 (화살표 + 숨기기)
                         const baseSettingsMenuItems = [
+                          ...(!isFirst ? [{
+                            icon: '←',
+                            label: '왼쪽으로 이동',
+                            onClick: () => moveSectionLeft(sectionId)
+                          }] : []),
+                          ...(!isLast ? [{
+                            icon: '→',
+                            label: '오른쪽으로 이동',
+                            onClick: () => moveSectionRight(sectionId)
+                          }] : []),
                           {
                             icon: '📦',
                             label: '숨기기',
@@ -1271,6 +1337,16 @@ function App() {
                         ]
 
                         if (sectionId === 'memo') {
+                          // 메모 섹션 설정 메뉴 (편집 버튼 추가)
+                          const memoSettingsMenuItems = [
+                            ...baseSettingsMenuItems,
+                            ...(!isEditingMemoInline ? [{
+                              icon: '✏️',
+                              label: '편집',
+                              onClick: handleStartEditMemoInline
+                            }] : [])
+                          ]
+
                           return (
                             <div key="memo">
                               <MemoSection
@@ -1287,12 +1363,7 @@ function App() {
                                 onKeyDown={handleMemoKeyDown}
                                 placeholder="메모를 작성해보세요..."
                                 emptyMessage="메모를 작성해보세요"
-                                showArrows={true}
-                                onMoveLeft={() => moveSectionLeft(sectionId)}
-                                onMoveRight={() => moveSectionRight(sectionId)}
-                                isFirst={isFirst}
-                                isLast={isLast}
-                                settingsMenuItems={baseSettingsMenuItems}
+                                settingsMenuItems={memoSettingsMenuItems}
                               >
                     {/* SQL 버튼 */}
                     {!isEditingMemoInline && (
@@ -1534,11 +1605,6 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 onAddTodo={handleAddRoutineTodo}
                                 isAdding={isAdding}
                                 placeholder="루틴 할 일 추가..."
-                                showArrows={true}
-                                onMoveLeft={() => moveSectionLeft(sectionId)}
-                                onMoveRight={() => moveSectionRight(sectionId)}
-                                isFirst={isFirst}
-                                isLast={isLast}
                                 settingsMenuItems={baseSettingsMenuItems}
                               >
                     {/* 확정 루틴 */}
@@ -1632,6 +1698,16 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         } else if (sectionId === 'normal') {
                           // normal 섹션은 기본 섹션이므로 삭제 불가
                           const normalSettingsMenuItems = [
+                            ...(!isFirst ? [{
+                              icon: '←',
+                              label: '왼쪽으로 이동',
+                              onClick: () => moveSectionLeft(sectionId)
+                            }] : []),
+                            ...(!isLast ? [{
+                              icon: '→',
+                              label: '오른쪽으로 이동',
+                              onClick: () => moveSectionRight(sectionId)
+                            }] : []),
                             {
                               icon: '📦',
                               label: '숨기기',
@@ -1662,11 +1738,6 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                 placeholder="일반 할 일 추가..."
                                 editable={true}
                                 onTitleChange={(newTitle) => saveSectionTitle('normal', newTitle)}
-                                showArrows={true}
-                                onMoveLeft={() => moveSectionLeft(sectionId)}
-                                onMoveRight={() => moveSectionRight(sectionId)}
-                                isFirst={isFirst}
-                                isLast={isLast}
                                 settingsMenuItems={normalSettingsMenuItems}
                               >
                     {normalTodos.length > 0 && (
@@ -1712,6 +1783,24 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                             </div>
                           )
                         } else if (sectionId === 'key-thoughts') {
+                          // 주요 생각정리 섹션 설정 메뉴 (뷰어, 히스토리 버튼 추가)
+                          const keyThoughtsSettingsMenuItems = [
+                            ...baseSettingsMenuItems,
+                            {
+                              icon: '📖',
+                              label: '뷰어',
+                              onClick: () => setCurrentPage('keyThoughtsViewer')
+                            },
+                            {
+                              icon: '🕐',
+                              label: '히스토리',
+                              onClick: () => {
+                                fetchKeyThoughtsHistory()
+                                setShowKeyThoughtsHistory(true)
+                              }
+                            }
+                          ]
+
                           return (
                             <div key="key-thoughts">
                               <KeyThoughtsSection
@@ -1724,12 +1813,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                   fetchKeyThoughtsHistory()
                                   setShowKeyThoughtsHistory(true)
                                 }}
-                                showArrows={true}
-                                onMoveLeft={() => moveSectionLeft(sectionId)}
-                                onMoveRight={() => moveSectionRight(sectionId)}
-                                isFirst={isFirst}
-                                isLast={isLast}
-                                settingsMenuItems={baseSettingsMenuItems}
+                                settingsMenuItems={keyThoughtsSettingsMenuItems}
                               />
                             </div>
                           )
@@ -1778,11 +1862,6 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                                   setCustomSections(updatedSections)
                                   saveCustomSections(updatedSections)
                                 }}
-                                showArrows={true}
-                                onMoveLeft={() => moveSectionLeft(sectionId)}
-                                onMoveRight={() => moveSectionRight(sectionId)}
-                                isFirst={isFirst}
-                                isLast={isLast}
                                 settingsMenuItems={customSettingsMenuItems}
                               >
                                 {customSectionTodos.length > 0 && (
@@ -1891,40 +1970,24 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
         )}
 
         {showDeleteConfirmModal && todoToDelete && (
-          <div className="modal-overlay" onClick={() => setShowDeleteConfirmModal(false)}>
-            <div className="modal-content delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>🗑️ 삭제 옵션 선택</h2>
-                <button onClick={() => setShowDeleteConfirmModal(false)} className="modal-close-button">✕</button>
-              </div>
-              <div className="delete-confirm-content">
-                <p className="delete-confirm-text">
-                  <strong>{todoToDelete.text}</strong>
-                </p>
-                <p className="delete-confirm-description">
-                  이 투두는 여러 날짜에 보입니다. 어떻게 삭제하시겠습니까?
-                </p>
-                <div className="delete-options-simple">
-                  <button
-                    className="delete-option-button-simple option-hide"
-                    onClick={() => hideOnThisDateOnly(todoToDelete)}
-                  >
-                    <span className="option-icon">👁️‍🗨️</span>
-                    <span className="option-title">이 날짜에서만 숨김</span>
-                    <span className="option-desc">다른 날짜에서는 계속 보입니다</span>
-                  </button>
-                  <button
-                    className="delete-option-button-simple option-delete"
-                    onClick={() => deleteCompletely(todoToDelete)}
-                  >
-                    <span className="option-icon">🗑️</span>
-                    <span className="option-title">휴지통으로 이동</span>
-                    <span className="option-desc">모든 날짜에서 삭제 (복원 가능)</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <DeleteConfirmModal
+            todo={todoToDelete}
+            onClose={() => setShowDeleteConfirmModal(false)}
+            onDeleteThisOnly={deleteThisOnly}
+            onDeleteFromNow={deleteFromNow}
+            onDeleteAll={deleteAll}
+          />
+        )}
+
+        {/* 루틴 삭제 확인 모달 */}
+        {showRoutineDeleteModal && routineToDelete && (
+          <DeleteConfirmModal
+            todo={routineToDelete}
+            onClose={() => setShowRoutineDeleteModal(false)}
+            onDeleteThisOnly={deleteRoutineThisOnly}
+            onDeleteFromNow={deleteRoutineFromNow}
+            onDeleteAll={deleteRoutineAll}
+          />
         )}
 
         {/* 투두 히스토리 모달 */}
@@ -2190,16 +2253,6 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           onClose={handleCloseRoutineHistory}
           selectedRoutine={selectedRoutineForHistory}
           routineHistoryData={routineHistoryData}
-        />
-
-        <TrashModal
-          showTrashModal={showTrashModal}
-          onClose={handleCloseTrash}
-          trashedItems={trashedItems}
-          onEmptyTrash={handleEmptyTrash}
-          onRestoreFromTrash={handleRestoreFromTrash}
-          onPermanentDelete={handlePermanentDelete}
-          formatDate={formatDate}
         />
 
         <DummyModal
