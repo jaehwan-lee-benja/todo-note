@@ -28,6 +28,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   // Refs
   const routineCreationInProgress = useRef(new Set())
   const recentlyEditedIds = useRef(new Set())
+  const debugLoggedOnce = useRef(false)
 
   // 공통 삭제 로직 hook 사용
   const { deleteThisOnly, deleteFromNow, deleteAll } = useDeleteLogic({
@@ -142,11 +143,31 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
             continue // 이월 중단된 날짜는 추가하지 않음
           }
 
+          // days가 있으면 확정 루틴, 없으면 미정 루틴
+          const isPendingRoutine = !routine.days || routine.days.length === 0
+
           // 기존 투두가 있으면 visible_dates에 날짜 추가
           const currentDates = existingTodo.visible_dates || []
 
-          // 이미 포함되어 있으면 스킵
+          // If already included, just check/update is_pending_routine and section_type
+          const expectedSectionType = isPendingRoutine ? 'pending_routine' : 'routine'
           if (currentDates.includes(dateStr)) {
+            // is_pending_routine 또는 section_type이 맞지 않으면 업데이트
+            const needsUpdate = existingTodo.is_pending_routine !== isPendingRoutine ||
+                existingTodo.section_type !== expectedSectionType
+            console.log(`[createRoutineTodosForDate] "${existingTodo.text}" 업데이트 필요: ${needsUpdate}`)
+            console.log(`  - 기존 section_type: ${existingTodo.section_type}, 예상: ${expectedSectionType}`)
+            if (needsUpdate) {
+              console.log(`  - 업데이트 실행!`)
+              const { error } = await supabase
+                .from('todos')
+                .update({
+                  is_pending_routine: isPendingRoutine,
+                  section_type: expectedSectionType
+                })
+                .eq('id', existingTodo.id)
+              if (error) console.error('업데이트 오류:', error)
+            }
             continue
           }
 
@@ -155,7 +176,11 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
           const { error: updateError } = await supabase
             .from('todos')
-            .update({ visible_dates: updatedDates })
+            .update({
+              visible_dates: updatedDates,
+              is_pending_routine: isPendingRoutine,
+              section_type: isPendingRoutine ? 'pending_routine' : 'routine'
+            })
             .eq('id', existingTodo.id)
 
           if (updateError) {
@@ -163,6 +188,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           }
         } else {
           // 첫 루틴 투두 생성
+          // days가 있으면 확정 루틴, 없으면 미정 루틴
+          const isPendingRoutine = !routine.days || routine.days.length === 0
           const { error: insertError } = await supabase
             .from('todos')
             .insert([{
@@ -173,7 +200,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
               hidden_dates: [],
               order_index: 0, // 루틴은 제일 위에
               routine_id: routine.id,
-              section_type: 'routine', // 루틴 섹션
+              is_pending_routine: isPendingRoutine,
+              section_type: isPendingRoutine ? 'pending_routine' : 'routine',
               user_id: session?.user?.id
             }])
 
@@ -238,6 +266,54 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
         // 구 방식 (하위 호환): visible_dates가 아예 없으면 date 컬럼 사용
         return todo.date === dateStr
       })
+
+      // 루틴 투두의 section_type 동기화
+      const routineTodosToSync = filteredTodos.filter(t => t.routine_id)
+      if (routineTodosToSync.length > 0) {
+        const routineIds = [...new Set(routineTodosToSync.map(t => t.routine_id))]
+        const { data: routinesData } = await supabase
+          .from('routines')
+          .select('*')
+          .in('id', routineIds)
+
+        // 디버깅 (한 번만)
+        if (!debugLoggedOnce.current) {
+          debugLoggedOnce.current = true
+          console.log('=== 루틴 투두 디버깅 ===')
+          routineTodosToSync.forEach(todo => {
+            const routine = routinesData?.find(r => r.id === todo.routine_id)
+            console.log(`투두: "${todo.text}"`)
+            console.log(`  - is_pending_routine: ${todo.is_pending_routine}`)
+            console.log(`  - section_type: ${todo.section_type}`)
+            console.log(`  - routine_id: ${todo.routine_id}`)
+            console.log(`  - 루틴 days: ${routine ? JSON.stringify(routine.days) : '루틴 없음'}`)
+          })
+        }
+
+        // section_type이 잘못된 투두 수정
+        for (const todo of routineTodosToSync) {
+          const routine = routinesData?.find(r => r.id === todo.routine_id)
+          if (!routine) continue
+
+          const isPendingRoutine = !routine.days || routine.days.length === 0
+          const expectedSectionType = isPendingRoutine ? 'pending_routine' : 'routine'
+
+          if (todo.section_type !== expectedSectionType || todo.is_pending_routine !== isPendingRoutine) {
+            console.log(`[동기화] "${todo.text}" section_type 수정: ${todo.section_type} -> ${expectedSectionType}`)
+            await supabase
+              .from('todos')
+              .update({
+                section_type: expectedSectionType,
+                is_pending_routine: isPendingRoutine
+              })
+              .eq('id', todo.id)
+
+            // 로컬 상태도 업데이트
+            todo.section_type = expectedSectionType
+            todo.is_pending_routine = isPendingRoutine
+          }
+        }
+      }
 
       setTodos(filteredTodos)
     } catch (error) {

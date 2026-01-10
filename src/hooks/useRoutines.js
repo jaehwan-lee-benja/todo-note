@@ -329,8 +329,23 @@ export const useRoutines = ({
           // 기존 투두가 있으면 visible_dates에 날짜 추가
           const currentDates = existingTodo.visible_dates || []
 
-          // 이미 포함되어 있으면 스킵
+          // days가 있으면 확정 루틴, 없으면 미정 루틴
+          const isPendingRoutine = !routine.days || routine.days.length === 0
+
+          // If already included, just check/update is_pending_routine and section_type
+          const expectedSectionType = isPendingRoutine ? 'pending_routine' : 'routine'
           if (currentDates.includes(dateStr)) {
+            // is_pending_routine 또는 section_type이 맞지 않으면 업데이트
+            if (existingTodo.is_pending_routine !== isPendingRoutine ||
+                existingTodo.section_type !== expectedSectionType) {
+              await supabase
+                .from('todos')
+                .update({
+                  is_pending_routine: isPendingRoutine,
+                  section_type: expectedSectionType
+                })
+                .eq('id', existingTodo.id)
+            }
             continue
           }
 
@@ -339,7 +354,11 @@ export const useRoutines = ({
 
           const { error: updateError } = await supabase
             .from('todos')
-            .update({ visible_dates: updatedDates })
+            .update({
+              visible_dates: updatedDates,
+              is_pending_routine: isPendingRoutine,
+              section_type: isPendingRoutine ? 'pending_routine' : 'routine'
+            })
             .eq('id', existingTodo.id)
 
           if (updateError) {
@@ -347,6 +366,8 @@ export const useRoutines = ({
           }
         } else {
           // 첫 루틴 투두 생성
+          // days가 있으면 확정 루틴, 없으면 미정 루틴
+          const isPendingRoutine = !routine.days || routine.days.length === 0
           const { error: insertError } = await supabase
             .from('todos')
             .insert([{
@@ -357,6 +378,8 @@ export const useRoutines = ({
               hidden_dates: [],
               order_index: 0, // 루틴은 제일 위에
               routine_id: routine.id,
+              is_pending_routine: isPendingRoutine,
+              section_type: isPendingRoutine ? 'pending_routine' : 'routine',
               user_id: session?.user?.id
             }])
 
