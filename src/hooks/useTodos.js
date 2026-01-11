@@ -244,6 +244,25 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
       if (error) throw error
 
+      // 루틴 정보 미리 가져오기 (요일 필터링에 필요)
+      const routineTodosList = (data || []).filter(t => t.routine_id)
+      const routineIds = [...new Set(routineTodosList.map(t => t.routine_id))]
+      let routinesMap = {}
+      if (routineIds.length > 0) {
+        const { data: routinesData } = await supabase
+          .from('routines')
+          .select('*')
+          .in('id', routineIds)
+        routinesMap = (routinesData || []).reduce((acc, r) => {
+          acc[r.id] = r
+          return acc
+        }, {})
+      }
+
+      // 해당 날짜의 요일 키
+      const targetDate = new Date(dateStr)
+      const dayKey = getDayKey(targetDate.getDay())
+
       // 클라이언트 사이드 필터링
       const filteredTodos = (data || []).filter(todo => {
         // stop_carryover_from 체크 (이번 및 향후 삭제)
@@ -255,6 +274,18 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
         const isHidden = todo.hidden_dates && Array.isArray(todo.hidden_dates) && todo.hidden_dates.includes(dateStr)
         if (isHidden) {
           return false // 숨김 처리된 투두는 표시하지 않음
+        }
+
+        // 루틴 투두의 경우 해당 요일에 맞는지 확인
+        if (todo.routine_id) {
+          const routine = routinesMap[todo.routine_id]
+          if (routine) {
+            const days = routine.days || []
+            // days가 비어있으면 매일 반복 (미정 루틴), 아니면 해당 요일만
+            if (days.length > 0 && !days.includes(dayKey)) {
+              return false // 해당 요일이 아니면 표시하지 않음
+            }
+          }
         }
 
         // 새 방식: visible_dates 체크

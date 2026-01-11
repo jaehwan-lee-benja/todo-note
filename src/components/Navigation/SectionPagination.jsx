@@ -1,5 +1,5 @@
 // 모바일 섹션 페이지네이션 dots 컴포넌트
-function SectionPagination({ viewMode, currentSectionIndex, sectionsContainerRef }) {
+function SectionPagination({ viewMode, currentSectionIndex, sectionsContainerRef, visibleSectionCount = 3 }) {
   if (viewMode !== 'horizontal') return null
 
   return (
@@ -44,7 +44,7 @@ function SectionPagination({ viewMode, currentSectionIndex, sectionsContainerRef
         }
       }}
     >
-      {[0, 1, 2].map((index) => (
+      {Array.from({ length: visibleSectionCount }, (_, index) => (
         <button
           key={index}
           className={`pagination-dot ${currentSectionIndex === index ? 'active' : ''}`}

@@ -1265,39 +1265,39 @@ function App() {
           }}
         >
           {/* 섹션 간 드래그 앤 드롭을 위한 전역 SortableContext는 내부에서 allTodoIds로 생성 */}
-          <div className="todo-list">
-            {loading ? (
-              <p className="empty-message">로딩 중...</p>
-            ) : (() => {
-              // 섹션별로 필터링 후 order_index로 정렬 (section_type 기반)
-              const routineTodos = todos
-                .filter(t => !t.parent_id && t.section_type === 'routine')
-                .sort((a, b) => a.order_index - b.order_index)
-              const pendingRoutineTodos = todos
-                .filter(t => !t.parent_id && t.section_type === 'pending_routine')
-                .sort((a, b) => a.order_index - b.order_index)
-              const normalTodos = todos
-                .filter(t => !t.parent_id && t.section_type === 'normal')
-                .sort((a, b) => a.order_index - b.order_index)
+          <div
+            ref={sectionsContainerRef}
+            className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+          >
+            <div className="todo-list">
+              {loading ? (
+                <p className="empty-message">로딩 중...</p>
+              ) : (() => {
+                // 섹션별로 필터링 후 order_index로 정렬 (section_type 기반)
+                const routineTodos = todos
+                  .filter(t => !t.parent_id && t.section_type === 'routine')
+                  .sort((a, b) => a.order_index - b.order_index)
+                const pendingRoutineTodos = todos
+                  .filter(t => !t.parent_id && t.section_type === 'pending_routine')
+                  .sort((a, b) => a.order_index - b.order_index)
+                const normalTodos = todos
+                  .filter(t => !t.parent_id && t.section_type === 'normal')
+                  .sort((a, b) => a.order_index - b.order_index)
 
-              // 모든 투두 섹션의 투두 ID를 하나의 배열로 모으기 (섹션 간 드래그 앤 드롭 지원)
-              const allTodoIds = [
-                ...routineTodos.map(t => t.id),
-                ...pendingRoutineTodos.map(t => t.id),
-                ...normalTodos.map(t => t.id),
-                ...customSections.flatMap(section =>
-                  todos.filter(t => !t.parent_id && t.section_type === 'custom' && t.section_id === section.id).map(t => t.id)
-                )
-              ]
+                // 모든 투두 섹션의 투두 ID를 하나의 배열로 모으기 (섹션 간 드래그 앤 드롭 지원)
+                const allTodoIds = [
+                  ...routineTodos.map(t => t.id),
+                  ...pendingRoutineTodos.map(t => t.id),
+                  ...normalTodos.map(t => t.id),
+                  ...customSections.flatMap(section =>
+                    todos.filter(t => !t.parent_id && t.section_type === 'custom' && t.section_id === section.id).map(t => t.id)
+                  )
+                ]
 
-              return (
-                <SortableContext
-                  items={allTodoIds}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div
-                    ref={sectionsContainerRef}
-                    className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+                return (
+                  <SortableContext
+                    items={allTodoIds}
+                    strategy={verticalListSortingStrategy}
                   >
                       {sectionOrder
                         .filter(sectionId => !hiddenSections.includes(sectionId)) // 숨긴 섹션 제외
@@ -1821,8 +1821,18 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                             )
                             .sort((a, b) => a.order_index - b.order_index)
 
-                          // 커스텀 섹션 설정 메뉴 (숨기기 + 삭제)
+                          // 커스텀 섹션 설정 메뉴 (이동 화살표 + 숨기기 + 삭제)
                           const customSettingsMenuItems = [
+                            ...(!isFirst ? [{
+                              icon: '←',
+                              label: '왼쪽으로 이동',
+                              onClick: () => moveSectionLeft(sectionId)
+                            }] : []),
+                            ...(!isLast ? [{
+                              icon: '→',
+                              label: '오른쪽으로 이동',
+                              onClick: () => moveSectionRight(sectionId)
+                            }] : []),
                             {
                               icon: '📦',
                               label: '숨기기',
@@ -1898,10 +1908,10 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                         }
                         return null
                       })}
-                  </div>
-                </SortableContext>
-              )
-            })()}
+                  </SortableContext>
+                )
+              })()}
+            </div>
           </div>
           <DragOverlay>
             {activeTodoId ? (() => {
@@ -1931,6 +1941,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
                     currentPageDate={formatDateForDB(selectedDate)}
                     onRemoveFromUI={() => {}}
                     showSuccessMessage={() => {}}
+                    hideNumber={true}
                   />
                 </div>
               )
@@ -1942,6 +1953,7 @@ WHERE text LIKE '[DUMMY-%';`}</pre>
           viewMode={viewMode}
           currentSectionIndex={currentSectionIndex}
           sectionsContainerRef={sectionsContainerRef}
+          visibleSectionCount={sectionOrder.filter(id => !hiddenSections.includes(id)).length}
         />
         </div>
 

@@ -7,7 +7,7 @@ import { DAYS } from '../../utils/constants'
 import { formatDateForDB, formatDateOnly } from '../../utils/dateUtils'
 import AppleTimePicker from '../Common/AppleTimePicker'
 
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage, activeId, overId }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage, activeId, overId, hideNumber = false }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
@@ -312,12 +312,12 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
         {...attributes}
         {...listeners}
         title="드래그하여 순서 변경"
-      >
-        ☰
-      </span>
-      <span className="todo-number">
-        {index + 1}
-      </span>
+      ></span>
+      {!hideNumber && (
+        <span className="todo-number">
+          {index + 1}
+        </span>
+      )}
       <div className="todo-item-wrapper">
         <div
           className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
