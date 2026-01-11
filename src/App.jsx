@@ -10,6 +10,7 @@ import {
   useSensors,
   MeasuringStrategy,
   DragOverlay,
+  defaultDropAnimationSideEffects,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -208,7 +209,7 @@ function App() {
   }
 
   const showSuccessMessage = (message) => {
-    console.log('Success:', message)
+    // Success message handler (can be extended for toast notifications)
   }
 
   const handleUndoRoutineDelete = () => {
@@ -236,8 +237,6 @@ function App() {
     dummySessions,
     showDummyModal,
     setShowDummyModal,
-    showDummySQL,
-    setShowDummySQL,
     handleCreateDummyData,
     handleDeleteDummySession,
     handleDeleteAllDummies,
@@ -248,19 +247,9 @@ function App() {
 
   const {
     memoContent, setMemoContent,
-    isEditingMemo, setIsEditingMemo,
-    isSavingMemo, setIsSavingMemo,
-    memoOriginalContent, setMemoOriginalContent,
-    isEditingMemoInline, setIsEditingMemoInline,
+    isSavingMemo,
     memoTextareaRef,
     fetchMemoContent,
-    handleEditMemo,
-    handleStartEditMemoInline,
-    handleSaveMemoInline,
-    handleCancelEditMemoInline,
-    handleMemoKeyDown,
-    handleSaveMemo,
-    handleResetMemo,
   } = useMemoHook(session)
 
   // 주요 생각정리 (key_thought_blocks 테이블 사용)
@@ -1328,15 +1317,8 @@ function App() {
                         ]
 
                         if (sectionId === 'memo') {
-                          // 메모 섹션 설정 메뉴 (편집 버튼 추가)
-                          const memoSettingsMenuItems = [
-                            ...baseSettingsMenuItems,
-                            ...(!isEditingMemoInline ? [{
-                              icon: '✏️',
-                              label: '편집',
-                              onClick: handleStartEditMemoInline
-                            }] : [])
-                          ]
+                          // 메모 섹션 설정 메뉴
+                          const memoSettingsMenuItems = [...baseSettingsMenuItems]
 
                           return (
                             <div key="memo">
@@ -1345,244 +1327,10 @@ function App() {
                                 className="memo-section section-block"
                                 content={memoContent}
                                 setContent={setMemoContent}
-                                isEditing={isEditingMemoInline}
                                 isSaving={isSavingMemo}
-                                textareaRef={memoTextareaRef}
-                                onStartEdit={handleStartEditMemoInline}
-                                onSave={handleSaveMemoInline}
-                                onCancel={handleCancelEditMemoInline}
-                                onKeyDown={handleMemoKeyDown}
                                 placeholder="메모를 작성해보세요..."
-                                emptyMessage="메모를 작성해보세요"
                                 settingsMenuItems={memoSettingsMenuItems}
-                              >
-                    {/* SQL 버튼 */}
-                    {!isEditingMemoInline && (
-                      <div style={{marginTop: '1rem'}}>
-                        <button
-                          onClick={() => setShowDummySQL(!showDummySQL)}
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            color: 'rgba(255, 255, 255, 0.7)',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-                          }}
-                          title="더미 데이터 SQL 펼치기/접기"
-                        >
-                          <span>🧪 SQL 더미 데이터</span>
-                          <span>{showDummySQL ? '▲' : '▼'}</span>
-                        </button>
-                      </div>
-                    )}
-
-                    {/* 더미 데이터 SQL */}
-                    {showDummySQL && !isEditingMemoInline && (
-                      <div className="dummy-sql-content" style={{marginTop: '1rem'}}>
-                        <div className="sql-block">
-                          <div className="sql-header">
-                            <span>생성 SQL</span>
-                            <div style={{display: 'flex', gap: '0.5rem'}}>
-                              <button
-                                onClick={() => {
-                                  window.open('https://raw.githubusercontent.com/jaehwan-lee-benja/todo-note/main/create-dummy-data-v2.sql', '_blank');
-                                }}
-                                className="link-button"
-                                title="GitHub에서 파일 보기"
-                              >
-                                🔗
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const today = new Date();
-                                  const getDateStr = (offset) => {
-                                    const d = new Date(today);
-                                    d.setDate(d.getDate() + offset);
-                                    return d.toISOString().split('T')[0];
-                                  };
-                                  const getDay = (offset) => {
-                                    const d = new Date(today);
-                                    d.setDate(d.getDate() + offset);
-                                    return d.getDate();
-                                  };
-
-                                  const sessionId = Date.now();
-                                  const d_m2 = getDay(-2), d_m1 = getDay(-1), d_0 = getDay(0), d_p1 = getDay(1), d_p2 = getDay(2);
-                                  const date_m2 = getDateStr(-2), date_m1 = getDateStr(-1), date_0 = getDateStr(0), date_p1 = getDateStr(1), date_p2 = getDateStr(2);
-
-                                  const createSQL = `-- 오늘 날짜 기준 앞뒤 이틀씩 더미 데이터 생성 (${date_0} 기준)
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음', '${date_m2}', false, '${date_m2}T09:00:00+09:00', 1001),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m2}일완료', '${date_m2}', true, '${date_m2}T09:10:00+09:00', 1002),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m1}일완료', '${date_m2}', true, '${date_m2}T09:20:00+09:00', 1003),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_0}일완료', '${date_m2}', true, '${date_m2}T09:30:00+09:00', 1004);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-수정이력있음', '${date_m1}', false, '${date_m1}T10:00:00+09:00', 1005),
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_m1}일완료', '${date_m1}', true, '${date_m1}T10:10:00+09:00', 1006),
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_0}일완료', '${date_m1}', true, '${date_m1}T10:20:00+09:00', 1007);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-미완료', '${date_0}', false, '${date_0}T11:00:00+09:00', 1008),
-  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-${d_0}일완료', '${date_0}', true, '${date_0}T11:10:00+09:00', 1009);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m1}일페이지-미완료', '${date_m1}', false, '${date_m2}T14:00:00+09:00', 1010),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_m1}일페이지-${d_m1}일완료', '${date_m1}', true, '${date_m2}T14:10:00+09:00', 1011);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_0}일페이지-미완료', '${date_0}', false, '${date_m1}T15:00:00+09:00', 1012),
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_0}일페이지-${d_0}일완료', '${date_0}', true, '${date_m1}T15:10:00+09:00', 1013),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_0}일페이지-미완료', '${date_0}', false, '${date_m2}T15:00:00+09:00', 1014),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_0}일페이지-${d_0}일완료', '${date_0}', true, '${date_m2}T15:10:00+09:00', 1015);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-${d_p1}일페이지-미완료', '${date_p1}', false, '${date_0}T16:00:00+09:00', 1016),
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_p1}일페이지-미완료', '${date_p1}', false, '${date_m1}T16:00:00+09:00', 1017),
-  ('[DUMMY-${sessionId}] 더미: ${d_m2}일생성-${d_p1}일페이지-미완료', '${date_p1}', false, '${date_m2}T16:00:00+09:00', 1018);
-
-INSERT INTO todos (text, date, completed, created_at, order_index)
-VALUES
-  ('[DUMMY-${sessionId}] 더미: ${d_0}일생성-${d_p2}일페이지-미완료', '${date_p2}', false, '${date_0}T17:00:00+09:00', 1019),
-  ('[DUMMY-${sessionId}] 더미: ${d_m1}일생성-${d_p2}일페이지-미완료', '${date_p2}', false, '${date_m1}T17:00:00+09:00', 1020);
-
-INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-1차', '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-2차', '${date_m1}T12:00:00+09:00', '${date_m1}'
-FROM todos WHERE text = '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음' LIMIT 1;
-
-INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-2차', '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음', '${date_0}T12:00:00+09:00', '${date_0}'
-FROM todos WHERE text = '[DUMMY-${sessionId}] 더미: ${d_m2}일생성-미완료-수정이력있음' LIMIT 1;
-
-INSERT INTO todo_history (todo_id, previous_text, new_text, changed_at, changed_on_date)
-SELECT id, '[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-1차', '[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-수정이력있음', '${date_0}T13:00:00+09:00', '${date_0}'
-FROM todos WHERE text = '[DUMMY-${sessionId}] 더미: ${d_m1}일생성-미완료-수정이력있음' LIMIT 1;`;
-
-                                  const textarea = document.createElement('textarea');
-                                  textarea.value = createSQL;
-                                  textarea.style.position = 'fixed';
-                                  textarea.style.opacity = '0';
-                                  document.body.appendChild(textarea);
-                                  textarea.select();
-                                  try {
-                                    document.execCommand('copy');
-                                    alert('생성 SQL 복사 완료!');
-                                  } catch (err) {
-                                    alert('복사에 실패했습니다.');
-                                  }
-                                  document.body.removeChild(textarea);
-                                }}
-                                className="copy-button"
-                              >
-                                📋 복사
-                              </button>
-                            </div>
-                          </div>
-                          <pre className="sql-code">{`-- ⚠️ 참고: 복사 버튼 클릭 시 오늘 날짜 기준으로 자동 생성됩니다
--- 아래는 예시입니다 (실제 날짜는 실행 시점 기준 앞뒤 이틀)
-
--- DO 블록 버전 (PostgreSQL/Supabase)
-DO $$
-DECLARE
-  day_m2 date := CURRENT_DATE - INTERVAL '2 days';
-  day_m1 date := CURRENT_DATE - INTERVAL '1 day';
-  day_0 date := CURRENT_DATE;
-  day_p1 date := CURRENT_DATE + INTERVAL '1 day';
-  day_p2 date := CURRENT_DATE + INTERVAL '2 days';
-  d_m2 text := EXTRACT(DAY FROM CURRENT_DATE - INTERVAL '2 days')::text;
-  d_m1 text := EXTRACT(DAY FROM CURRENT_DATE - INTERVAL '1 day')::text;
-  d_0 text := EXTRACT(DAY FROM CURRENT_DATE)::text;
-  d_p1 text := EXTRACT(DAY FROM CURRENT_DATE + INTERVAL '1 day')::text;
-  d_p2 text := EXTRACT(DAY FROM CURRENT_DATE + INTERVAL '2 days')::text;
-  session_id text := EXTRACT(EPOCH FROM NOW())::bigint::text;
-BEGIN
-  -- -2일 페이지 데이터 (4개)
-  INSERT INTO todos (text, date, completed, created_at, order_index)
-  VALUES
-    ('[DUMMY-' || session_id || '] 더미: ' || d_m2 || '일생성-미완료-수정이력있음', day_m2, false, (day_m2 + TIME '09:00:00') AT TIME ZONE 'Asia/Seoul', 1001),
-    ...
-
-  -- 총 20개의 투두와 3개의 히스토리 생성
-  -- 자세한 내용은 GitHub 파일 참고
-END $$;`}</pre>
-                        </div>
-
-                        <div className="sql-block">
-                          <div className="sql-header">
-                            <span>삭제 SQL</span>
-                            <div style={{display: 'flex', gap: '0.5rem'}}>
-                              <button
-                                onClick={() => {
-                                  window.open('https://raw.githubusercontent.com/jaehwan-lee-benja/todo-note/main/delete-dummy-data-v2.sql', '_blank');
-                                }}
-                                className="link-button"
-                                title="GitHub에서 파일 보기"
-                              >
-                                🔗
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const deleteSQL = `DELETE FROM todo_history
-WHERE todo_id IN (
-  SELECT id FROM todos WHERE text LIKE '[DUMMY-%'
-);
-
-DELETE FROM todos
-WHERE text LIKE '[DUMMY-%';`;
-
-                                  const textarea = document.createElement('textarea');
-                                  textarea.value = deleteSQL;
-                                  textarea.style.position = 'fixed';
-                                  textarea.style.opacity = '0';
-                                  document.body.appendChild(textarea);
-                                  textarea.select();
-                                  try {
-                                    document.execCommand('copy');
-                                    alert('삭제 SQL 복사 완료!');
-                                  } catch (err) {
-                                    alert('복사에 실패했습니다.');
-                                  }
-                                  document.body.removeChild(textarea);
-                                }}
-                                className="copy-button"
-                              >
-                                📋 복사
-                              </button>
-                            </div>
-                          </div>
-                          <pre className="sql-code">{`DELETE FROM todo_history
-WHERE todo_id IN (
-  SELECT id FROM todos WHERE text LIKE '[DUMMY-%'
-);
-
-DELETE FROM todos
-WHERE text LIKE '[DUMMY-%';`}</pre>
-                        </div>
-                      </div>
-                    )}
-                              </MemoSection>
+                              />
                             </div>
                           )
                         } else if (sectionId === 'routine') {

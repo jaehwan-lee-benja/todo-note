@@ -332,7 +332,6 @@ export function useKeyThoughtBlocks(session) {
         console.error('오래된 히스토리 삭제 오류:', error.message)
       } else {
         lastHistoryCleanupRef.current = today
-        console.log('오래된 히스토리 정리 완료')
       }
     } catch (error) {
       console.error('오래된 히스토리 삭제 오류:', error.message)

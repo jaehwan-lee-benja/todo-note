@@ -1,69 +1,43 @@
+import { useEffect, useRef } from 'react'
 import SectionHeader from '../Common/SectionHeader'
 
-// 재사용 가능한 메모 섹션 컴포넌트
+// 노션 스타일 메모 섹션 컴포넌트 (항상 편집 가능, 자동 저장)
 function MemoSection({
   title,
   className,
   content,
   setContent,
-  isEditing,
   isSaving,
-  textareaRef,
-  onStartEdit,
-  onSave,
-  onCancel,
-  onKeyDown,
   placeholder,
-  emptyMessage,
   settingsMenuItems = [],
   children,
 }) {
+  const textareaRef = useRef(null)
+
+  // textarea 높이 자동 조정
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
+    }
+  }, [content])
+
   return (
     <div className={className}>
       <SectionHeader
         title={title}
         settingsMenuItems={settingsMenuItems}
-        customActions={isEditing && (
-          <div className="memo-edit-actions">
-            <button
-              onClick={onSave}
-              className="memo-save-button"
-              disabled={isSaving}
-            >
-              💾 저장
-            </button>
-            <button
-              onClick={onCancel}
-              className="memo-cancel-button"
-              disabled={isSaving}
-            >
-              ✕ 취소
-            </button>
-          </div>
+        customActions={isSaving && (
+          <span className="memo-saving-indicator">저장 중...</span>
         )}
       />
-      {isEditing ? (
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={onKeyDown}
-          className="memo-textarea"
-          placeholder={placeholder}
-        />
-      ) : (
-        <div className="memo-preview" onClick={onStartEdit}>
-          {content ? (
-            <div className="memo-preview-content">
-              {content.split('\n').map((line, idx) => (
-                <div key={idx} className="memo-preview-line">{line || '\u00A0'}</div>
-              ))}
-            </div>
-          ) : (
-            <div className="memo-empty">{emptyMessage}</div>
-          )}
-        </div>
-      )}
+      <textarea
+        ref={textareaRef}
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        className="memo-textarea"
+        placeholder={placeholder}
+      />
       {children}
     </div>
   )

@@ -90,7 +90,7 @@ function SectionHeader({
               onClick={() => setShowSettingsMenu(!showSettingsMenu)}
               title="설정"
             >
-              ⚙️
+              ⋮
             </button>
 
             {/* 설정 드롭다운 메뉴 (Portal) */}

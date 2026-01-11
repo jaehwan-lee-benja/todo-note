@@ -28,7 +28,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   // Refs
   const routineCreationInProgress = useRef(new Set())
   const recentlyEditedIds = useRef(new Set())
-  const debugLoggedOnce = useRef(false)
 
   // 공통 삭제 로직 hook 사용
   const { deleteThisOnly, deleteFromNow, deleteAll } = useDeleteLogic({
@@ -155,10 +154,7 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
             // is_pending_routine 또는 section_type이 맞지 않으면 업데이트
             const needsUpdate = existingTodo.is_pending_routine !== isPendingRoutine ||
                 existingTodo.section_type !== expectedSectionType
-            console.log(`[createRoutineTodosForDate] "${existingTodo.text}" 업데이트 필요: ${needsUpdate}`)
-            console.log(`  - 기존 section_type: ${existingTodo.section_type}, 예상: ${expectedSectionType}`)
             if (needsUpdate) {
-              console.log(`  - 업데이트 실행!`)
               const { error } = await supabase
                 .from('todos')
                 .update({
@@ -307,20 +303,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           .select('*')
           .in('id', routineIds)
 
-        // 디버깅 (한 번만)
-        if (!debugLoggedOnce.current) {
-          debugLoggedOnce.current = true
-          console.log('=== 루틴 투두 디버깅 ===')
-          routineTodosToSync.forEach(todo => {
-            const routine = routinesData?.find(r => r.id === todo.routine_id)
-            console.log(`투두: "${todo.text}"`)
-            console.log(`  - is_pending_routine: ${todo.is_pending_routine}`)
-            console.log(`  - section_type: ${todo.section_type}`)
-            console.log(`  - routine_id: ${todo.routine_id}`)
-            console.log(`  - 루틴 days: ${routine ? JSON.stringify(routine.days) : '루틴 없음'}`)
-          })
-        }
-
         // section_type이 잘못된 투두 수정
         for (const todo of routineTodosToSync) {
           const routine = routinesData?.find(r => r.id === todo.routine_id)
@@ -330,7 +312,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           const expectedSectionType = isPendingRoutine ? 'pending_routine' : 'routine'
 
           if (todo.section_type !== expectedSectionType || todo.is_pending_routine !== isPendingRoutine) {
-            console.log(`[동기화] "${todo.text}" section_type 수정: ${todo.section_type} -> ${expectedSectionType}`)
             await supabase
               .from('todos')
               .update({
