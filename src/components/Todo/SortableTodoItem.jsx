@@ -117,11 +117,13 @@ function SortableTodoItem({
       <div className="drag-handle-wrapper">
         <span
           className="drag-handle"
+          {...attributes}
+          {...listeners}
           onClick={(e) => {
             e.stopPropagation()
             setShowMoveMenu(!showMoveMenu)
           }}
-          title="클릭하여 이동 메뉴"
+          title="클릭: 이동 메뉴 / 길게 누름: 드래그"
         ></span>
         {showMoveMenu && (
           <TodoMoveMenu

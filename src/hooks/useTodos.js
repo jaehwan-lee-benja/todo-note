@@ -7,7 +7,233 @@ import { useTodoDragDrop } from './useTodoDragDrop'
 export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal) => {
   // 추출된 훅 사용
   const todoOrder = useTodoOrder(todos, setTodos, supabase)
-  const todoDragDrop = useTodoDragDrop(todos, setTodos, supabase)
+
+  // 타임라인 드롭 핸들러
+  const handleTimelineDrop = async (todoId, hour) => {
+    // 해당 시간대에 이미 있는 투두들의 분 값 확인
+    const existingTodos = todos.filter(t => {
+      if (!t.scheduled_time) return false
+      const h = parseInt(t.scheduled_time.split(':')[0], 10)
+      return h === hour
+    })
+
+    // 다음 분 값 계산 (기존 투두들의 최대 분 + 1)
+    let nextMinute = 0
+    if (existingTodos.length > 0) {
+      const maxMinute = Math.max(...existingTodos.map(t =>
+        parseInt(t.scheduled_time.split(':')[1], 10)
+      ))
+      nextMinute = maxMinute + 1
+    }
+
+    const scheduledTime = `${hour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
+
+    // 로컬 상태 업데이트
+    setTodos(prev => prev.map(todo =>
+      todo.id === todoId
+        ? { ...todo, scheduled_time: scheduledTime }
+        : todo
+    ))
+
+    // DB 업데이트
+    try {
+      await supabase
+        .from('todos')
+        .update({ scheduled_time: scheduledTime })
+        .eq('id', todoId)
+    } catch (error) {
+      console.error('타임라인 배치 오류:', error.message)
+    }
+  }
+
+  // 타임라인에서 제거 핸들러
+  const handleRemoveFromTimeline = async (todoId) => {
+    // 로컬 상태 업데이트
+    setTodos(prev => prev.map(todo =>
+      todo.id === todoId
+        ? { ...todo, scheduled_time: null }
+        : todo
+    ))
+
+    // DB 업데이트
+    try {
+      await supabase
+        .from('todos')
+        .update({ scheduled_time: null })
+        .eq('id', todoId)
+    } catch (error) {
+      console.error('타임라인 제거 오류:', error.message)
+    }
+  }
+
+  // 타임라인 내에서 위로 이동 (첫 번째면 윗 시간대로)
+  const handleMoveUpInTimeline = async (todoId, startHour = 6) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo?.scheduled_time) return
+
+    const hour = parseInt(todo.scheduled_time.split(':')[0], 10)
+    const minute = parseInt(todo.scheduled_time.split(':')[1], 10)
+
+    // 같은 시간대의 투두들
+    const sameHourTodos = todos
+      .filter(t => t.scheduled_time && parseInt(t.scheduled_time.split(':')[0], 10) === hour)
+      .sort((a, b) => {
+        const minA = parseInt(a.scheduled_time.split(':')[1], 10)
+        const minB = parseInt(b.scheduled_time.split(':')[1], 10)
+        return minA - minB
+      })
+
+    const currentIndex = sameHourTodos.findIndex(t => t.id === todoId)
+
+    // 같은 시간대에서 첫 번째가 아니면 같은 시간대 내에서 교환
+    if (currentIndex > 0) {
+      const prevTodo = sameHourTodos[currentIndex - 1]
+      const prevMinute = parseInt(prevTodo.scheduled_time.split(':')[1], 10)
+
+      const newTime = `${hour.toString().padStart(2, '0')}:${prevMinute.toString().padStart(2, '0')}`
+      const prevNewTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+
+      setTodos(prev => prev.map(t => {
+        if (t.id === todoId) return { ...t, scheduled_time: newTime }
+        if (t.id === prevTodo.id) return { ...t, scheduled_time: prevNewTime }
+        return t
+      }))
+
+      try {
+        await supabase.from('todos').update({ scheduled_time: newTime }).eq('id', todoId)
+        await supabase.from('todos').update({ scheduled_time: prevNewTime }).eq('id', prevTodo.id)
+      } catch (error) {
+        console.error('타임라인 순서 변경 오류:', error.message)
+      }
+    } else {
+      // 첫 번째면 윗 시간대로 이동
+      if (hour <= startHour) return // 최상위 시간대면 이동 불가
+
+      const prevHour = hour - 1
+      // 윗 시간대의 투두들
+      const prevHourTodos = todos
+        .filter(t => t.scheduled_time && parseInt(t.scheduled_time.split(':')[0], 10) === prevHour)
+
+      // 윗 시간대의 마지막 분 값 + 1
+      let newMinute = 0
+      if (prevHourTodos.length > 0) {
+        const maxMinute = Math.max(...prevHourTodos.map(t =>
+          parseInt(t.scheduled_time.split(':')[1], 10)
+        ))
+        newMinute = maxMinute + 1
+      }
+
+      const newTime = `${prevHour.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`
+
+      setTodos(prev => prev.map(t =>
+        t.id === todoId ? { ...t, scheduled_time: newTime } : t
+      ))
+
+      try {
+        await supabase.from('todos').update({ scheduled_time: newTime }).eq('id', todoId)
+      } catch (error) {
+        console.error('타임라인 시간대 이동 오류:', error.message)
+      }
+    }
+  }
+
+  // 타임라인 내에서 아래로 이동 (마지막이면 아래 시간대로)
+  const handleMoveDownInTimeline = async (todoId, endHour = 24) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo?.scheduled_time) return
+
+    const hour = parseInt(todo.scheduled_time.split(':')[0], 10)
+    const minute = parseInt(todo.scheduled_time.split(':')[1], 10)
+
+    // 같은 시간대의 투두들
+    const sameHourTodos = todos
+      .filter(t => t.scheduled_time && parseInt(t.scheduled_time.split(':')[0], 10) === hour)
+      .sort((a, b) => {
+        const minA = parseInt(a.scheduled_time.split(':')[1], 10)
+        const minB = parseInt(b.scheduled_time.split(':')[1], 10)
+        return minA - minB
+      })
+
+    const currentIndex = sameHourTodos.findIndex(t => t.id === todoId)
+
+    // 같은 시간대에서 마지막이 아니면 같은 시간대 내에서 교환
+    if (currentIndex < sameHourTodos.length - 1) {
+      const nextTodo = sameHourTodos[currentIndex + 1]
+      const nextMinute = parseInt(nextTodo.scheduled_time.split(':')[1], 10)
+
+      const newTime = `${hour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
+      const nextNewTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+
+      setTodos(prev => prev.map(t => {
+        if (t.id === todoId) return { ...t, scheduled_time: newTime }
+        if (t.id === nextTodo.id) return { ...t, scheduled_time: nextNewTime }
+        return t
+      }))
+
+      try {
+        await supabase.from('todos').update({ scheduled_time: newTime }).eq('id', todoId)
+        await supabase.from('todos').update({ scheduled_time: nextNewTime }).eq('id', nextTodo.id)
+      } catch (error) {
+        console.error('타임라인 순서 변경 오류:', error.message)
+      }
+    } else {
+      // 마지막이면 아래 시간대로 이동
+      if (hour >= endHour) return // 최하위 시간대면 이동 불가
+
+      const nextHour = hour + 1
+      // 아래 시간대의 투두들
+      const nextHourTodos = todos
+        .filter(t => t.scheduled_time && parseInt(t.scheduled_time.split(':')[0], 10) === nextHour)
+
+      // 아래 시간대의 첫 번째 위치 (분 0 또는 기존 최소 분 - 1)
+      let newMinute = 0
+      if (nextHourTodos.length > 0) {
+        const minMinute = Math.min(...nextHourTodos.map(t =>
+          parseInt(t.scheduled_time.split(':')[1], 10)
+        ))
+        // 기존 투두들보다 앞에 배치 (분 값을 더 작게)
+        newMinute = minMinute > 0 ? minMinute - 1 : 0
+        // 만약 0이면 기존 투두들의 분 값을 모두 +1
+        if (newMinute === 0 && minMinute === 0) {
+          // 기존 투두들의 분 값을 +1 해서 공간 만들기
+          const updatedTodos = nextHourTodos.map(t => ({
+            ...t,
+            scheduled_time: `${nextHour.toString().padStart(2, '0')}:${(parseInt(t.scheduled_time.split(':')[1], 10) + 1).toString().padStart(2, '0')}`
+          }))
+
+          setTodos(prev => prev.map(t => {
+            if (t.id === todoId) return { ...t, scheduled_time: `${nextHour.toString().padStart(2, '0')}:00` }
+            const updated = updatedTodos.find(u => u.id === t.id)
+            return updated || t
+          }))
+
+          try {
+            await supabase.from('todos').update({ scheduled_time: `${nextHour.toString().padStart(2, '0')}:00` }).eq('id', todoId)
+            for (const t of updatedTodos) {
+              await supabase.from('todos').update({ scheduled_time: t.scheduled_time }).eq('id', t.id)
+            }
+          } catch (error) {
+            console.error('타임라인 시간대 이동 오류:', error.message)
+          }
+          return
+        }
+      }
+
+      const newTime = `${nextHour.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`
+
+      setTodos(prev => prev.map(t =>
+        t.id === todoId ? { ...t, scheduled_time: newTime } : t
+      ))
+
+      try {
+        await supabase.from('todos').update({ scheduled_time: newTime }).eq('id', todoId)
+      } catch (error) {
+        console.error('타임라인 시간대 이동 오류:', error.message)
+      }
+    }
+  }
+
+  const todoDragDrop = useTodoDragDrop(todos, setTodos, supabase, handleTimelineDrop)
 
   // State
   // todos와 setTodos는 App 컴포넌트에서 전달받음
@@ -792,5 +1018,10 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleMoveDown: todoOrder.handleMoveDown,
     handleMoveToTop: todoOrder.handleMoveToTop,
     handleMoveToBottom: todoOrder.handleMoveToBottom,
+
+    // 타임라인 함수
+    handleRemoveFromTimeline,
+    handleMoveUpInTimeline,
+    handleMoveDownInTimeline,
   }
 }

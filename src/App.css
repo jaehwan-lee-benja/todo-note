@@ -945,6 +945,57 @@ h1 {
   min-width: 100%;
 }
 
+/* 로딩 컨테이너 */
+.loading-container {
+  min-height: calc(100vh - 200px);
+  width: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  pointer-events: none;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  background: rgba(100, 108, 255, 0.6);
+  border-radius: 50%;
+  animation: loadingBounce 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes loadingBounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .todo-item-container {
   display: flex;
   align-items: center;
@@ -1169,6 +1220,22 @@ h1 {
 
 .move-menu-item.delete:hover {
   background: rgba(239, 68, 68, 0.1);
+}
+
+.move-menu-item.move-to-top {
+  color: #3b82f6;
+}
+
+.move-menu-item.move-to-top:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.move-menu-item.move-to-bottom {
+  color: #f59e0b;
+}
+
+.move-menu-item.move-to-bottom:hover {
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .todo-item-wrapper {
@@ -3923,7 +3990,8 @@ h1 {
 .reorder-mode .memo-section > *:not(.section-header),
 .reorder-mode .routine-section > *:not(.section-header),
 .reorder-mode .normal-section > *:not(.section-header),
-.reorder-mode .key-thoughts-section > *:not(.section-header) {
+.reorder-mode .key-thoughts-section > *:not(.section-header),
+.reorder-mode .timeline-section > *:not(.section-header) {
   pointer-events: none;
 }
 
@@ -3960,8 +4028,303 @@ h1 {
 .memo-section .section-title,
 .routine-section .section-title,
 .normal-section .section-title,
-.custom-section .section-title {
+.custom-section .section-title,
+.timeline-section .section-title {
   color: rgba(255, 255, 255, 0.85);
+}
+
+/* 타임라인 섹션 */
+.timeline-section {
+  background: #242424;
+}
+
+/* PC 버전: 타임라인 섹션 고정 */
+@media (min-width: 769px) {
+  .timeline-section {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    z-index: 10;
+  }
+}
+
+.timeline-content {
+  min-height: 100px;
+  max-height: calc(100vh - 60px);
+  overflow: hidden;
+}
+
+.timeline-placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+}
+
+/* 타임라인 뷰 */
+.timeline-view {
+  position: relative;
+  height: 100%;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.timeline-view::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timeline-view::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.timeline-grid {
+  position: relative;
+  min-height: 100%;
+}
+
+.timeline-hour-slot {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.timeline-hour-slot:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.timeline-hour-label {
+  width: 50px;
+  padding: 4px 8px 0 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: right;
+  flex-shrink: 0;
+  transform: translateY(-8px);
+}
+
+.timeline-hour-content {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 8px;
+}
+
+/* 현재 시간 인디케이터 */
+.timeline-current-time {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  transition: top 1s linear;
+}
+
+.timeline-current-time-dot {
+  width: 12px;
+  height: 12px;
+  background: #ea4335;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-left: 44px;
+  box-shadow: 0 0 8px rgba(234, 67, 53, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(234, 67, 53, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(234, 67, 53, 0.8);
+    transform: scale(1.1);
+  }
+}
+
+.timeline-current-time-line {
+  flex: 1;
+  height: 2px;
+  background: #ea4335;
+  box-shadow: 0 0 4px rgba(234, 67, 53, 0.5);
+}
+
+.timeline-current-time-label {
+  position: absolute;
+  left: 0;
+  top: -20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #ea4335;
+  background: rgba(234, 67, 53, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* 타임라인 드롭 영역 */
+.timeline-hour-slot.timeline-drop-active {
+  background: rgba(100, 108, 255, 0.15);
+  border-color: rgba(100, 108, 255, 0.5);
+}
+
+.timeline-hour-slot.timeline-drop-active .timeline-hour-content {
+  border-left-color: #646cff;
+  border-left-width: 2px;
+}
+
+/* 타임라인에 배치된 투두 */
+.timeline-scheduled-todo {
+  display: flex;
+  align-items: center;
+  background: rgba(100, 108, 255, 0.15);
+  border-left: 3px solid #646cff;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 3px 0;
+  font-size: 0.85rem;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.timeline-scheduled-todo:hover {
+  background: rgba(100, 108, 255, 0.25);
+}
+
+.timeline-scheduled-todo.dragging {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* 타임라인 투두 핸들 */
+.timeline-todo-handle-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.timeline-todo-handle {
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.3);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.timeline-todo-handle::before {
+  content: '☰';
+  font-size: 0.9rem;
+}
+
+.timeline-todo-handle:hover {
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.timeline-todo-handle:active {
+  cursor: grabbing;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 타임라인 이동 메뉴 */
+.timeline-move-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 100;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.timeline-move-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.timeline-move-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.timeline-move-menu-item.move-to-top {
+  color: #3b82f6;
+}
+
+.timeline-move-menu-item.move-to-bottom {
+  color: #f59e0b;
+}
+
+.timeline-move-menu-item.remove {
+  color: #ef4444;
+}
+
+/* 타임라인 체크박스 */
+.timeline-todo-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.timeline-todo-checkbox input[type="checkbox"] {
+  display: none;
+}
+
+.timeline-checkbox-custom {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.timeline-todo-checkbox input[type="checkbox"]:checked + .timeline-checkbox-custom {
+  background: #646cff;
+  border-color: #646cff;
+}
+
+.timeline-todo-checkbox input[type="checkbox"]:checked + .timeline-checkbox-custom::after {
+  content: '✓';
+  color: white;
+  font-size: 0.6rem;
+  font-weight: bold;
+}
+
+.timeline-todo-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.timeline-todo-text.completed {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .section-header {

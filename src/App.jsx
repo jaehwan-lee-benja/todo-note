@@ -22,6 +22,8 @@ import Sidebar from './components/Navigation/Sidebar'
 import Header from './components/Navigation/Header'
 import SectionPagination from './components/Navigation/SectionPagination'
 import TodoSection from './components/Todo/TodoSection'
+import SectionHeader from './components/Common/SectionHeader'
+import TimelineView from './components/Timeline/TimelineView'
 import SortableTodoItem from './components/Todo/SortableTodoItem'
 import AppModals from './components/App/AppModals'
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
@@ -49,8 +51,18 @@ function App() {
 
   // DnD sensors 설정 (드래그 핸들 방식)
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(TouchSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 120,
+        tolerance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 120,
+        tolerance: 5,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -187,6 +199,9 @@ function App() {
     handleMoveDown,
     handleMoveToTop,
     handleMoveToBottom,
+    handleRemoveFromTimeline,
+    handleMoveUpInTimeline,
+    handleMoveDownInTimeline,
   } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal)
 
   const handleFocusTodo = (todoId) => {
@@ -1086,7 +1101,13 @@ function App() {
           >
             <div className="todo-list">
               {loading ? (
-                <p className="empty-message">로딩 중...</p>
+                <div className="loading-container">
+                  <div className="loading-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
               ) : (() => {
                 // 섹션별로 필터링 후 order_index로 정렬 (section_type 기반)
                 const routineTodos = todos
@@ -1142,7 +1163,27 @@ function App() {
                           }
                         ]
 
-                        if (sectionId === 'routine') {
+                        if (sectionId === 'timeline') {
+                          return (
+                            <div key="timeline" className="timeline-section section-block">
+                              <SectionHeader
+                                title="⏰ 타임라인"
+                                settingsMenuItems={baseSettingsMenuItems}
+                              />
+                              <div className="timeline-content">
+                                <TimelineView
+                                  startHour={6}
+                                  endHour={24}
+                                  scheduledTodos={todos.filter(t => t.scheduled_time && !t.parent_id)}
+                                  onToggle={handleToggleTodo}
+                                  onRemoveFromTimeline={handleRemoveFromTimeline}
+                                  onMoveUpInTimeline={handleMoveUpInTimeline}
+                                  onMoveDownInTimeline={handleMoveDownInTimeline}
+                                />
+                              </div>
+                            </div>
+                          )
+                        } else if (sectionId === 'routine') {
                           return (
                             <div key="routine">
                               <TodoSection

@@ -9,8 +9,11 @@ import { settingsService, SETTING_KEYS } from '../services/settingsService'
  * - 드래그 앤 드롭으로 섹션 순서 변경
  * - 순서 수정 모드 토글
  */
+// 기본 섹션 목록 (새 섹션 추가 시 여기에 추가)
+const DEFAULT_SECTIONS = ['timeline', 'routine', 'normal']
+
 export function useSectionOrder(session) {
-  const [sectionOrder, setSectionOrder] = useState(['routine', 'normal'])
+  const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS)
   const [isReorderMode, setIsReorderMode] = useState(false)
 
   // 섹션 순서 불러오기
@@ -19,7 +22,15 @@ export function useSectionOrder(session) {
 
     const order = await settingsService.get(SETTING_KEYS.SECTION_ORDER)
     if (order) {
-      setSectionOrder(order)
+      // 새로 추가된 섹션이 있으면 맨 앞에 추가
+      const newSections = DEFAULT_SECTIONS.filter(s => !order.includes(s))
+      if (newSections.length > 0) {
+        const updatedOrder = [...newSections, ...order]
+        setSectionOrder(updatedOrder)
+        saveSectionOrder(updatedOrder)
+      } else {
+        setSectionOrder(order)
+      }
     }
   }
 

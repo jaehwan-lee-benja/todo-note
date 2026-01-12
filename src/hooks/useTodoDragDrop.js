@@ -8,8 +8,9 @@ import { arrayMove } from '@dnd-kit/sortable'
  * @param {Array} todos - 전체 투두 배열
  * @param {Function} setTodos - 투두 상태 업데이트 함수
  * @param {Object} supabase - Supabase 클라이언트
+ * @param {Function} onTimelineDrop - 타임라인 드롭 콜백 (optional)
  */
-export function useTodoDragDrop(todos, setTodos, supabase) {
+export function useTodoDragDrop(todos, setTodos, supabase, onTimelineDrop) {
   // 드래그 상태
   const [isDraggingAny, setIsDraggingAny] = useState(false)
   const [activeTodoId, setActiveTodoId] = useState(null)
@@ -51,7 +52,21 @@ export function useTodoDragDrop(todos, setTodos, supabase) {
 
     const { active, over } = event
 
-    if (!over || active.id === over.id) {
+    if (!over) {
+      return
+    }
+
+    // 타임라인 드롭 처리
+    if (over.id && String(over.id).startsWith('timeline-')) {
+      const hour = parseInt(String(over.id).replace('timeline-', ''), 10)
+      const activeTodo = todos.find((todo) => todo.id === active.id)
+      if (activeTodo && onTimelineDrop) {
+        onTimelineDrop(activeTodo.id, hour)
+      }
+      return
+    }
+
+    if (active.id === over.id) {
       return
     }
 

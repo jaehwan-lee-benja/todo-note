@@ -25,7 +25,7 @@ function TodoMoveMenu({
       {!isFirst && (
         <>
           <button
-            className="move-menu-item"
+            className="move-menu-item move-to-top"
             onClick={(e) => {
               e.stopPropagation()
               handleAction(() => onMoveToTop && onMoveToTop(todoId))
@@ -56,7 +56,7 @@ function TodoMoveMenu({
             <span className="move-menu-icon">&#x2B07;&#xFE0F;</span> 아래로
           </button>
           <button
-            className="move-menu-item"
+            className="move-menu-item move-to-bottom"
             onClick={(e) => {
               e.stopPropagation()
               handleAction(() => onMoveToBottom && onMoveToBottom(todoId))
