@@ -289,6 +289,32 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   pointer-events: none;
 }
 
+/* 헤더 메모 버튼 */
+.header-memo-button {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.header-memo-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.header-memo-button:active {
+  transform: scale(0.98);
+}
+
 /* 사이드바 오버레이 */
 .sidebar-overlay {
   position: fixed;
@@ -860,9 +886,9 @@ h1 {
   padding: 0.5rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
-  background: rgba(100, 108, 255, 0.7);
-  color: white;
-  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -891,8 +917,8 @@ h1 {
 }
 
 .add-button:hover {
-  background: rgba(100, 108, 255, 0.9);
-  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .add-button:active {
@@ -1014,14 +1040,14 @@ h1 {
 }
 
 .subtodo-add-button {
-  background: #646cff;
-  color: white;
-  border-color: #646cff;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .subtodo-add-button:hover {
-  background: #535bf2;
-  border-color: #535bf2;
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .subtodo-cancel-button {
@@ -1091,6 +1117,58 @@ h1 {
   cursor: grabbing;
   color: rgba(255, 255, 255, 0.8);
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* 드래그 핸들 래퍼 */
+.drag-handle-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* 이동 메뉴 */
+.move-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.25rem;
+  z-index: 100;
+  min-width: 120px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.move-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+.move-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.move-menu-item.delete {
+  color: #ef4444;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+}
+
+.move-menu-item.delete:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .todo-item-wrapper {
@@ -3878,21 +3956,12 @@ h1 {
   }
 }
 
-/* 개별 섹션별 제목 색상만 정의 */
-.memo-section .section-title {
-  color: #FFC107;
-}
-
-.routine-section .section-title {
-  color: #646cff;
-}
-
-.normal-section .section-title {
-  color: #888;
-}
-
+/* 개별 섹션별 제목 색상 - 통일 */
+.memo-section .section-title,
+.routine-section .section-title,
+.normal-section .section-title,
 .custom-section .section-title {
-  color: #4CAF50;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .section-header {
@@ -5541,3 +5610,132 @@ h1 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+
+/* 메모 모달 */
+.memo-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 1000;
+}
+
+.memo-modal {
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  height: calc(100vh - 4rem);
+  max-height: 800px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: memo-modal-appear 0.2s ease-out;
+}
+
+@keyframes memo-modal-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.memo-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.memo-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.memo-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.memo-modal-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.memo-modal-close:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.memo-modal-textarea {
+  flex: 1;
+  padding: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  resize: none;
+  overflow-y: auto;
+  font-family: inherit;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.memo-modal-textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.memo-modal-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.memo-modal-textarea::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.memo-modal-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.memo-modal-textarea:focus {
+  outline: none;
+}
+
+.memo-modal-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* 모바일 메모 모달 */
+@media (max-width: 768px) {
+  .memo-modal-overlay {
+    padding: 1rem;
+  }
+
+  .memo-modal {
+    height: calc(100vh - 2rem);
+    max-height: none;
+  }
+}

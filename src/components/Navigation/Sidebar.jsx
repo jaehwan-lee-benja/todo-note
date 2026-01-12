@@ -6,7 +6,6 @@ function Sidebar({
   viewMode,
   setViewMode,
   onOpenRoutine,
-  onOpenMemo,
   onOpenGanttChart,
   onOpenEncouragementModal,
   onOpenAddSection,
@@ -112,16 +111,6 @@ function Sidebar({
           >
             <span className="sidebar-icon">📌</span>
             <span>루틴 관리</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              onOpenMemo()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">📝</span>
-            <span>생각 메모</span>
           </button>
           <button
             className="sidebar-menu-item"

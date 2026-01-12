@@ -14,7 +14,8 @@ function Header({
   showEncouragementEmoji,
   currentEncouragementMessage,
   onEncouragementClick,
-  onQuickAdd
+  onQuickAdd,
+  onOpenMemo
 }) {
   const [quickInput, setQuickInput] = useState('')
   const [isQuickAdding, setIsQuickAdding] = useState(false)
@@ -94,6 +95,15 @@ function Header({
             disabled={isQuickAdding}
           />
         </div>
+
+        {/* 메모 버튼 */}
+        <button
+          className="header-memo-button"
+          onClick={onOpenMemo}
+          title="생각 메모"
+        >
+          📋 생각 메모
+        </button>
       </div>
     </div>
   )

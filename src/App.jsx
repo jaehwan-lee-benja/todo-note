@@ -32,7 +32,7 @@ import TodoSection from './components/Todo/TodoSection'
 import SortableTodoItem from './components/Todo/SortableTodoItem'
 import RoutineModal from './components/Routine/RoutineModal'
 import RoutineHistoryModal from './components/Routine/RoutineHistoryModal'
-import MemoSection from './components/Memo/MemoSection'
+import MemoModal from './components/Modals/MemoModal'
 import GanttChartModal from './components/Modals/GanttChartModal'
 import EncouragementModal from './components/Modals/EncouragementModal'
 import AddSectionModal from './components/Modals/AddSectionModal'
@@ -195,6 +195,10 @@ function App() {
     deleteFromNow,
     deleteAll,
     handleRemoveTodoFromUI,
+    handleMoveUp,
+    handleMoveDown,
+    handleMoveToTop,
+    handleMoveToBottom,
   } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal)
 
   const handleFocusTodo = (todoId) => {
@@ -207,13 +211,6 @@ function App() {
 
   const handleUndoRoutineDelete = () => {
     handleUndoDelete()
-  }
-
-  const handleOpenMemo = () => {
-    const memoSection = document.querySelector('.memo-section')
-    if (memoSection) {
-      memoSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
   }
 
   const {
@@ -324,7 +321,6 @@ function App() {
   const [sectionTitles, setSectionTitles] = useState({
     normal: '📝 일반 투두',
     routine: '🔄 루틴 투두',
-    memo: '📋 메모',
   })
 
   // 사용자 정의 섹션 관리
@@ -1152,7 +1148,6 @@ function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         onOpenRoutine={handleOpenRoutine}
-        onOpenMemo={handleOpenMemo}
         onOpenGanttChart={handleOpenGanttChart}
         onOpenEncouragementModal={() => setShowEncouragementModal(true)}
         onOpenAddSection={() => setShowAddSectionModal(true)}
@@ -1173,6 +1168,7 @@ function App() {
           onEncouragementClick={handleEncouragementClick}
           setSelectedDate={setSelectedDate}
           onQuickAdd={handleQuickAdd}
+          onOpenMemo={() => setShowMemoModal(true)}
         />
 
         <div className="content-scrollable" ref={contentScrollableRef}>
@@ -1253,24 +1249,7 @@ function App() {
                           }
                         ]
 
-                        if (sectionId === 'memo') {
-                          // 메모 섹션 설정 메뉴
-                          const memoSettingsMenuItems = [...baseSettingsMenuItems]
-
-                          return (
-                            <div key="memo">
-                              <MemoSection
-                                title="📋 생각 메모"
-                                className="memo-section section-block"
-                                content={memoContent}
-                                setContent={setMemoContent}
-                                isSaving={isSavingMemo}
-                                placeholder="메모를 작성해보세요..."
-                                settingsMenuItems={memoSettingsMenuItems}
-                              />
-                            </div>
-                          )
-                        } else if (sectionId === 'routine') {
+                        if (sectionId === 'routine') {
                           return (
                             <div key="routine">
                               <TodoSection
@@ -1316,6 +1295,12 @@ function App() {
                               showSuccessMessage={showSuccessMessage}
                               activeId={activeTodoId}
                               overId={overId}
+                              onMoveUp={(id) => handleMoveUp(id, 'routine', null)}
+                              onMoveDown={(id) => handleMoveDown(id, 'routine', null)}
+                              onMoveToTop={(id) => handleMoveToTop(id, 'routine', null)}
+                              onMoveToBottom={(id) => handleMoveToBottom(id, 'routine', null)}
+                              isFirst={index === 0}
+                              isLast={index === routineTodos.length - 1}
                             />
                           )
                         })}
@@ -1363,6 +1348,12 @@ function App() {
                               showSuccessMessage={showSuccessMessage}
                               activeId={activeTodoId}
                               overId={overId}
+                              onMoveUp={(id) => handleMoveUp(id, 'pending_routine', null)}
+                              onMoveDown={(id) => handleMoveDown(id, 'pending_routine', null)}
+                              onMoveToTop={(id) => handleMoveToTop(id, 'pending_routine', null)}
+                              onMoveToBottom={(id) => handleMoveToBottom(id, 'pending_routine', null)}
+                              isFirst={index === 0}
+                              isLast={index === pendingRoutineTodos.length - 1}
                             />
                           )
                         })}
@@ -1450,6 +1441,12 @@ function App() {
                       showSuccessMessage={showSuccessMessage}
                       activeId={activeTodoId}
                       overId={overId}
+                      onMoveUp={(id) => handleMoveUp(id, 'normal', null)}
+                      onMoveDown={(id) => handleMoveDown(id, 'normal', null)}
+                      onMoveToTop={(id) => handleMoveToTop(id, 'normal', null)}
+                      onMoveToBottom={(id) => handleMoveToBottom(id, 'normal', null)}
+                      isFirst={index === 0}
+                      isLast={index === normalTodos.length - 1}
                     />
                   )
                               })}
@@ -1547,6 +1544,12 @@ function App() {
                                           showSuccessMessage={showSuccessMessage}
                                           activeId={activeTodoId}
                                           overId={overId}
+                                          onMoveUp={(id) => handleMoveUp(id, 'custom', sectionId)}
+                                          onMoveDown={(id) => handleMoveDown(id, 'custom', sectionId)}
+                                          onMoveToTop={(id) => handleMoveToTop(id, 'custom', sectionId)}
+                                          onMoveToBottom={(id) => handleMoveToBottom(id, 'custom', sectionId)}
+                                          isFirst={index === 0}
+                                          isLast={index === customSectionTodos.length - 1}
                                         />
                                       )
                                     })}
@@ -1906,6 +1909,15 @@ function App() {
           onClose={handleCloseRoutineHistory}
           selectedRoutine={selectedRoutineForHistory}
           routineHistoryData={routineHistoryData}
+        />
+
+        <MemoModal
+          show={showMemoModal}
+          onClose={() => setShowMemoModal(false)}
+          content={memoContent}
+          setContent={setMemoContent}
+          isSaving={isSavingMemo}
+          placeholder="자유롭게 메모하세요..."
         />
 
         <GanttChartModal

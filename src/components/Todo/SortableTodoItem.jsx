@@ -7,8 +7,9 @@ import { DAYS } from '../../utils/constants'
 import { formatDateForDB, formatDateOnly } from '../../utils/dateUtils'
 import AppleTimePicker from '../Common/AppleTimePicker'
 
-function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage, activeId, overId, hideNumber = false }) {
+function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage, activeId, overId, hideNumber = false, onMoveUp, onMoveDown, onMoveToTop, onMoveToBottom, isFirst, isLast }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [showMoveMenu, setShowMoveMenu] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(todo.text)
   const [showDetails, setShowDetails] = useState(false)
@@ -99,6 +100,17 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
     const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
     return keys[dayNumber]
   }
+
+  // 이동 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showMoveMenu && !e.target.closest('.drag-handle-wrapper')) {
+        setShowMoveMenu(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showMoveMenu])
 
   // 히스토리 자동 로드 (selectedAction이 'history'일 때)
   useEffect(() => {
@@ -307,12 +319,80 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
       }}
       className="todo-item-container"
     >
-      <span
-        className="drag-handle"
-        {...attributes}
-        {...listeners}
-        title="드래그하여 순서 변경"
-      ></span>
+      <div className="drag-handle-wrapper">
+        <span
+          className="drag-handle"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowMoveMenu(!showMoveMenu)
+          }}
+          title="클릭하여 이동 메뉴"
+        ></span>
+        {showMoveMenu && (
+          <div className="move-menu">
+            {!isFirst && (
+              <>
+                <button
+                  className="move-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMoveToTop && onMoveToTop(todo.id)
+                    setShowMoveMenu(false)
+                  }}
+                >
+                  ⏫ 맨 위로
+                </button>
+                <button
+                  className="move-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMoveUp && onMoveUp(todo.id)
+                    setShowMoveMenu(false)
+                  }}
+                >
+                  ⬆️ 위로
+                </button>
+              </>
+            )}
+            {!isLast && (
+              <>
+                <button
+                  className="move-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMoveDown && onMoveDown(todo.id)
+                    setShowMoveMenu(false)
+                  }}
+                >
+                  ⬇️ 아래로
+                </button>
+                <button
+                  className="move-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMoveToBottom && onMoveToBottom(todo.id)
+                    setShowMoveMenu(false)
+                  }}
+                >
+                  ⏬ 맨 아래로
+                </button>
+              </>
+            )}
+            <button
+              className="move-menu-item delete"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (window.confirm('이 할일을 삭제하시겠습니까?')) {
+                  onDelete(todo.id)
+                }
+                setShowMoveMenu(false)
+              }}
+            >
+              🗑️ 삭제
+            </button>
+          </div>
+        )}
+      </div>
       {!hideNumber && (
         <span className="todo-number">
           {index + 1}

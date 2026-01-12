@@ -736,6 +736,122 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
   }
 
+  // 투두 위로 이동
+  const handleMoveUp = async (todoId, sectionType, sectionId) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo) return
+
+    // 같은 섹션의 투두들 필터링 및 정렬
+    const sectionTodos = todos
+      .filter(t => {
+        if (t.parent_id) return false
+        if (t.section_type !== sectionType) return false
+        if (sectionType === 'custom' && t.section_id !== sectionId) return false
+        return true
+      })
+      .sort((a, b) => a.order_index - b.order_index)
+
+    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
+    if (currentIndex <= 0) return // 이미 맨 위
+
+    // 위치 교환
+    const newSectionTodos = arrayMove(sectionTodos, currentIndex, currentIndex - 1)
+    await updateTodoOrder(newSectionTodos)
+  }
+
+  // 투두 아래로 이동
+  const handleMoveDown = async (todoId, sectionType, sectionId) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo) return
+
+    const sectionTodos = todos
+      .filter(t => {
+        if (t.parent_id) return false
+        if (t.section_type !== sectionType) return false
+        if (sectionType === 'custom' && t.section_id !== sectionId) return false
+        return true
+      })
+      .sort((a, b) => a.order_index - b.order_index)
+
+    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
+    if (currentIndex >= sectionTodos.length - 1) return // 이미 맨 아래
+
+    const newSectionTodos = arrayMove(sectionTodos, currentIndex, currentIndex + 1)
+    await updateTodoOrder(newSectionTodos)
+  }
+
+  // 투두 맨 위로 이동
+  const handleMoveToTop = async (todoId, sectionType, sectionId) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo) return
+
+    const sectionTodos = todos
+      .filter(t => {
+        if (t.parent_id) return false
+        if (t.section_type !== sectionType) return false
+        if (sectionType === 'custom' && t.section_id !== sectionId) return false
+        return true
+      })
+      .sort((a, b) => a.order_index - b.order_index)
+
+    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
+    if (currentIndex <= 0) return // 이미 맨 위
+
+    const newSectionTodos = arrayMove(sectionTodos, currentIndex, 0)
+    await updateTodoOrder(newSectionTodos)
+  }
+
+  // 투두 맨 아래로 이동
+  const handleMoveToBottom = async (todoId, sectionType, sectionId) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo) return
+
+    const sectionTodos = todos
+      .filter(t => {
+        if (t.parent_id) return false
+        if (t.section_type !== sectionType) return false
+        if (sectionType === 'custom' && t.section_id !== sectionId) return false
+        return true
+      })
+      .sort((a, b) => a.order_index - b.order_index)
+
+    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
+    if (currentIndex >= sectionTodos.length - 1) return // 이미 맨 아래
+
+    const newSectionTodos = arrayMove(sectionTodos, currentIndex, sectionTodos.length - 1)
+    await updateTodoOrder(newSectionTodos)
+  }
+
+  // 투두 순서 업데이트 헬퍼 함수
+  const updateTodoOrder = async (newSectionTodos) => {
+    // 로컬 상태 업데이트
+    let newTodos = [...todos]
+    newSectionTodos.forEach((sectionTodo, index) => {
+      const todoIndex = newTodos.findIndex(t => t.id === sectionTodo.id)
+      if (todoIndex !== -1) {
+        newTodos[todoIndex] = {
+          ...newTodos[todoIndex],
+          order_index: index + 1
+        }
+      }
+    })
+    setTodos(newTodos)
+
+    // DB 업데이트
+    try {
+      for (let i = 0; i < newSectionTodos.length; i++) {
+        await supabase
+          .from('todos')
+          .update({ order_index: i + 1 })
+          .eq('id', newSectionTodos[i].id)
+      }
+    } catch (error) {
+      console.error('순서 업데이트 오류:', error.message)
+      // 오류 시 원래 상태로 복구
+      setTodos(todos)
+    }
+  }
+
   // 드래그 시작
   const handleDragStart = (event) => {
     const { active } = event
@@ -931,5 +1047,9 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleDragStart,
     handleDragOver,
     handleDragCancel,
+    handleMoveUp,
+    handleMoveDown,
+    handleMoveToTop,
+    handleMoveToBottom,
   }
 }
