@@ -3,12 +3,12 @@
 ## 1. 현황 분석
 
 ### 1.1 코드 규모
-| 파일 | 라인 수 | 상태 |
-|------|---------|------|
-| App.jsx | 1,967 | 위험 |
-| SortableTodoItem.jsx | 1,414 | 위험 |
-| useTodos.js | 1,055 | 주의 |
-| 전체 | 8,106 | - |
+| 파일 | 원래 | 현재 | 감소 | 상태 |
+|------|------|------|------|------|
+| App.jsx | 1,967 | 1,865 | -102 | 주의 |
+| SortableTodoItem.jsx | 1,414 | 1,190 | -224 | 주의 |
+| useTodos.js | 1,055 | 797 | -258 | 개선됨 |
+| 전체 | 8,106 | 7,500 | -600+ | 진행중 |
 
 ### 1.2 주요 문제점
 
@@ -54,20 +54,22 @@ src/
 
 ## 3. 리팩토링 단계
 
-### Phase 1: 정리 (30분)
-- [ ] 백업 파일 삭제
-- [ ] .gitignore 업데이트
+### Phase 1: 정리 (30분) ✅ 완료
+- [x] 백업 파일 삭제 (11개 삭제)
+- [x] .gitignore 업데이트
 
-### Phase 2: 공통 컴포넌트 추출 (2시간)
-- [ ] `DaySelector.jsx` - 요일 선택 UI 통합
-- [ ] `DeleteOptions.jsx` - 삭제 옵션 선택 UI
+### Phase 2: 공통 컴포넌트 추출 (2시간) ✅ 완료
+- [x] `DaySelector.jsx` - 요일 선택 UI 통합
+- [x] `DeleteOptions.jsx` - 삭제 옵션 선택 UI
 
-### Phase 3: 서비스 레이어 생성 (1시간)
-- [ ] `services/settingsService.js` - 설정 CRUD 통합
+### Phase 3: 서비스 레이어 생성 (1시간) ✅ 완료
+- [x] `services/settingsService.js` - 설정 CRUD 통합
 
-### Phase 4: 훅 리팩토링 (2시간)
-- [ ] `useModalState.js` - 모달 상태 패턴 통합
-- [ ] `useTodos.js` 분리 → `useTodoOperations.js` + `useTodoOrder.js`
+### Phase 4: 훅 리팩토링 (2시간) ✅ 완료
+- [x] `useModalState.js` - 모달 상태 패턴 통합
+- [x] `useTodoOrder.js` - 순서 관리 로직 분리
+- [x] `useTodoDragDrop.js` - 드래그 앤 드롭 로직 분리
+- [x] `useTodos.js` 리팩토링 (1,055줄 → 797줄)
 
 ### Phase 5: SortableTodoItem 분리 (3시간)
 - [ ] `TodoItem.jsx` - 기본 표시

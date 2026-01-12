@@ -1,16 +1,20 @@
 import { useState, useRef } from 'react'
-import { arrayMove } from '@dnd-kit/sortable'
 import { formatDateForDB } from '../utils/dateUtils'
 import { useDeleteLogic } from './useDeleteLogic'
+import { useTodoOrder } from './useTodoOrder'
+import { useTodoDragDrop } from './useTodoDragDrop'
 
 export const useTodos = (session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal) => {
+  // 추출된 훅 사용
+  const todoOrder = useTodoOrder(todos, setTodos, supabase)
+  const todoDragDrop = useTodoDragDrop(todos, setTodos, supabase)
+
   // State
   // todos와 setTodos는 App 컴포넌트에서 전달받음
   const [inputValue, setInputValue] = useState('')
   const [routineInputValue, setRoutineInputValue] = useState('')
   const [normalInputValue, setNormalInputValue] = useState('')
   const [loading, setLoading] = useState(true)
-  const [isDraggingAny, setIsDraggingAny] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [deletedTodo, setDeletedTodo] = useState(null)
   const [showUndoToast, setShowUndoToast] = useState(false)
@@ -21,9 +25,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   // selectedTodoForModal은 App.jsx에서 전달받음
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false)
   const [todoToDelete, setTodoToDelete] = useState(null)
-  // 드래그 앤 드롭 개선을 위한 state
-  const [activeTodoId, setActiveTodoId] = useState(null)
-  const [overId, setOverId] = useState(null)
 
   // Refs
   const routineCreationInProgress = useRef(new Set())
@@ -736,272 +737,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
   }
 
-  // 투두 위로 이동
-  const handleMoveUp = async (todoId, sectionType, sectionId) => {
-    const todo = todos.find(t => t.id === todoId)
-    if (!todo) return
-
-    // 같은 섹션의 투두들 필터링 및 정렬
-    const sectionTodos = todos
-      .filter(t => {
-        if (t.parent_id) return false
-        if (t.section_type !== sectionType) return false
-        if (sectionType === 'custom' && t.section_id !== sectionId) return false
-        return true
-      })
-      .sort((a, b) => a.order_index - b.order_index)
-
-    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
-    if (currentIndex <= 0) return // 이미 맨 위
-
-    // 위치 교환
-    const newSectionTodos = arrayMove(sectionTodos, currentIndex, currentIndex - 1)
-    await updateTodoOrder(newSectionTodos)
-  }
-
-  // 투두 아래로 이동
-  const handleMoveDown = async (todoId, sectionType, sectionId) => {
-    const todo = todos.find(t => t.id === todoId)
-    if (!todo) return
-
-    const sectionTodos = todos
-      .filter(t => {
-        if (t.parent_id) return false
-        if (t.section_type !== sectionType) return false
-        if (sectionType === 'custom' && t.section_id !== sectionId) return false
-        return true
-      })
-      .sort((a, b) => a.order_index - b.order_index)
-
-    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
-    if (currentIndex >= sectionTodos.length - 1) return // 이미 맨 아래
-
-    const newSectionTodos = arrayMove(sectionTodos, currentIndex, currentIndex + 1)
-    await updateTodoOrder(newSectionTodos)
-  }
-
-  // 투두 맨 위로 이동
-  const handleMoveToTop = async (todoId, sectionType, sectionId) => {
-    const todo = todos.find(t => t.id === todoId)
-    if (!todo) return
-
-    const sectionTodos = todos
-      .filter(t => {
-        if (t.parent_id) return false
-        if (t.section_type !== sectionType) return false
-        if (sectionType === 'custom' && t.section_id !== sectionId) return false
-        return true
-      })
-      .sort((a, b) => a.order_index - b.order_index)
-
-    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
-    if (currentIndex <= 0) return // 이미 맨 위
-
-    const newSectionTodos = arrayMove(sectionTodos, currentIndex, 0)
-    await updateTodoOrder(newSectionTodos)
-  }
-
-  // 투두 맨 아래로 이동
-  const handleMoveToBottom = async (todoId, sectionType, sectionId) => {
-    const todo = todos.find(t => t.id === todoId)
-    if (!todo) return
-
-    const sectionTodos = todos
-      .filter(t => {
-        if (t.parent_id) return false
-        if (t.section_type !== sectionType) return false
-        if (sectionType === 'custom' && t.section_id !== sectionId) return false
-        return true
-      })
-      .sort((a, b) => a.order_index - b.order_index)
-
-    const currentIndex = sectionTodos.findIndex(t => t.id === todoId)
-    if (currentIndex >= sectionTodos.length - 1) return // 이미 맨 아래
-
-    const newSectionTodos = arrayMove(sectionTodos, currentIndex, sectionTodos.length - 1)
-    await updateTodoOrder(newSectionTodos)
-  }
-
-  // 투두 순서 업데이트 헬퍼 함수
-  const updateTodoOrder = async (newSectionTodos) => {
-    // 로컬 상태 업데이트
-    let newTodos = [...todos]
-    newSectionTodos.forEach((sectionTodo, index) => {
-      const todoIndex = newTodos.findIndex(t => t.id === sectionTodo.id)
-      if (todoIndex !== -1) {
-        newTodos[todoIndex] = {
-          ...newTodos[todoIndex],
-          order_index: index + 1
-        }
-      }
-    })
-    setTodos(newTodos)
-
-    // DB 업데이트
-    try {
-      for (let i = 0; i < newSectionTodos.length; i++) {
-        await supabase
-          .from('todos')
-          .update({ order_index: i + 1 })
-          .eq('id', newSectionTodos[i].id)
-      }
-    } catch (error) {
-      console.error('순서 업데이트 오류:', error.message)
-      // 오류 시 원래 상태로 복구
-      setTodos(todos)
-    }
-  }
-
-  // 드래그 시작
-  const handleDragStart = (event) => {
-    const { active } = event
-    setIsDraggingAny(true)
-    setActiveTodoId(active.id)
-  }
-
-  // 드래그 오버
-  const handleDragOver = (event) => {
-    const { over } = event
-    setOverId(over?.id || null)
-  }
-
-  // 드래그 취소
-  const handleDragCancel = () => {
-    setIsDraggingAny(false)
-    setActiveTodoId(null)
-    setOverId(null)
-  }
-
-  // 드래그 종료
-  const handleDragEnd = async (event) => {
-    setIsDraggingAny(false)
-    setActiveTodoId(null)
-    setOverId(null)
-
-    const { active, over } = event
-
-    if (!over || active.id === over.id) {
-      return
-    }
-
-    const activeTodo = todos.find((todo) => todo.id === active.id)
-    const overTodo = todos.find((todo) => todo.id === over.id)
-
-    if (!activeTodo || !overTodo) return
-
-    // section_type 기반 섹션 구분
-    const activeSectionType = activeTodo.section_type
-    const activeSectionId = activeTodo.section_id || null
-    const overSectionType = overTodo.section_type
-    const overSectionId = overTodo.section_id || null
-
-    // 섹션 간 이동 감지 (section_type이 다르거나 custom 섹션 내에서 section_id가 다른 경우)
-    const isCrossSectionMove =
-      activeSectionType !== overSectionType ||
-      (activeSectionType === 'custom' && activeSectionId !== overSectionId)
-
-    // 대상 섹션의 todos 필터링
-    const targetSectionType = overSectionType
-    const targetSectionId = overSectionId
-
-    const sectionTodos = todos
-      .filter(t => {
-        if (t.parent_id) return false // 서브투두 제외
-        if (t.section_type !== targetSectionType) return false
-        if (targetSectionType === 'custom' && t.section_id !== targetSectionId) return false
-        return true
-      })
-      .sort((a, b) => a.order_index - b.order_index)
-
-    const oldIndexInSection = sectionTodos.findIndex((todo) => todo.id === active.id)
-    const newIndexInSection = sectionTodos.findIndex((todo) => todo.id === over.id)
-
-    // 섹션 내에서 재정렬
-    let newSectionTodos = [...sectionTodos]
-
-    // 섹션 간 이동인 경우
-    if (isCrossSectionMove) {
-      // over 위치에 activeTodo 삽입
-      newSectionTodos.splice(newIndexInSection, 0, {
-        ...activeTodo,
-        section_type: targetSectionType,
-        section_id: targetSectionId,
-        // routine_id는 section_type에 따라 설정
-        routine_id: targetSectionType === 'routine' || targetSectionType === 'pending_routine'
-          ? activeTodo.routine_id
-          : null
-      })
-    } else {
-      // 같은 섹션 내 이동
-      newSectionTodos = arrayMove(sectionTodos, oldIndexInSection, newIndexInSection)
-    }
-
-    // 로컬 상태 업데이트
-    let newTodos = [...todos]
-
-    // 섹션 내 todos의 order_index 업데이트
-    newSectionTodos.forEach((sectionTodo, index) => {
-      const todoIndex = newTodos.findIndex(t => t.id === sectionTodo.id)
-      if (todoIndex !== -1) {
-        newTodos[todoIndex] = {
-          ...sectionTodo,
-          order_index: index + 1
-        }
-      }
-    })
-
-    // 섹션 간 이동인 경우 section_type/section_id도 업데이트
-    if (isCrossSectionMove) {
-      const activeTodoIndex = newTodos.findIndex(t => t.id === active.id)
-      if (activeTodoIndex !== -1) {
-        newTodos[activeTodoIndex] = {
-          ...newTodos[activeTodoIndex],
-          section_type: targetSectionType,
-          section_id: targetSectionId,
-          routine_id: targetSectionType === 'routine' || targetSectionType === 'pending_routine'
-            ? newTodos[activeTodoIndex].routine_id
-            : null
-        }
-      }
-    }
-
-    setTodos(newTodos)
-
-    // DB 업데이트
-    try {
-      // 섹션 간 이동인 경우 section_type/section_id 업데이트
-      if (isCrossSectionMove) {
-        const updateData = {
-          section_type: targetSectionType,
-          section_id: targetSectionId
-        }
-
-        // routine이나 pending_routine이 아닌 경우 routine_id 제거
-        if (targetSectionType !== 'routine' && targetSectionType !== 'pending_routine') {
-          updateData.routine_id = null
-          updateData.is_pending_routine = false
-        }
-
-        await supabase
-          .from('todos')
-          .update(updateData)
-          .eq('id', active.id)
-      }
-
-      // 섹션 내 order_index 재정규화 (1, 2, 3, ...)
-      for (let i = 0; i < newSectionTodos.length; i++) {
-        await supabase
-          .from('todos')
-          .update({ order_index: i + 1 })
-          .eq('id', newSectionTodos[i].id)
-      }
-    } catch (error) {
-      console.error('순서 업데이트 오류:', error.message)
-      // 오류 시 원래 상태로 복구
-      setTodos(todos)
-    }
-  }
-
   return {
     // State
     // todos와 setTodos는 App에서 관리하므로 반환하지 않음
@@ -1012,7 +747,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     normalInputValue,
     setNormalInputValue,
     loading,
-    isDraggingAny,
     isAdding,
     deletedTodo,
     showUndoToast,
@@ -1026,8 +760,11 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     setShowDeleteConfirmModal,
     todoToDelete,
     setTodoToDelete,
-    activeTodoId,
-    overId,
+
+    // 드래그 앤 드롭 상태 (useTodoDragDrop에서)
+    isDraggingAny: todoDragDrop.isDraggingAny,
+    activeTodoId: todoDragDrop.activeTodoId,
+    overId: todoDragDrop.overId,
 
     // Functions
     fetchTodos,
@@ -1042,14 +779,18 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleUndoDelete,
     handleEditTodo,
     handleAddSubTodo,
-    handleDragEnd,
     handleRemoveTodoFromUI,
-    handleDragStart,
-    handleDragOver,
-    handleDragCancel,
-    handleMoveUp,
-    handleMoveDown,
-    handleMoveToTop,
-    handleMoveToBottom,
+
+    // 드래그 앤 드롭 함수 (useTodoDragDrop에서)
+    handleDragStart: todoDragDrop.handleDragStart,
+    handleDragOver: todoDragDrop.handleDragOver,
+    handleDragCancel: todoDragDrop.handleDragCancel,
+    handleDragEnd: todoDragDrop.handleDragEnd,
+
+    // 순서 이동 함수 (useTodoOrder에서)
+    handleMoveUp: todoOrder.handleMoveUp,
+    handleMoveDown: todoOrder.handleMoveDown,
+    handleMoveToTop: todoOrder.handleMoveToTop,
+    handleMoveToBottom: todoOrder.handleMoveToBottom,
   }
 }
