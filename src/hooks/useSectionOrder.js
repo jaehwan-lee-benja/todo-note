@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
-import { supabase } from '../supabaseClient'
+import { settingsService, SETTING_KEYS } from '../services/settingsService'
 
 /**
  * 섹션 순서 관리 커스텀 훅
@@ -15,70 +15,18 @@ export function useSectionOrder(session) {
 
   // 섹션 순서 불러오기
   const fetchSectionOrder = async () => {
-    // 로그인하지 않은 상태에서는 초기값 사용 (localStorage 제거)
-    if (!session?.user?.id) {
-      return
-    }
+    if (!session?.user?.id) return
 
-    try {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('setting_value')
-        .eq('setting_key', 'section_order')
-        .maybeSingle()
-
-      if (error) {
-        console.error('섹션 순서 불러오기 오류:', error.message)
-        return
-      }
-
-      if (data && data.setting_value) {
-        const order = JSON.parse(data.setting_value)
-        setSectionOrder(order)
-      }
-      // DB에 데이터 없으면 초기값 사용 (localStorage fallback 제거)
-    } catch (error) {
-      console.error('섹션 순서 불러오기 오류:', error.message)
+    const order = await settingsService.get(SETTING_KEYS.SECTION_ORDER)
+    if (order) {
+      setSectionOrder(order)
     }
   }
 
   // 섹션 순서 저장하기
   const saveSectionOrder = async (newOrder) => {
-    // 로그인하지 않은 경우 state만 업데이트 (저장 안됨, localStorage 제거)
     if (!session?.user?.id) return
-
-    try {
-      // Supabase에만 저장
-      const { data: existing, error: selectError } = await supabase
-        .from('user_settings')
-        .select('id')
-        .eq('setting_key', 'section_order')
-        .maybeSingle()
-
-      if (selectError) {
-        console.error('섹션 순서 조회 오류:', selectError.message)
-        return
-      }
-
-      if (existing) {
-        // 업데이트
-        await supabase
-          .from('user_settings')
-          .update({ setting_value: JSON.stringify(newOrder), updated_at: new Date().toISOString() })
-          .eq('setting_key', 'section_order')
-      } else {
-        // 신규 생성
-        await supabase
-          .from('user_settings')
-          .insert([{
-            setting_key: 'section_order',
-            setting_value: JSON.stringify(newOrder),
-            user_id: session.user.id
-          }])
-      }
-    } catch (error) {
-      console.error('섹션 순서 저장 오류:', error.message)
-    }
+    await settingsService.set(SETTING_KEYS.SECTION_ORDER, newOrder, session.user.id)
   }
 
   // 섹션 왼쪽으로 이동

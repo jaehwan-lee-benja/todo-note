@@ -49,6 +49,7 @@ import { useTodoRoutineSetup } from './hooks/useTodoRoutineSetup'
 import { useTodoCarryOver } from './hooks/useTodoCarryOver'
 import { useEncouragement } from './hooks/useEncouragement'
 import { useGanttChart } from './hooks/useGanttChart'
+import { settingsService, SETTING_KEYS } from './services/settingsService'
 import './App.css'
 
 // 시간 입력은 AppleTimePicker 사용
@@ -346,23 +347,18 @@ function App() {
   const [hiddenSections, setHiddenSections] = useState([])
   const [showHiddenSectionsModal, setShowHiddenSectionsModal] = useState(false)
 
-  // 숨긴 섹션 localStorage 저장/로드
-  const saveHiddenSections = (sections) => {
-    try {
-      localStorage.setItem('hiddenSections', JSON.stringify(sections))
-    } catch (error) {
-      console.error('숨긴 섹션 저장 오류:', error)
-    }
+  // 숨긴 섹션 저장/로드
+  const saveHiddenSections = async (sections) => {
+    if (!session?.user?.id) return
+    await settingsService.set(SETTING_KEYS.HIDDEN_SECTIONS, sections, session.user.id)
   }
 
-  const fetchHiddenSections = () => {
-    try {
-      const saved = localStorage.getItem('hiddenSections')
-      if (saved) {
-        setHiddenSections(JSON.parse(saved))
-      }
-    } catch (error) {
-      console.error('숨긴 섹션 로드 오류:', error)
+  const fetchHiddenSections = async () => {
+    if (!session?.user?.id) return
+
+    const sections = await settingsService.get(SETTING_KEYS.HIDDEN_SECTIONS)
+    if (sections) {
+      setHiddenSections(sections)
     }
   }
 
@@ -403,24 +399,9 @@ function App() {
   const fetchSectionTitles = async () => {
     if (!session?.user?.id) return
 
-    try {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('setting_value')
-        .eq('setting_key', 'section_titles')
-        .maybeSingle()
-
-      if (error) {
-        console.error('섹션 제목 불러오기 오류:', error.message)
-        return
-      }
-
-      if (data && data.setting_value) {
-        const titles = JSON.parse(data.setting_value)
-        setSectionTitles(prev => ({ ...prev, ...titles }))
-      }
-    } catch (error) {
-      console.error('섹션 제목 불러오기 오류:', error.message)
+    const titles = await settingsService.get(SETTING_KEYS.SECTION_TITLES)
+    if (titles) {
+      setSectionTitles(prev => ({ ...prev, ...titles }))
     }
   }
 
@@ -434,98 +415,23 @@ function App() {
     }
 
     setSectionTitles(updatedTitles)
-
-    try {
-      const { data: existing, error: selectError } = await supabase
-        .from('user_settings')
-        .select('id')
-        .eq('setting_key', 'section_titles')
-        .maybeSingle()
-
-      if (selectError) {
-        console.error('섹션 제목 조회 오류:', selectError.message)
-        return
-      }
-
-      if (existing) {
-        // 업데이트
-        await supabase
-          .from('user_settings')
-          .update({ setting_value: JSON.stringify(updatedTitles), updated_at: new Date().toISOString() })
-          .eq('setting_key', 'section_titles')
-      } else {
-        // 신규 생성
-        await supabase
-          .from('user_settings')
-          .insert([{
-            setting_key: 'section_titles',
-            setting_value: JSON.stringify(updatedTitles),
-            user_id: session.user.id
-          }])
-      }
-    } catch (error) {
-      console.error('섹션 제목 저장 오류:', error.message)
-    }
+    await settingsService.set(SETTING_KEYS.SECTION_TITLES, updatedTitles, session.user.id)
   }
 
   // 사용자 정의 섹션 불러오기
   const fetchCustomSections = async () => {
     if (!session?.user?.id) return
 
-    try {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('setting_value')
-        .eq('setting_key', 'custom_sections')
-        .maybeSingle()
-
-      if (error) {
-        console.error('사용자 정의 섹션 불러오기 오류:', error.message)
-        return
-      }
-
-      if (data && data.setting_value) {
-        const sections = JSON.parse(data.setting_value)
-        setCustomSections(sections)
-      }
-    } catch (error) {
-      console.error('사용자 정의 섹션 불러오기 오류:', error.message)
+    const sections = await settingsService.get(SETTING_KEYS.CUSTOM_SECTIONS)
+    if (sections) {
+      setCustomSections(sections)
     }
   }
 
   // 사용자 정의 섹션 저장하기
   const saveCustomSections = async (sections) => {
     if (!session?.user?.id) return
-
-    try {
-      const { data: existing, error: selectError } = await supabase
-        .from('user_settings')
-        .select('id')
-        .eq('setting_key', 'custom_sections')
-        .maybeSingle()
-
-      if (selectError) {
-        console.error('사용자 정의 섹션 조회 오류:', selectError.message)
-        return
-      }
-
-      if (existing) {
-        await supabase
-          .from('user_settings')
-          .update({ setting_value: JSON.stringify(sections), updated_at: new Date().toISOString() })
-          .eq('setting_key', 'custom_sections')
-      } else {
-        await supabase
-          .from('user_settings')
-          .insert([{
-            setting_key: 'custom_sections',
-            setting_value: JSON.stringify(sections),
-            user_id: session.user.id
-          }])
-      }
-    } catch (error) {
-      console.error('사용자 정의 섹션 저장 오류:', error.message)
-    }
+    await settingsService.set(SETTING_KEYS.CUSTOM_SECTIONS, sections, session.user.id)
   }
 
   // 섹션 추가
