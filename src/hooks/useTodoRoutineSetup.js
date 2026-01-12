@@ -49,6 +49,15 @@ export const useTodoRoutineSetup = ({
     setIsEditingRoutineInModal(false)
   }
 
+  // 루틴 요일 토글
+  const handleToggleRoutineDayInModal = (dayKey) => {
+    setRoutineDaysForModal(prev =>
+      prev.includes(dayKey)
+        ? prev.filter(d => d !== dayKey)
+        : [...prev, dayKey]
+    )
+  }
+
   return {
     // State
     showTodoRoutineSetupModal,
@@ -62,5 +71,6 @@ export const useTodoRoutineSetup = ({
     // Functions
     handleOpenTodoRoutineSetupModal,
     handleCloseTodoRoutineSetupModal,
+    handleToggleRoutineDayInModal,
   }
 }

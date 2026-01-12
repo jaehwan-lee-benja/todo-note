@@ -131,6 +131,7 @@ function App() {
     setRoutineTimeSlotForModal,
     handleOpenTodoRoutineSetupModal,
     handleCloseTodoRoutineSetupModal,
+    handleToggleRoutineDayInModal,
   } = useTodoRoutineSetup({
     selectedTodoForModal,
     setSelectedTodoForModal,
