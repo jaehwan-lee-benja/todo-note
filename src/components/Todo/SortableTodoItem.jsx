@@ -6,6 +6,8 @@ import { supabase } from '../../supabaseClient'
 import { DAYS } from '../../utils/constants'
 import { formatDateForDB, formatDateOnly } from '../../utils/dateUtils'
 import AppleTimePicker from '../Common/AppleTimePicker'
+import DaySelector from '../Common/DaySelector'
+import DeleteOptions from '../Common/DeleteOptions'
 
 function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate, formatDateOnly, isFocused, onFocus, onAddSubTodo, subtodos, level = 0, onCreateRoutine, routines, onShowRoutineHistory, onOpenRoutineSetupModal, onOpenHistoryModal, currentPageDate, isPendingRoutine = false, onRemoveFromUI, showSuccessMessage, activeId, overId, hideNumber = false, onMoveUp, onMoveDown, onMoveToTop, onMoveToBottom, isFirst, isLast }) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -34,7 +36,6 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
   const [selectedRoutineForHistory, setSelectedRoutineForHistory] = useState(null)
   const [routineHistoryData, setRoutineHistoryData] = useState([])
   const [deleteOption, setDeleteOption] = useState('this-only')
-  const [showDeleteTooltip, setShowDeleteTooltip] = useState(null)
 
   // 현재 투두의 루틴 정보 찾기
   const currentRoutine = todo.routine_id ? routines.find(r => r.id === todo.routine_id) : null
@@ -791,20 +792,11 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                             <div className="routine-setup-title">
                               {isEditingRoutineInModal ? '루틴 수정:' : '반복할 요일 선택:'}
                             </div>
-                            <div className="day-selector-inline">
-                              {DAYS.map(day => (
-                                <button
-                                  key={day.key}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleRoutineDayInModal(day.key)
-                                  }}
-                                  className={`day-button-inline ${routineDaysForModal.includes(day.key) ? 'selected' : ''}`}
-                                >
-                                  {day.label}
-                                </button>
-                              ))}
-                            </div>
+                            <DaySelector
+                              selectedDays={routineDaysForModal}
+                              onToggle={handleToggleRoutineDayInModal}
+                              variant="inline"
+                            />
                             <div className="time-slot-selector" style={{ marginTop: '1rem' }}>
                               <label style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.5rem', display: 'block' }}>
                                 ⏰ 시간 (선택사항)
@@ -1138,226 +1130,10 @@ function SortableTodoItem({ todo, index, onToggle, onDelete, onEdit, formatDate,
                         아래 삭제 옵션 중 선택해주세요.
                       </p>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {/* 옵션 1: 이 할일 */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          padding: '0.75rem',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '6px',
-                          background: deleteOption === 'this-only' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                          cursor: 'pointer',
-                          position: 'relative'
-                        }}
-                        onClick={() => setDeleteOption('this-only')}
-                        >
-                          <input
-                            type="radio"
-                            name="delete-option"
-                            value="this-only"
-                            checked={deleteOption === 'this-only'}
-                            onChange={(e) => setDeleteOption(e.target.value)}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                          />
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: '600' }}>이 할일</span>
-                              <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>당일만 삭제</span>
-                            </div>
-                          </div>
-                          <button
-                            onMouseEnter={() => setShowDeleteTooltip('this-only')}
-                            onMouseLeave={() => setShowDeleteTooltip(null)}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setShowDeleteTooltip(showDeleteTooltip === 'this-only' ? null : 'this-only')
-                            }}
-                            style={{
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              border: '1.5px solid #9ca3af',
-                              background: 'transparent',
-                              color: '#9ca3af',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: 0
-                            }}
-                          >
-                            ?
-                          </button>
-                          {showDeleteTooltip === 'this-only' && (
-                            <div style={{
-                              position: 'absolute',
-                              right: '2.5rem',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              background: '#1f2937',
-                              color: '#e5e7eb',
-                              padding: '0.5rem 0.75rem',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              whiteSpace: 'nowrap',
-                              zIndex: 10,
-                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                              border: '1px solid rgba(255, 255, 255, 0.1)'
-                            }}>
-                              과거 기록 유지, 당일것만 삭제, 내일부터 다시 표시함
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 옵션 2: 이번 및 향후 할일 */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          padding: '0.75rem',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '6px',
-                          background: deleteOption === 'from-now' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                          cursor: 'pointer',
-                          position: 'relative'
-                        }}
-                        onClick={() => setDeleteOption('from-now')}
-                        >
-                          <input
-                            type="radio"
-                            name="delete-option"
-                            value="from-now"
-                            checked={deleteOption === 'from-now'}
-                            onChange={(e) => setDeleteOption(e.target.value)}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                          />
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: '600' }}>이번 및 향후 할일</span>
-                              <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>당일부터 삭제</span>
-                            </div>
-                          </div>
-                          <button
-                            onMouseEnter={() => setShowDeleteTooltip('from-now')}
-                            onMouseLeave={() => setShowDeleteTooltip(null)}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setShowDeleteTooltip(showDeleteTooltip === 'from-now' ? null : 'from-now')
-                            }}
-                            style={{
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              border: '1.5px solid #9ca3af',
-                              background: 'transparent',
-                              color: '#9ca3af',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: 0
-                            }}
-                          >
-                            ?
-                          </button>
-                          {showDeleteTooltip === 'from-now' && (
-                            <div style={{
-                              position: 'absolute',
-                              right: '2.5rem',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              background: '#1f2937',
-                              color: '#e5e7eb',
-                              padding: '0.5rem 0.75rem',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              whiteSpace: 'nowrap',
-                              zIndex: 10,
-                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                              border: '1px solid rgba(255, 255, 255, 0.1)'
-                            }}>
-                              과거 기록 유지, 당일것 삭제, 내일부터도 표시 안함
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 옵션 3: 모든 할일 */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          padding: '0.75rem',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '6px',
-                          background: deleteOption === 'all' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                          cursor: 'pointer',
-                          position: 'relative'
-                        }}
-                        onClick={() => setDeleteOption('all')}
-                        >
-                          <input
-                            type="radio"
-                            name="delete-option"
-                            value="all"
-                            checked={deleteOption === 'all'}
-                            onChange={(e) => setDeleteOption(e.target.value)}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                          />
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: '600' }}>모든 할일</span>
-                              <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>모두 삭제</span>
-                            </div>
-                          </div>
-                          <button
-                            onMouseEnter={() => setShowDeleteTooltip('all')}
-                            onMouseLeave={() => setShowDeleteTooltip(null)}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setShowDeleteTooltip(showDeleteTooltip === 'all' ? null : 'all')
-                            }}
-                            style={{
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              border: '1.5px solid #9ca3af',
-                              background: 'transparent',
-                              color: '#9ca3af',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: 0
-                            }}
-                          >
-                            ?
-                          </button>
-                          {showDeleteTooltip === 'all' && (
-                            <div style={{
-                              position: 'absolute',
-                              right: '2.5rem',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              background: '#1f2937',
-                              color: '#e5e7eb',
-                              padding: '0.5rem 0.75rem',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              whiteSpace: 'nowrap',
-                              zIndex: 10,
-                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                              border: '1px solid rgba(255, 255, 255, 0.1)'
-                            }}>
-                              과거 기록 삭제, 당일것 삭제, 내일부터도 표시 안함
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <DeleteOptions
+                        selectedOption={deleteOption}
+                        onChange={setDeleteOption}
+                      />
 
                       <div style={{
                         display: 'flex',

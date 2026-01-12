@@ -23,6 +23,7 @@ import { DAYS } from './utils/constants'
 import { formatDateForDB, formatDateOnly, formatDate } from './utils/dateUtils'
 import { useAuth } from './hooks/useAuth'
 import AppleTimePicker from './components/Common/AppleTimePicker'
+import DaySelector from './components/Common/DaySelector'
 import Toast from './components/Common/Toast'
 import SectionHeader from './components/Common/SectionHeader'
 import Sidebar from './components/Navigation/Sidebar'
@@ -1815,20 +1816,11 @@ function App() {
                         <div className="routine-setup-title">
                           {isEditingRoutineInModal ? '루틴 수정:' : '반복할 요일 선택:'}
                         </div>
-                        <div className="day-selector-inline">
-                          {DAYS.map(day => (
-                            <button
-                              key={day.key}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleToggleRoutineDayInModal(day.key)
-                              }}
-                              className={`day-button-inline ${routineDaysForModal.includes(day.key) ? 'selected' : ''}`}
-                            >
-                              {day.label}
-                            </button>
-                          ))}
-                        </div>
+                        <DaySelector
+                          selectedDays={routineDaysForModal}
+                          onToggle={handleToggleRoutineDayInModal}
+                          variant="inline"
+                        />
                         <div className="time-slot-selector" style={{ marginTop: '1rem' }}>
                           <label style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.5rem', display: 'block' }}>
                             ⏰ 시간 (선택사항)

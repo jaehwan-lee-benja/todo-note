@@ -1,5 +1,6 @@
 import { DAYS } from '../../utils/constants'
 import AppleTimePicker from '../Common/AppleTimePicker'
+import DaySelector from '../Common/DaySelector'
 
 function RoutineModal({
   showRoutineModal,
@@ -43,18 +44,11 @@ function RoutineModal({
             className="routine-input"
             disabled={isAddingRoutine}
           />
-          <div className="day-selector">
-            {DAYS.map(day => (
-              <button
-                key={day.key}
-                onClick={() => onToggleDay(day.key)}
-                className={`day-button ${selectedDays.includes(day.key) ? 'selected' : ''}`}
-                disabled={isAddingRoutine}
-              >
-                {day.label}
-              </button>
-            ))}
-          </div>
+          <DaySelector
+            selectedDays={selectedDays}
+            onToggle={onToggleDay}
+            disabled={isAddingRoutine}
+          />
           <div className="time-slot-selector">
             <label className="time-slot-label">⏰ 시간 (선택사항)</label>
             <AppleTimePicker
@@ -88,17 +82,11 @@ function RoutineModal({
                         className="routine-edit-input"
                         placeholder="루틴 내용"
                       />
-                      <div className="day-selector-inline">
-                        {DAYS.map(day => (
-                          <button
-                            key={day.key}
-                            onClick={() => onToggleEditDay(day.key)}
-                            className={`day-button-inline ${editingRoutineDays.includes(day.key) ? 'selected' : ''}`}
-                          >
-                            {day.label}
-                          </button>
-                        ))}
-                      </div>
+                      <DaySelector
+                        selectedDays={editingRoutineDays}
+                        onToggle={onToggleEditDay}
+                        variant="inline"
+                      />
                     </div>
                     <div className="routine-item-actions">
                       <button
