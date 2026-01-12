@@ -6,9 +6,9 @@
 | 파일 | 원래 | 현재 | 감소 | 상태 |
 |------|------|------|------|------|
 | App.jsx | 1,967 | 1,865 | -102 | 주의 |
-| SortableTodoItem.jsx | 1,414 | 1,190 | -224 | 주의 |
+| SortableTodoItem.jsx | 1,414 | 339 | -1,075 | 개선됨 |
 | useTodos.js | 1,055 | 797 | -258 | 개선됨 |
-| 전체 | 8,106 | 7,500 | -600+ | 진행중 |
+| 전체 | 8,106 | 6,600 | -1,500+ | 진행중 |
 
 ### 1.2 주요 문제점
 
@@ -71,10 +71,10 @@ src/
 - [x] `useTodoDragDrop.js` - 드래그 앤 드롭 로직 분리
 - [x] `useTodos.js` 리팩토링 (1,055줄 → 797줄)
 
-### Phase 5: SortableTodoItem 분리 (3시간)
-- [ ] `TodoItem.jsx` - 기본 표시
-- [ ] `TodoItemActions.jsx` - 액션 모달
-- [ ] `TodoMoveMenu.jsx` - 이동 메뉴
+### Phase 5: SortableTodoItem 분리 (3시간) ✅ 완료
+- [x] `TodoMoveMenu.jsx` - 이동 메뉴 (80줄)
+- [x] `TodoActionsModal.jsx` - 액션 모달 (540줄)
+- [x] `SortableTodoItem.jsx` 리팩토링 (1,190줄 → 339줄)
 
 ### Phase 6: App.jsx 분리 (3시간)
 - [ ] `AppContent.jsx` - 메인 컨텐츠
