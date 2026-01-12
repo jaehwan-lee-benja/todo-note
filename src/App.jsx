@@ -10,35 +10,20 @@ import {
   useSensors,
   MeasuringStrategy,
   DragOverlay,
-  defaultDropAnimationSideEffects,
 } from '@dnd-kit/core'
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { DAYS } from './utils/constants'
 import { formatDateForDB, formatDateOnly, formatDate } from './utils/dateUtils'
 import { useAuth } from './hooks/useAuth'
-import AppleTimePicker from './components/Common/AppleTimePicker'
-import DaySelector from './components/Common/DaySelector'
-import Toast from './components/Common/Toast'
-import SectionHeader from './components/Common/SectionHeader'
 import Sidebar from './components/Navigation/Sidebar'
 import Header from './components/Navigation/Header'
 import SectionPagination from './components/Navigation/SectionPagination'
 import TodoSection from './components/Todo/TodoSection'
 import SortableTodoItem from './components/Todo/SortableTodoItem'
-import RoutineModal from './components/Routine/RoutineModal'
-import RoutineHistoryModal from './components/Routine/RoutineHistoryModal'
-import MemoModal from './components/Modals/MemoModal'
-import GanttChartModal from './components/Modals/GanttChartModal'
-import EncouragementModal from './components/Modals/EncouragementModal'
-import AddSectionModal from './components/Modals/AddSectionModal'
-import HiddenSectionsModal from './components/Modals/HiddenSectionsModal'
-import DeleteConfirmModal from './components/Modals/DeleteConfirmModal'
+import AppModals from './components/App/AppModals'
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
@@ -1517,345 +1502,123 @@ function App() {
         />
         </div>
 
-        {showUndoToast && (
-          <Toast
-            message="삭제되었습니다"
-            onUndo={handleUndoDelete}
-          />
-        )}
+        <AppModals
+          // Toast
+          showUndoToast={showUndoToast}
+          showSuccessToast={showSuccessToast}
+          successToastMessage={successToastMessage}
+          lastDeleteAction={lastDeleteAction}
+          handleUndoDelete={handleUndoDelete}
+          handleUndoRoutineDelete={handleUndoRoutineDelete}
 
-        {showSuccessToast && (
-          <Toast
-            message={successToastMessage}
-            onUndo={lastDeleteAction ? handleUndoRoutineDelete : null}
-            variant="success"
-          />
-        )}
+          // Delete Confirm Modal (Todo)
+          showDeleteConfirmModal={showDeleteConfirmModal}
+          todoToDelete={todoToDelete}
+          setShowDeleteConfirmModal={setShowDeleteConfirmModal}
+          deleteThisOnly={deleteThisOnly}
+          deleteFromNow={deleteFromNow}
+          deleteAll={deleteAll}
 
-        {showDeleteConfirmModal && todoToDelete && (
-          <DeleteConfirmModal
-            todo={todoToDelete}
-            onClose={() => setShowDeleteConfirmModal(false)}
-            onDeleteThisOnly={deleteThisOnly}
-            onDeleteFromNow={deleteFromNow}
-            onDeleteAll={deleteAll}
-          />
-        )}
+          // Delete Confirm Modal (Routine)
+          showRoutineDeleteModal={showRoutineDeleteModal}
+          routineToDelete={routineToDelete}
+          setShowRoutineDeleteModal={setShowRoutineDeleteModal}
+          deleteRoutineThisOnly={deleteRoutineThisOnly}
+          deleteRoutineFromNow={deleteRoutineFromNow}
+          deleteRoutineAll={deleteRoutineAll}
 
-        {/* 루틴 삭제 확인 모달 */}
-        {showRoutineDeleteModal && routineToDelete && (
-          <DeleteConfirmModal
-            todo={routineToDelete}
-            onClose={() => setShowRoutineDeleteModal(false)}
-            onDeleteThisOnly={deleteRoutineThisOnly}
-            onDeleteFromNow={deleteRoutineFromNow}
-            onDeleteAll={deleteRoutineAll}
-          />
-        )}
+          // Todo History Modal
+          showTodoHistoryModal={showTodoHistoryModal}
+          selectedTodoForModal={selectedTodoForModal}
+          todoHistory={todoHistory}
+          expandedHistoryIds={expandedHistoryIds}
+          toggleHistoryDetail={toggleHistoryDetail}
+          handleCloseTodoHistoryModal={handleCloseTodoHistoryModal}
+          formatDate={formatDate}
+          formatDateOnly={formatDateOnly}
 
-        {/* 투두 히스토리 모달 */}
-        {showTodoHistoryModal && selectedTodoForModal && (() => {
-          const todo = selectedTodoForModal
-          const visibleDates = todo.visible_dates && todo.visible_dates.length > 0 ? todo.visible_dates : [todo.date]
-          const originalDate = visibleDates[0]
-          const carryOverPath = visibleDates.map(date => ({ id: `${todo.id}-${date}`, date }))
-          const historyRecords = todoHistory[todo.id] || []
+          // Todo Routine Setup Modal
+          showTodoRoutineSetupModal={showTodoRoutineSetupModal}
+          routines={routines}
+          routineDaysForModal={routineDaysForModal}
+          isEditingRoutineInModal={isEditingRoutineInModal}
+          routineTimeSlotForModal={routineTimeSlotForModal}
+          handleToggleRoutineDayInModal={handleToggleRoutineDayInModal}
+          setRoutineTimeSlotForModal={setRoutineTimeSlotForModal}
+          setRoutineDaysForModal={setRoutineDaysForModal}
+          setIsEditingRoutineInModal={setIsEditingRoutineInModal}
+          handleCreateRoutineFromTodo={handleCreateRoutineFromTodo}
+          handleCloseTodoRoutineSetupModal={handleCloseTodoRoutineSetupModal}
 
-          return (
-            <div className="modal-overlay" onClick={handleCloseTodoHistoryModal}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h2>📊 투두 히스토리</h2>
-                  <button onClick={handleCloseTodoHistoryModal} className="modal-close-button">✕</button>
-                </div>
-                <div className="modal-body">
-                  <div className="todo-history">
-                    <div className="history-item">
-                      <span className="history-label">생성일:</span>
-                      <span className="history-value">{formatDate(todo.created_at)}</span>
-                    </div>
-                    <div className="history-item">
-                      <span className="history-label">원본 페이지:</span>
-                      <span className="history-value">
-                        {originalDate ? formatDateOnly(new Date(originalDate + 'T00:00:00')) : formatDateOnly(new Date(todo.date + 'T00:00:00'))}
-                      </span>
-                    </div>
-                    {carryOverPath.length > 0 && (
-                      <div className="history-item">
-                        <span className="history-label">이월 경로:</span>
-                        <span className="history-value">
-                          {carryOverPath.map((path, idx) => {
-                            const isCurrentPage = path.date === todo.date
-                            const dateStr = formatDateOnly(new Date(path.date + 'T00:00:00'))
-                            return (
-                              <span key={path.id}>
-                                {idx > 0 && ' → '}
-                                <span style={isCurrentPage ? { fontWeight: 'bold', color: '#4CAF50' } : {}}>
-                                  {dateStr.split('(')[0]}{isCurrentPage ? '(여기)' : ''}
-                                </span>
-                              </span>
-                            )
-                          })}
-                        </span>
-                      </div>
-                    )}
-                    {(() => {
-                      const createdDate = new Date(todo.created_at).toISOString().split('T')[0]
-                      const currentDate = todo.date
-                      if (createdDate !== currentDate && carryOverPath.length === 0) {
-                        return (
-                          <div className="history-item">
-                            <span className="history-label">현재 페이지:</span>
-                            <span className="history-value">{formatDateOnly(new Date(todo.date + 'T00:00:00'))}</span>
-                          </div>
-                        )
-                      }
-                      return null
-                    })()}
-                    {historyRecords.length > 0 && (
-                      <div className="history-changes-list">
-                        <div className="history-changes-header">변경 이력 ({historyRecords.length})</div>
-                        {historyRecords.map((record) => (
-                          <div key={record.id} className="history-record-compact">
-                            <div className="history-record-summary">
-                              <div className="history-change-time">
-                                {formatDate(record.changed_at)}
-                                {record.changed_on_date && (
-                                  <span className="history-page-info"> (페이지: {formatDateOnly(new Date(record.changed_on_date + 'T00:00:00'))})</span>
-                                )}
-                              </div>
-                              <button
-                                className="history-detail-button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  toggleHistoryDetail(record.id)
-                                }}
-                              >
-                                {expandedHistoryIds.includes(record.id) ? '숨기기' : '내용보기'}
-                              </button>
-                            </div>
-                            {expandedHistoryIds.includes(record.id) && (
-                              <div className="history-change">
-                                <div className="history-change-item history-before">
-                                  <span className="change-badge">이전</span>
-                                  <span className="change-text">{record.previous_text}</span>
-                                </div>
-                                <div className="history-change-arrow">→</div>
-                                <div className="history-change-item history-after">
-                                  <span className="change-badge">이후</span>
-                                  <span className="change-text">{record.new_text}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* 루틴 설정 모달 */}
-        {showTodoRoutineSetupModal && selectedTodoForModal && (() => {
-          const todo = selectedTodoForModal
-          const currentRoutine = routines.find(r => r.id === todo.routine_id)
-
-          return (
-            <div className="modal-overlay" onClick={handleCloseTodoRoutineSetupModal}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h2>🔄 루틴 설정</h2>
-                  <button onClick={handleCloseTodoRoutineSetupModal} className="modal-close-button">✕</button>
-                </div>
-                <div className="modal-body">
-                  <div className="routine-setup-inline">
-                    {currentRoutine && !isEditingRoutineInModal ? (
-                      <>
-                        <div className="routine-current-info">
-                          <div className="routine-info-title">설정된 루틴:</div>
-                          <div className="routine-days-display">
-                            {DAYS.filter(day => currentRoutine.days.includes(day.key)).map(day => (
-                              <span key={day.key} className="routine-day-badge">
-                                {day.label}
-                              </span>
-                            ))}
-                          </div>
-                          {currentRoutine.time_slot && (
-                            <div className="routine-time-slot" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                              ⏰ {currentRoutine.time_slot}
-                            </div>
-                          )}
-                        </div>
-                        <div className="routine-setup-actions">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (currentRoutine) {
-                                setRoutineDaysForModal(currentRoutine.days)
-                                setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
-                                setIsEditingRoutineInModal(true)
-                              }
-                            }}
-                            className="routine-confirm-button"
-                          >
-                            수정
-                          </button>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              if (currentRoutine && todo) {
-                                await handleCreateRoutineFromTodo(todo.id, todo.text, [], null, true)
-                                handleCloseTodoRoutineSetupModal()
-                              }
-                            }}
-                            className="routine-remove-button"
-                          >
-                            제거
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="routine-setup-title">
-                          {isEditingRoutineInModal ? '루틴 수정:' : '반복할 요일 선택:'}
-                        </div>
-                        <DaySelector
-                          selectedDays={routineDaysForModal}
-                          onToggle={handleToggleRoutineDayInModal}
-                          variant="inline"
-                        />
-                        <div className="time-slot-selector" style={{ marginTop: '1rem' }}>
-                          <label style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '0.5rem', display: 'block' }}>
-                            ⏰ 시간 (선택사항)
-                          </label>
-                          <AppleTimePicker
-                            value={routineTimeSlotForModal}
-                            onChange={(time) => setRoutineTimeSlotForModal(time)}
-                          />
-                        </div>
-                        <div className="routine-setup-actions">
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              if (todo) {
-                                if (isEditingRoutineInModal && currentRoutine) {
-                                  // 루틴 수정
-                                  await handleCreateRoutineFromTodo(todo.id, todo.text, routineDaysForModal, currentRoutine.id, false, routineTimeSlotForModal)
-                                } else {
-                                  // 새 루틴 생성 (요일 없으면 매일 반복)
-                                  await handleCreateRoutineFromTodo(todo.id, todo.text, routineDaysForModal, null, false, routineTimeSlotForModal)
-                                }
-                                handleCloseTodoRoutineSetupModal()
-                              }
-                            }}
-                            className="routine-confirm-button"
-                          >
-                            확인
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleCloseTodoRoutineSetupModal()
-                            }}
-                            className="routine-cancel-button"
-                          >
-                            취소
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-
-
-
-
-        <RoutineModal
+          // Routine Modal
           showRoutineModal={showRoutineModal}
-          onClose={handleCloseRoutine}
+          handleCloseRoutine={handleCloseRoutine}
           routineInput={routineInput}
           setRoutineInput={setRoutineInput}
           isAddingRoutine={isAddingRoutine}
           selectedDays={selectedDays}
-          onToggleDay={handleToggleDay}
+          handleToggleDay={handleToggleDay}
           selectedTimeSlot={selectedTimeSlot}
           setSelectedTimeSlot={setSelectedTimeSlot}
-          onAddRoutine={handleAddRoutine}
-          routines={routines}
+          handleAddRoutine={handleAddRoutine}
           editingRoutineId={editingRoutineId}
           editingRoutineText={editingRoutineText}
           setEditingRoutineText={setEditingRoutineText}
           editingRoutineDays={editingRoutineDays}
-          onToggleEditDay={handleToggleEditDay}
-          onStartEdit={handleStartEditRoutine}
-          onSaveEdit={handleSaveEditRoutine}
-          onCancelEdit={handleCancelEditRoutine}
-          onDelete={handleDeleteRoutine}
-          onShowHistory={fetchRoutineHistory}
-        />
+          handleToggleEditDay={handleToggleEditDay}
+          handleStartEditRoutine={handleStartEditRoutine}
+          handleSaveEditRoutine={handleSaveEditRoutine}
+          handleCancelEditRoutine={handleCancelEditRoutine}
+          handleDeleteRoutine={handleDeleteRoutine}
+          fetchRoutineHistory={fetchRoutineHistory}
 
-        <RoutineHistoryModal
+          // Routine History Modal
           showRoutineHistory={showRoutineHistory}
-          onClose={handleCloseRoutineHistory}
-          selectedRoutine={selectedRoutineForHistory}
+          handleCloseRoutineHistory={handleCloseRoutineHistory}
+          selectedRoutineForHistory={selectedRoutineForHistory}
           routineHistoryData={routineHistoryData}
-        />
 
-        <MemoModal
-          show={showMemoModal}
-          onClose={() => setShowMemoModal(false)}
-          content={memoContent}
-          setContent={setMemoContent}
-          isSaving={isSavingMemo}
-          placeholder="자유롭게 메모하세요..."
-        />
+          // Memo Modal
+          showMemoModal={showMemoModal}
+          setShowMemoModal={setShowMemoModal}
+          memoContent={memoContent}
+          setMemoContent={setMemoContent}
+          isSavingMemo={isSavingMemo}
 
-        <GanttChartModal
+          // Gantt Chart Modal
           showGanttChart={showGanttChart}
-          onClose={handleCloseGanttChart}
+          handleCloseGanttChart={handleCloseGanttChart}
           ganttData={ganttData}
           ganttPeriod={ganttPeriod}
           setGanttPeriod={setGanttPeriod}
-          formatDateOnly={formatDateOnly}
-        />
 
-        <EncouragementModal
+          // Encouragement Modal
           showEncouragementModal={showEncouragementModal}
-          onClose={() => setShowEncouragementModal(false)}
+          setShowEncouragementModal={setShowEncouragementModal}
           encouragementMessages={encouragementMessages}
           newEncouragementMessage={newEncouragementMessage}
           setNewEncouragementMessage={setNewEncouragementMessage}
-          onAddEncouragementMessage={addEncouragementMessage}
+          addEncouragementMessage={addEncouragementMessage}
           editingEncouragementId={editingEncouragementId}
           editingEncouragementText={editingEncouragementText}
           setEditingEncouragementId={setEditingEncouragementId}
           setEditingEncouragementText={setEditingEncouragementText}
-          onUpdateEncouragementMessage={updateEncouragementMessage}
-          onDeleteEncouragementMessage={deleteEncouragementMessage}
-        />
+          updateEncouragementMessage={updateEncouragementMessage}
+          deleteEncouragementMessage={deleteEncouragementMessage}
 
-        <AddSectionModal
-          isOpen={showAddSectionModal}
-          onClose={() => setShowAddSectionModal(false)}
-          onAddSection={handleAddSection}
-        />
+          // Add Section Modal
+          showAddSectionModal={showAddSectionModal}
+          setShowAddSectionModal={setShowAddSectionModal}
+          handleAddSection={handleAddSection}
 
-        <HiddenSectionsModal
-          show={showHiddenSectionsModal}
-          onClose={() => setShowHiddenSectionsModal(false)}
+          // Hidden Sections Modal
+          showHiddenSectionsModal={showHiddenSectionsModal}
+          setShowHiddenSectionsModal={setShowHiddenSectionsModal}
           hiddenSections={hiddenSections}
           sectionOrder={sectionOrder}
           sectionTitles={sectionTitles}
           customSections={customSections}
-          onShowSection={handleShowSection}
+          handleShowSection={handleShowSection}
         />
       </div>
     </div>
