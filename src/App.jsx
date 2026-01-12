@@ -33,25 +33,19 @@ import SortableTodoItem from './components/Todo/SortableTodoItem'
 import RoutineModal from './components/Routine/RoutineModal'
 import RoutineHistoryModal from './components/Routine/RoutineHistoryModal'
 import MemoSection from './components/Memo/MemoSection'
-import KeyThoughtsSection from './components/KeyThoughts/KeyThoughtsSection'
-import KeyThoughtsViewerPage from './components/KeyThoughts/KeyThoughtsViewerPage'
-import DummyModal from './components/Modals/DummyModal'
 import GanttChartModal from './components/Modals/GanttChartModal'
 import EncouragementModal from './components/Modals/EncouragementModal'
-import KeyThoughtsHistoryModal from './components/Modals/KeyThoughtsHistoryModal'
 import AddSectionModal from './components/Modals/AddSectionModal'
 import HiddenSectionsModal from './components/Modals/HiddenSectionsModal'
 import DeleteConfirmModal from './components/Modals/DeleteConfirmModal'
 import GoogleAuthButton from './components/Auth/GoogleAuthButton'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
-import { useKeyThoughtBlocks } from './hooks/useKeyThoughtBlocks'
 import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
 import { useTodoHistory } from './hooks/useTodoHistory'
 import { useTodoRoutineSetup } from './hooks/useTodoRoutineSetup'
 import { useTodoCarryOver } from './hooks/useTodoCarryOver'
-import { useDummyData } from './hooks/useDummyData'
 import { useEncouragement } from './hooks/useEncouragement'
 import { useGanttChart } from './hooks/useGanttChart'
 import './App.css'
@@ -64,7 +58,6 @@ function App() {
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [showSidebar, setShowSidebar] = useState(false)
-  const [currentPage, setCurrentPage] = useState('home') // 'home' | 'keyThoughtsViewer'
   const recentlyEditedIds = useRef(new Set())
 
   // DnD sensors 설정 (드래그 핸들 방식)
@@ -233,16 +226,6 @@ function App() {
     fetchGanttData,
   } = useGanttChart(supabase)
 
-  const {
-    dummySessions,
-    showDummyModal,
-    setShowDummyModal,
-    handleCreateDummyData,
-    handleDeleteDummySession,
-    handleDeleteAllDummies,
-    handleRemoveDuplicates,
-  } = useDummyData(session, supabase, fetchTodos)
-
   const [showMemoModal, setShowMemoModal] = useState(false)
 
   const {
@@ -251,31 +234,6 @@ function App() {
     memoTextareaRef,
     fetchMemoContent,
   } = useMemoHook(session)
-
-  // 주요 생각정리 (key_thought_blocks 테이블 사용)
-  const {
-    blocks: keyThoughtsBlocks,
-    setBlocks: setKeyThoughtsBlocks,
-    loading: loadingKeyThoughts,
-    isSaving: isSavingKeyThoughts,
-    lastSavedBlocksRef: lastSavedKeyThoughtsRef,
-    focusedBlockId,
-    setFocusedBlockId,
-    keyThoughtsHistory,
-    setKeyThoughtsHistory,
-    showKeyThoughtsHistory,
-    setShowKeyThoughtsHistory,
-    fetchBlocks: fetchKeyThoughtsContent,
-    saveAllBlocks: handleSaveKeyThoughts,
-    cleanupOldHistory,
-    fetchKeyThoughtsHistory,
-    restoreKeyThoughtsVersion,
-    normalizeBlocks,
-    createBlock,
-    updateBlock,
-    deleteBlock,
-    moveBlock,
-  } = useKeyThoughtBlocks(session)
 
   const {
     encouragementMessages,
@@ -367,7 +325,6 @@ function App() {
     normal: '📝 일반 투두',
     routine: '🔄 루틴 투두',
     memo: '📋 메모',
-    'key-thoughts': '💡 주요 생각정리'
   })
 
   // 사용자 정의 섹션 관리
@@ -775,7 +732,6 @@ function App() {
     if (!session) return
     fetchEncouragementMessages()
     fetchMemoContent()
-    fetchKeyThoughtsContent()
     fetchRoutines()
     fetchSectionOrder()
     fetchSectionTitles()
@@ -1187,18 +1143,6 @@ function App() {
   const authScreen = GoogleAuthButton({ authLoading, session, handleGoogleLogin })
   if (authScreen) return authScreen
 
-  // 주요 생각정리 뷰어 페이지
-  if (currentPage === 'keyThoughtsViewer') {
-    return (
-      <KeyThoughtsViewerPage
-        blocks={keyThoughtsBlocks}
-        setBlocks={setKeyThoughtsBlocks}
-        onSave={handleSaveKeyThoughts}
-        onClose={() => setCurrentPage('home')}
-      />
-    )
-  }
-
   return (
     <div className={`app ${isDraggingAny ? 'dragging-active' : ''}`}>
       <Sidebar
@@ -1209,15 +1153,8 @@ function App() {
         setViewMode={setViewMode}
         onOpenRoutine={handleOpenRoutine}
         onOpenMemo={handleOpenMemo}
-        onScrollToKeyThoughts={() => {
-          const keyThoughtsSection = document.querySelector('.key-thoughts-section')
-          if (keyThoughtsSection) {
-            keyThoughtsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        }}
         onOpenGanttChart={handleOpenGanttChart}
         onOpenEncouragementModal={() => setShowEncouragementModal(true)}
-        onOpenDummyModal={() => setShowDummyModal(true)}
         onOpenAddSection={() => setShowAddSectionModal(true)}
         onOpenHiddenSections={() => setShowHiddenSectionsModal(true)}
         onLogout={handleLogout}
@@ -1519,41 +1456,6 @@ function App() {
                             </SortableContext>
                           )}
                               </TodoSection>
-                            </div>
-                          )
-                        } else if (sectionId === 'key-thoughts') {
-                          // 주요 생각정리 섹션 설정 메뉴 (뷰어, 히스토리 버튼 추가)
-                          const keyThoughtsSettingsMenuItems = [
-                            ...baseSettingsMenuItems,
-                            {
-                              icon: '📖',
-                              label: '뷰어',
-                              onClick: () => setCurrentPage('keyThoughtsViewer')
-                            },
-                            {
-                              icon: '🕐',
-                              label: '히스토리',
-                              onClick: () => {
-                                fetchKeyThoughtsHistory()
-                                setShowKeyThoughtsHistory(true)
-                              }
-                            }
-                          ]
-
-                          return (
-                            <div key="key-thoughts">
-                              <KeyThoughtsSection
-                                blocks={keyThoughtsBlocks}
-                                setBlocks={setKeyThoughtsBlocks}
-                                focusedBlockId={focusedBlockId}
-                                setFocusedBlockId={setFocusedBlockId}
-                                onOpenViewer={() => setCurrentPage('keyThoughtsViewer')}
-                                onShowHistory={() => {
-                                  fetchKeyThoughtsHistory()
-                                  setShowKeyThoughtsHistory(true)
-                                }}
-                                settingsMenuItems={keyThoughtsSettingsMenuItems}
-                              />
                             </div>
                           )
                         } else {
@@ -2006,17 +1908,6 @@ function App() {
           routineHistoryData={routineHistoryData}
         />
 
-        <DummyModal
-          showDummyModal={showDummyModal}
-          onClose={() => setShowDummyModal(false)}
-          onCreateDummyData={handleCreateDummyData}
-          onRemoveDuplicates={handleRemoveDuplicates}
-          dummySessions={dummySessions}
-          onDeleteDummySession={handleDeleteDummySession}
-          onDeleteAllDummies={handleDeleteAllDummies}
-          formatDate={formatDate}
-        />
-
         <GanttChartModal
           showGanttChart={showGanttChart}
           onClose={handleCloseGanttChart}
@@ -2055,13 +1946,6 @@ function App() {
           sectionTitles={sectionTitles}
           customSections={customSections}
           onShowSection={handleShowSection}
-        />
-
-        <KeyThoughtsHistoryModal
-          showKeyThoughtsHistory={showKeyThoughtsHistory}
-          onClose={() => setShowKeyThoughtsHistory(false)}
-          keyThoughtsHistory={keyThoughtsHistory}
-          onRestoreVersion={restoreKeyThoughtsVersion}
         />
       </div>
     </div>

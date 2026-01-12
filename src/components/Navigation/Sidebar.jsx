@@ -7,10 +7,8 @@ function Sidebar({
   setViewMode,
   onOpenRoutine,
   onOpenMemo,
-  onScrollToKeyThoughts,
   onOpenGanttChart,
   onOpenEncouragementModal,
-  onOpenDummyModal,
   onOpenAddSection,
   onOpenHiddenSections,
   onLogout
@@ -128,16 +126,6 @@ function Sidebar({
           <button
             className="sidebar-menu-item"
             onClick={() => {
-              onScrollToKeyThoughts()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">💡</span>
-            <span>주요 생각정리</span>
-          </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
               onOpenGanttChart()
               setShowSidebar(false)
             }}
@@ -155,17 +143,6 @@ function Sidebar({
             <span className="sidebar-icon">💬</span>
             <span>격려 문구 관리</span>
           </button>
-          <button
-            className="sidebar-menu-item"
-            onClick={() => {
-              onOpenDummyModal()
-              setShowSidebar(false)
-            }}
-          >
-            <span className="sidebar-icon">🧪</span>
-            <span>더미 데이터 관리</span>
-          </button>
-
           {/* 로그아웃 버튼 */}
           <button
             className="sidebar-menu-item"

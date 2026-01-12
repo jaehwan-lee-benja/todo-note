@@ -10,7 +10,7 @@ import { supabase } from '../supabaseClient'
  * - 순서 수정 모드 토글
  */
 export function useSectionOrder(session) {
-  const [sectionOrder, setSectionOrder] = useState(['memo', 'routine', 'normal', 'key-thoughts'])
+  const [sectionOrder, setSectionOrder] = useState(['memo', 'routine', 'normal'])
   const [isReorderMode, setIsReorderMode] = useState(false)
 
   // 섹션 순서 불러오기
