@@ -10,9 +10,12 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
   // 타임라인 드롭 핸들러
   const handleTimelineDrop = async (todoId, hour) => {
-    // 해당 시간대에 이미 있는 투두들의 분 값 확인
+    const dateStr = formatDateForDB(selectedDate)
+
+    // 해당 시간대에 이미 있는 투두들의 분 값 확인 (같은 날짜의 투두만)
     const existingTodos = todos.filter(t => {
       if (!t.scheduled_time) return false
+      if (t.scheduled_date !== dateStr) return false
       const h = parseInt(t.scheduled_time.split(':')[0], 10)
       return h === hour
     })
@@ -28,18 +31,34 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
     const scheduledTime = `${hour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
 
-    // 로컬 상태 업데이트
+    // 현재 투두 찾기 (히스토리 업데이트용)
+    const currentTodo = todos.find(t => t.id === todoId)
+    const currentHistory = currentTodo?.timeline_history || []
+
+    // 타임라인 히스토리에 새 기록 추가
+    const newHistoryEntry = {
+      scheduled_date: dateStr,
+      scheduled_time: scheduledTime,
+      assigned_at: new Date().toISOString()
+    }
+    const updatedHistory = [...currentHistory, newHistoryEntry]
+
+    // 로컬 상태 업데이트 (scheduled_date, timeline_history도 함께 저장)
     setTodos(prev => prev.map(todo =>
       todo.id === todoId
-        ? { ...todo, scheduled_time: scheduledTime }
+        ? { ...todo, scheduled_time: scheduledTime, scheduled_date: dateStr, timeline_history: updatedHistory }
         : todo
     ))
 
-    // DB 업데이트
+    // DB 업데이트 (scheduled_date, timeline_history도 함께 저장)
     try {
       await supabase
         .from('todos')
-        .update({ scheduled_time: scheduledTime })
+        .update({
+          scheduled_time: scheduledTime,
+          scheduled_date: dateStr,
+          timeline_history: updatedHistory
+        })
         .eq('id', todoId)
     } catch (error) {
       console.error('타임라인 배치 오류:', error.message)
@@ -48,18 +67,18 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
 
   // 타임라인에서 제거 핸들러
   const handleRemoveFromTimeline = async (todoId) => {
-    // 로컬 상태 업데이트
+    // 로컬 상태 업데이트 (scheduled_date도 함께 제거)
     setTodos(prev => prev.map(todo =>
       todo.id === todoId
-        ? { ...todo, scheduled_time: null }
+        ? { ...todo, scheduled_time: null, scheduled_date: null }
         : todo
     ))
 
-    // DB 업데이트
+    // DB 업데이트 (scheduled_date도 함께 제거)
     try {
       await supabase
         .from('todos')
-        .update({ scheduled_time: null })
+        .update({ scheduled_time: null, scheduled_date: null })
         .eq('id', todoId)
     } catch (error) {
       console.error('타임라인 제거 오류:', error.message)

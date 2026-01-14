@@ -320,10 +320,10 @@ function App() {
     return saved || 'horizontal' // 기본값: horizontal
   })
 
-  // 섹션 제목 관리
+  // 섹션 제목 관리 (아이콘은 별도 관리)
   const [sectionTitles, setSectionTitles] = useState({
-    normal: '📝 일반 투두',
-    routine: '🔄 루틴 투두',
+    normal: '일반 투두',
+    routine: '루틴 투두',
   })
 
   // 사용자 정의 섹션 관리
@@ -335,14 +335,16 @@ function App() {
   // 섹션 순서 관리
   const sectionOrderHook = useSectionOrder(session)
   const {
-    sectionOrder, setSectionOrder,
+    sectionOrder, setSectionOrder, sectionIcons,
     isReorderMode, setIsReorderMode,
     fetchSectionOrder, saveSectionOrder, moveSectionLeft, moveSectionRight,
     handleSectionDragEnd, handleSectionsContainerDoubleClick,
+    changeSectionIcon, getSectionIcon,
   } = sectionOrderHook
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0) // 모바일 섹션 인덱스
   const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
+  const timelineSidebarRef = useRef(null) // 타임라인 사이드바 ref (지금으로 이동 기능)
 
   // 숨긴 섹션 관리
   const [hiddenSections, setHiddenSections] = useState([])
@@ -1079,8 +1081,6 @@ function App() {
           onOpenMemo={() => setShowMemoModal(true)}
         />
 
-        <div className="content-scrollable" ref={contentScrollableRef}>
-
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -1094,6 +1094,40 @@ function App() {
             },
           }}
         >
+        {/* PC 버전: 타임라인 사이드바 (섹션과 별도로 왼쪽 고정) */}
+        {viewMode === 'horizontal' && !hiddenSections.includes('timeline') && (
+          <div className="timeline-sidebar">
+            <SectionHeader
+              title="타임라인"
+              icon={getSectionIcon('timeline')}
+              sectionId="timeline"
+              onIconChange={changeSectionIcon}
+              customActions={
+                <button
+                  className="section-action-button scroll-to-now-button"
+                  onClick={() => timelineSidebarRef.current?.scrollToNow()}
+                  title="지금으로 이동"
+                >
+                  ◉
+                </button>
+              }
+            />
+            <div className="timeline-content">
+              <TimelineView
+                ref={timelineSidebarRef}
+                startHour={0}
+                endHour={24}
+                scheduledTodos={todos.filter(t => t.scheduled_time && !t.parent_id && t.scheduled_date === formatDateForDB(selectedDate))}
+                onToggle={handleToggleTodo}
+                onRemoveFromTimeline={handleRemoveFromTimeline}
+                onMoveUpInTimeline={handleMoveUpInTimeline}
+                onMoveDownInTimeline={handleMoveDownInTimeline}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="content-scrollable" ref={contentScrollableRef}>
           {/* 섹션 간 드래그 앤 드롭을 위한 전역 SortableContext는 내부에서 allTodoIds로 생성 */}
           <div
             ref={sectionsContainerRef}
@@ -1137,6 +1171,7 @@ function App() {
                   >
                       {sectionOrder
                         .filter(sectionId => !hiddenSections.includes(sectionId)) // 숨긴 섹션 제외
+                        .filter(sectionId => !(viewMode === 'horizontal' && sectionId === 'timeline')) // PC에서 타임라인은 사이드바로 분리
                         .map((sectionId, sectionIndex) => {
                         // 섹션 순서 변경을 위한 정보 계산
                         const filteredSectionOrder = sectionOrder.filter(id => !hiddenSections.includes(id))
@@ -1167,14 +1202,17 @@ function App() {
                           return (
                             <div key="timeline" className="timeline-section section-block">
                               <SectionHeader
-                                title="⏰ 타임라인"
+                                title="타임라인"
+                                icon={getSectionIcon('timeline')}
+                                sectionId="timeline"
+                                onIconChange={changeSectionIcon}
                                 settingsMenuItems={baseSettingsMenuItems}
                               />
                               <div className="timeline-content">
                                 <TimelineView
-                                  startHour={6}
+                                  startHour={0}
                                   endHour={24}
-                                  scheduledTodos={todos.filter(t => t.scheduled_time && !t.parent_id)}
+                                  scheduledTodos={todos.filter(t => t.scheduled_time && !t.parent_id && t.scheduled_date === formatDateForDB(selectedDate))}
                                   onToggle={handleToggleTodo}
                                   onRemoveFromTimeline={handleRemoveFromTimeline}
                                   onMoveUpInTimeline={handleMoveUpInTimeline}
@@ -1187,7 +1225,10 @@ function App() {
                           return (
                             <div key="routine">
                               <TodoSection
-                                title="📌 루틴"
+                                title="루틴"
+                                icon={getSectionIcon('routine')}
+                                sectionId="routine"
+                                onIconChange={changeSectionIcon}
                                 className="routine-section section-block"
                                 inputValue={routineInputValue}
                                 setInputValue={setRoutineInputValue}
@@ -1331,6 +1372,9 @@ function App() {
                             <div key="normal">
                               <TodoSection
                                 title={sectionTitles.normal}
+                                icon={getSectionIcon('normal')}
+                                sectionId="normal"
+                                onIconChange={changeSectionIcon}
                                 className="normal-section section-block"
                                 inputValue={normalInputValue}
                                 setInputValue={setNormalInputValue}
@@ -1429,7 +1473,16 @@ function App() {
                           return (
                             <div key={sectionId}>
                               <TodoSection
-                                title={`${customSection.icon} ${customSection.name}`}
+                                title={customSection.name}
+                                icon={customSection.icon}
+                                sectionId={sectionId}
+                                onIconChange={(id, newIcon) => {
+                                  const updatedSections = customSections.map(s =>
+                                    s.id === id ? { ...s, icon: newIcon } : s
+                                  )
+                                  setCustomSections(updatedSections)
+                                  saveCustomSections(updatedSections)
+                                }}
                                 className="custom-section section-block"
                                 inputValue={customSectionInputs[sectionId] || ''}
                                 setInputValue={(value) => setCustomSectionInputs(prev => ({ ...prev, [sectionId]: value }))}
@@ -1500,7 +1553,7 @@ function App() {
               })()}
             </div>
           </div>
-          <DragOverlay>
+          <DragOverlay zIndex={10000}>
             {activeTodoId ? (() => {
               const activeTodo = todos.find(t => t.id === activeTodoId)
               if (!activeTodo) return null
@@ -1534,7 +1587,6 @@ function App() {
               )
             })() : null}
           </DragOverlay>
-        </DndContext>
 
         <SectionPagination
           viewMode={viewMode}
@@ -1543,6 +1595,7 @@ function App() {
           visibleSectionCount={sectionOrder.filter(id => !hiddenSections.includes(id)).length}
         />
         </div>
+        </DndContext>
 
         <AppModals
           // Toast

@@ -3,6 +3,9 @@ import SectionHeader from '../Common/SectionHeader'
 // Todo 섹션 컴포넌트 (헤더 + 입력 필드 + 자식 컴포넌트)
 function TodoSection({
   title,
+  icon,
+  sectionId,
+  onIconChange,
   className,
   inputValue,
   setInputValue,
@@ -19,6 +22,9 @@ function TodoSection({
     <div className={className}>
       <SectionHeader
         title={title}
+        icon={icon}
+        sectionId={sectionId}
+        onIconChange={onIconChange}
         editable={editable}
         onTitleChange={onTitleChange}
         settingsMenuItems={settingsMenuItems}

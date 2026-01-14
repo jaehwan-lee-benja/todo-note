@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
-import { settingsService, SETTING_KEYS } from '../services/settingsService'
+import { settingsService, SETTING_KEYS, DEFAULT_SECTION_ICONS, SECTION_EMOJI_OPTIONS } from '../services/settingsService'
 
 /**
  * 섹션 순서 관리 커스텀 훅
@@ -8,15 +8,17 @@ import { settingsService, SETTING_KEYS } from '../services/settingsService'
  * - 섹션 이동 (왼쪽/오른쪽)
  * - 드래그 앤 드롭으로 섹션 순서 변경
  * - 순서 수정 모드 토글
+ * - 섹션 아이콘 관리
  */
 // 기본 섹션 목록 (새 섹션 추가 시 여기에 추가)
 const DEFAULT_SECTIONS = ['timeline', 'routine', 'normal']
 
 export function useSectionOrder(session) {
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS)
+  const [sectionIcons, setSectionIcons] = useState(DEFAULT_SECTION_ICONS)
   const [isReorderMode, setIsReorderMode] = useState(false)
 
-  // 섹션 순서 불러오기
+  // 섹션 순서 및 아이콘 불러오기
   const fetchSectionOrder = async () => {
     if (!session?.user?.id) return
 
@@ -32,12 +34,38 @@ export function useSectionOrder(session) {
         setSectionOrder(order)
       }
     }
+
+    // 아이콘 불러오기
+    const icons = await settingsService.get(SETTING_KEYS.SECTION_ICONS)
+    if (icons) {
+      setSectionIcons({ ...DEFAULT_SECTION_ICONS, ...icons })
+    }
   }
 
   // 섹션 순서 저장하기
   const saveSectionOrder = async (newOrder) => {
     if (!session?.user?.id) return
     await settingsService.set(SETTING_KEYS.SECTION_ORDER, newOrder, session.user.id)
+  }
+
+  // 섹션 아이콘 변경하기
+  const changeSectionIcon = async (sectionId, newIcon) => {
+    if (!session?.user?.id) return
+
+    const updatedIcons = { ...sectionIcons, [sectionId]: newIcon }
+    setSectionIcons(updatedIcons)
+    await settingsService.set(SETTING_KEYS.SECTION_ICONS, updatedIcons, session.user.id)
+  }
+
+  // 랜덤 아이콘 선택 (새 섹션 생성 시 사용)
+  const getRandomIcon = () => {
+    const randomIndex = Math.floor(Math.random() * SECTION_EMOJI_OPTIONS.length)
+    return SECTION_EMOJI_OPTIONS[randomIndex]
+  }
+
+  // 섹션 아이콘 가져오기
+  const getSectionIcon = (sectionId) => {
+    return sectionIcons[sectionId] || DEFAULT_SECTION_ICONS[sectionId] || '📝'
   }
 
   // 섹션 왼쪽으로 이동
@@ -98,10 +126,14 @@ export function useSectionOrder(session) {
   return {
     sectionOrder,
     setSectionOrder,
+    sectionIcons,
     isReorderMode,
     setIsReorderMode,
     fetchSectionOrder,
     saveSectionOrder,
+    changeSectionIcon,
+    getSectionIcon,
+    getRandomIcon,
     moveSectionLeft,
     moveSectionRight,
     handleSectionDragEnd,

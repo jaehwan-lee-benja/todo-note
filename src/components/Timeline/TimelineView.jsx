@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -124,6 +124,16 @@ function TimelineTodoItem({
       <span className={`timeline-todo-text ${todo.completed ? 'completed' : ''}`}>
         {todo.text}
       </span>
+      <button
+        className="timeline-todo-remove-button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemoveFromTimeline(todo.id)
+        }}
+        title="타임라인에서 제거"
+      >
+        ✕
+      </button>
     </div>
   )
 }
@@ -194,7 +204,7 @@ function DroppableTimeSlot({
 /**
  * 타임라인 뷰 컴포넌트
  */
-function TimelineView({
+const TimelineView = forwardRef(function TimelineView({
   startHour = 6,
   endHour = 24,
   scheduledTodos = [],
@@ -202,10 +212,30 @@ function TimelineView({
   onRemoveFromTimeline,
   onMoveUpInTimeline,
   onMoveDownInTimeline
-}) {
+}, ref) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const timelineRef = useRef(null)
   const currentTimeRef = useRef(null)
+
+  // 현재 시간으로 스크롤하는 함수
+  const scrollToNow = () => {
+    if (currentTimeRef.current && timelineRef.current) {
+      const container = timelineRef.current
+      const indicator = currentTimeRef.current
+      const containerHeight = container.clientHeight
+      const indicatorTop = indicator.offsetTop
+
+      container.scrollTo({
+        top: indicatorTop - containerHeight / 2,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  // ref를 통해 scrollToNow 메서드 노출
+  useImperativeHandle(ref, () => ({
+    scrollToNow
+  }))
 
   // 1분마다 현재 시간 업데이트
   useEffect(() => {
@@ -216,7 +246,7 @@ function TimelineView({
     return () => clearInterval(timer)
   }, [])
 
-  // 현재 시간 위치로 스크롤
+  // 현재 시간 위치로 스크롤 (초기 로딩 시)
   useEffect(() => {
     if (currentTimeRef.current && timelineRef.current) {
       const container = timelineRef.current
@@ -298,6 +328,6 @@ function TimelineView({
       </div>
     </div>
   )
-}
+})
 
 export default TimelineView

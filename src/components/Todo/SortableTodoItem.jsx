@@ -146,7 +146,7 @@ function SortableTodoItem({
       )}
       <div className="todo-item-wrapper">
         <div
-          className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''}`}
+          className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''} ${todo.scheduled_time && todo.scheduled_date === currentPageDate ? 'has-timeline' : ''}`}
         >
           <input
             type="checkbox"

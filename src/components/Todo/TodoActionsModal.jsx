@@ -193,6 +193,15 @@ function TodoActionsModal({
               <span className="action-icon">&#x1F4CB;</span>
               <span>히스토리</span>
             </button>
+            {(todo.timeline_history?.length > 0 || todo.scheduled_time) && (
+              <button
+                className={`action-menu-item ${selectedAction === 'timeline-history' ? 'active' : ''}`}
+                onClick={() => setSelectedAction('timeline-history')}
+              >
+                <span className="action-icon">&#x23F0;</span>
+                <span>타임라인</span>
+              </button>
+            )}
             {todo.routine_id && currentRoutine && (
               <button
                 className={`action-menu-item ${selectedAction === 'routine-stats' ? 'active' : ''}`}
@@ -470,6 +479,52 @@ function TodoActionsModal({
                 </div>
               )
             })()}
+
+            {/* 타임라인 기록 섹션 */}
+            {selectedAction === 'timeline-history' && (
+              <div className="actions-detail-content">
+                <h4>&#x23F0; 타임라인 기록</h4>
+                <div className="todo-history">
+                  {/* 현재 배치 정보 */}
+                  {todo.scheduled_time && todo.scheduled_date && (
+                    <div className="history-item" style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px' }}>
+                      <span className="history-label">현재 배치:</span>
+                      <span className="history-value">
+                        <span style={{ color: '#60a5fa' }}>{formatDateOnly(new Date(todo.scheduled_date + 'T00:00:00'))}</span>
+                        <span style={{ marginLeft: '0.5rem', color: '#fbbf24', fontWeight: '600' }}>{todo.scheduled_time}</span>
+                      </span>
+                    </div>
+                  )}
+                  {/* 배치 히스토리 */}
+                  {todo.timeline_history && todo.timeline_history.length > 0 ? (
+                    <div className="history-changes-list">
+                      <div className="history-changes-header">배치 기록 ({todo.timeline_history.length})</div>
+                      {todo.timeline_history.slice().reverse().map((record, index) => {
+                        const schedDate = new Date(record.scheduled_date + 'T00:00:00')
+                        const dateStr = formatDateOnly(schedDate)
+                        return (
+                          <div key={index} className="history-record-compact">
+                            <div className="history-record-summary">
+                              <div className="history-change-time">
+                                <span style={{ color: '#60a5fa' }}>{dateStr}</span>
+                                <span style={{ marginLeft: '0.5rem', color: '#fbbf24' }}>{record.scheduled_time}</span>
+                              </div>
+                              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+                                {formatDate(record.assigned_at)}에 배치
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.5)' }}>
+                      타임라인 배치 기록이 없습니다.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 루틴 기록 섹션 */}
             {selectedAction === 'routine-stats' && currentRoutine && (() => {

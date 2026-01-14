@@ -57,26 +57,6 @@ function AddSectionModal({ isOpen, onClose, onAddSection }) {
                 </button>
               ))}
             </div>
-            <div className="custom-emoji-input">
-              <input
-                type="text"
-                value={sectionIcon}
-                onChange={(e) => {
-                  // Use Array.from to properly handle multi-byte UTF-8 characters and emojis
-                  const graphemes = Array.from(e.target.value)
-                  setSectionIcon(graphemes.slice(0, 2).join(''))
-                }}
-                placeholder="직접 입력"
-                className="emoji-input"
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>미리보기</label>
-            <div className="section-preview">
-              {sectionIcon} {sectionName || '섹션 이름'}
-            </div>
           </div>
 
           <div className="modal-actions">

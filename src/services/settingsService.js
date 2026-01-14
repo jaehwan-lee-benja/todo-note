@@ -126,6 +126,22 @@ export const settingsService = {
 export const SETTING_KEYS = {
   SECTION_ORDER: 'section_order',
   SECTION_TITLES: 'section_titles',
+  SECTION_ICONS: 'section_icons',
   CUSTOM_SECTIONS: 'custom_sections',
   HIDDEN_SECTIONS: 'hidden_sections',
 }
+
+// 기본 섹션 아이콘
+export const DEFAULT_SECTION_ICONS = {
+  timeline: '⏰',
+  routine: '📌',
+  normal: '✅',
+}
+
+// 선택 가능한 이모지 목록
+export const SECTION_EMOJI_OPTIONS = [
+  '⏰', '📌', '✅', '📝', '🎯', '💡', '🔥', '⭐',
+  '💪', '🚀', '📅', '🗓️', '📋', '📊', '🎨', '💼',
+  '🏠', '🌟', '✨', '💎', '🔔', '📢', '🎵', '🎮',
+  '📚', '✏️', '🖊️', '📎', '🔗', '💻', '📱', '🌈',
+]
