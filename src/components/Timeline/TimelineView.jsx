@@ -149,7 +149,8 @@ function DroppableTimeSlot({
   onToggle,
   onRemoveFromTimeline,
   onMoveUpInTimeline,
-  onMoveDownInTimeline
+  onMoveDownInTimeline,
+  onDoubleClick
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: `timeline-${hour}`,
@@ -158,6 +159,12 @@ function DroppableTimeSlot({
       hour: hour
     }
   })
+
+  const handleDoubleClick = (e) => {
+    // 투두 아이템 클릭이 아닌 빈 공간 더블클릭만 처리
+    if (e.target.closest('.timeline-scheduled-todo')) return
+    onDoubleClick?.(hour)
+  }
 
   // 이 시간대에 배치된 투두들 (분 값으로 정렬)
   const todosAtThisHour = scheduledTodos
@@ -176,6 +183,7 @@ function DroppableTimeSlot({
     <div
       ref={setNodeRef}
       className={`timeline-hour-slot ${isOver ? 'timeline-drop-active' : ''}`}
+      onDoubleClick={handleDoubleClick}
     >
       <div className="timeline-hour-label">
         {hour === 24 ? '00:00' : `${hour.toString().padStart(2, '0')}:00`}
@@ -211,11 +219,60 @@ const TimelineView = forwardRef(function TimelineView({
   onToggle,
   onRemoveFromTimeline,
   onMoveUpInTimeline,
-  onMoveDownInTimeline
+  onMoveDownInTimeline,
+  onAddTodo
 }, ref) {
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [showInputAtHour, setShowInputAtHour] = useState(null)
+  const [inputValue, setInputValue] = useState('')
+  const inputRef = useRef(null)
   const timelineRef = useRef(null)
   const currentTimeRef = useRef(null)
+
+  // 더블클릭 시 입력창 표시
+  const handleSlotDoubleClick = (hour) => {
+    setShowInputAtHour(hour)
+    setInputValue('')
+  }
+
+  // 입력창 포커스
+  useEffect(() => {
+    if (showInputAtHour !== null && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [showInputAtHour])
+
+  // 입력 완료 처리
+  const handleInputSubmit = async () => {
+    if (inputValue.trim() && onAddTodo) {
+      await onAddTodo(showInputAtHour, inputValue.trim())
+    }
+    setShowInputAtHour(null)
+    setInputValue('')
+  }
+
+  // ESC 또는 외부 클릭 시 입력창 닫기
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleInputSubmit()
+    } else if (e.key === 'Escape') {
+      setShowInputAtHour(null)
+      setInputValue('')
+    }
+  }
+
+  const handleInputBlur = () => {
+    // 약간의 딜레이를 주어 클릭 이벤트가 먼저 처리되도록
+    setTimeout(() => {
+      if (inputValue.trim()) {
+        handleInputSubmit()
+      } else {
+        setShowInputAtHour(null)
+        setInputValue('')
+      }
+    }, 100)
+  }
 
   // 현재 시간으로 스크롤하는 함수
   const scrollToNow = () => {
@@ -298,17 +355,33 @@ const TimelineView = forwardRef(function TimelineView({
     <div className="timeline-view" ref={timelineRef}>
       <div className="timeline-grid">
         {hours.map((hour) => (
-          <DroppableTimeSlot
-            key={hour}
-            hour={hour}
-            startHour={startHour}
-            endHour={endHour}
-            scheduledTodos={scheduledTodos}
-            onToggle={onToggle}
-            onRemoveFromTimeline={onRemoveFromTimeline}
-            onMoveUpInTimeline={onMoveUpInTimeline}
-            onMoveDownInTimeline={onMoveDownInTimeline}
-          />
+          <React.Fragment key={hour}>
+            <DroppableTimeSlot
+              hour={hour}
+              startHour={startHour}
+              endHour={endHour}
+              scheduledTodos={scheduledTodos}
+              onToggle={onToggle}
+              onRemoveFromTimeline={onRemoveFromTimeline}
+              onMoveUpInTimeline={onMoveUpInTimeline}
+              onMoveDownInTimeline={onMoveDownInTimeline}
+              onDoubleClick={handleSlotDoubleClick}
+            />
+            {showInputAtHour === hour && (
+              <div className="timeline-add-input-container">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  onBlur={handleInputBlur}
+                  placeholder="할 일 입력..."
+                  className="timeline-add-input"
+                />
+              </div>
+            )}
+          </React.Fragment>
         ))}
 
         {/* 현재 시간 인디케이터 */}

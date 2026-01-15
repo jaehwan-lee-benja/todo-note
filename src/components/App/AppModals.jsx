@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { DAYS } from '../../utils/constants'
 import Toast from '../Common/Toast'
 import DaySelector from '../Common/DaySelector'
@@ -24,13 +24,27 @@ function TodoHistoryModalContent({
   formatDateOnly,
   onClose
 }) {
+  const mouseDownOnOverlay = useRef(false)
   const visibleDates = todo.visible_dates && todo.visible_dates.length > 0 ? todo.visible_dates : [todo.date]
   const originalDate = visibleDates[0]
   const carryOverPath = visibleDates.map(date => ({ id: `${todo.id}-${date}`, date }))
   const historyRecords = todoHistory[todo.id] || []
 
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>&#x1F4CA; 투두 히스토리</h2>
@@ -142,10 +156,24 @@ function TodoRoutineSetupModalContent({
   handleCreateRoutineFromTodo,
   onClose
 }) {
+  const mouseDownOnOverlay = useRef(false)
   const currentRoutine = routines.find(r => r.id === todo.routine_id)
 
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>&#x1F504; 루틴 설정</h2>

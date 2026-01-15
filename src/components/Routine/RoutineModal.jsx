@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { DAYS } from '../../utils/constants'
 import AppleTimePicker from '../Common/AppleTimePicker'
 import DaySelector from '../Common/DaySelector'
@@ -25,10 +26,25 @@ function RoutineModal({
   onDelete,
   onShowHistory,
 }) {
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   if (!showRoutineModal) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content routine-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>📌 루틴 관리</h2>

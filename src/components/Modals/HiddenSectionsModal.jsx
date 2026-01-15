@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 
 function HiddenSectionsModal({
   show,
@@ -9,6 +9,21 @@ function HiddenSectionsModal({
   customSections,
   onShowSection,
 }) {
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   if (!show) return null
 
   // 섹션 ID로 제목 가져오기
@@ -28,7 +43,7 @@ function HiddenSectionsModal({
   // 숨긴 섹션이 없는 경우
   if (hiddenSections.length === 0) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
         <div className="modal-content hidden-sections-modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h2>🗂️ 숨긴 섹션 관리</h2>
@@ -43,7 +58,7 @@ function HiddenSectionsModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content hidden-sections-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>🗂️ 숨긴 섹션 관리</h2>

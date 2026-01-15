@@ -4099,9 +4099,13 @@ h1 {
   height: 100%;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
+  scrollbar-width: none;
+  padding-top: 12px;
+}
+
+.timeline-view:hover {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-  padding-top: 12px;
 }
 
 .timeline-view::-webkit-scrollbar {
@@ -4109,13 +4113,20 @@ h1 {
 }
 
 .timeline-view::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: transparent;
   border-radius: 3px;
+  transition: background 0.3s ease;
+}
+
+.timeline-view:hover::-webkit-scrollbar-thumb,
+.timeline-view:active::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .timeline-grid {
   position: relative;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .timeline-hour-slot {
@@ -4152,10 +4163,12 @@ h1 {
 
 .timeline-hour-content {
   flex: 1;
+  min-width: 0;
   height: 100%;
   position: relative;
   padding-left: 12px;
   padding-top: 12px;
+  overflow: hidden;
 }
 
 /* 현재 시간 인디케이터 */
@@ -4176,38 +4189,28 @@ h1 {
   background: #ea4335;
   border-radius: 50%;
   flex-shrink: 0;
-  margin-left: 44px;
-  box-shadow: 0 0 8px rgba(234, 67, 53, 0.5);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 8px rgba(234, 67, 53, 0.5);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow: 0 0 16px rgba(234, 67, 53, 0.8);
-    transform: scale(1.1);
-  }
+  margin-left: 48px;
 }
 
 .timeline-current-time-line {
   flex: 1;
   height: 2px;
   background: #ea4335;
-  box-shadow: 0 0 4px rgba(234, 67, 53, 0.5);
 }
 
 .timeline-current-time-label {
   position: absolute;
-  left: 0;
-  top: -20px;
+  left: 0px;
+  width: 34px;
+  padding: 2px 4px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 0.7rem;
   font-weight: 600;
   color: #ea4335;
+  text-align: center;
+  white-space: nowrap;
   background: rgba(234, 67, 53, 0.15);
-  padding: 2px 6px;
   border-radius: 4px;
 }
 
@@ -4222,6 +4225,34 @@ h1 {
   border-left-width: 2px;
 }
 
+/* 타임라인 투두 추가 입력창 */
+.timeline-add-input-container {
+  padding: 4px 8px 4px 62px;
+  background: rgba(100, 108, 255, 0.1);
+  overflow: hidden;
+}
+
+.timeline-add-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(30, 30, 46, 0.95);
+  border: 2px solid #646cff;
+  border-radius: 6px;
+  color: #f0f0f0;
+  font-size: 0.85rem;
+  outline: none;
+  box-shadow: 0 0 10px rgba(100, 108, 255, 0.3);
+}
+
+.timeline-add-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.timeline-add-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 15px rgba(100, 108, 255, 0.5);
+}
+
 /* 타임라인에 배치된 투두 */
 .timeline-scheduled-todo {
   display: flex;
@@ -4234,6 +4265,16 @@ h1 {
   font-size: 0.85rem;
   gap: 8px;
   transition: all 0.15s ease;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.timeline-todo-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .timeline-scheduled-todo:hover {
@@ -4542,7 +4583,7 @@ h1 {
 .section-action-button.scroll-to-now-button {
   background: transparent;
   border: 1px solid transparent;
-  padding: 0.25rem 0.5rem;
+  padding: 0.35rem 1rem;
   font-size: 1rem;
   line-height: 1;
   color: rgba(100, 108, 255, 0.8);

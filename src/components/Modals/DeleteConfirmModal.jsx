@@ -1,9 +1,23 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import './DeleteConfirmModal.css'
 
 function DeleteConfirmModal({ todo, onClose, onDeleteThisOnly, onDeleteFromNow, onDeleteAll }) {
   const [selectedOption, setSelectedOption] = useState('this-only')
   const [showTooltip, setShowTooltip] = useState(null)
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
 
   const handleConfirm = () => {
     if (selectedOption === 'this-only') {
@@ -38,7 +52,7 @@ function DeleteConfirmModal({ todo, onClose, onDeleteThisOnly, onDeleteFromNow, 
   ]
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content delete-confirm-modal-v2" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>할 일 삭제</h2>

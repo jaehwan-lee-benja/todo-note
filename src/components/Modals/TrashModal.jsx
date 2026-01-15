@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 function TrashModal({
   showTrashModal,
   onClose,
@@ -7,10 +9,25 @@ function TrashModal({
   onPermanentDelete,
   formatDate
 }) {
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   if (!showTrashModal) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content trash-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>🗑️ 휴지통</h2>

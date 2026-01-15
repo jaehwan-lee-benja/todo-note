@@ -10,6 +10,7 @@ function MemoModal({
   placeholder = '자유롭게 메모하세요...'
 }) {
   const textareaRef = useRef(null)
+  const mouseDownOnOverlay = useRef(false)
 
   // textarea 높이 자동 조정
   useEffect(() => {
@@ -39,8 +40,25 @@ function MemoModal({
 
   if (!show) return null
 
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   return (
-    <div className="memo-modal-overlay" onClick={onClose}>
+    <div
+      className="memo-modal-overlay"
+      onMouseDown={handleOverlayMouseDown}
+      onClick={handleOverlayClick}
+    >
       <div className="memo-modal" onClick={(e) => e.stopPropagation()}>
         <div className="memo-modal-header">
           <h3>📋 생각 메모</h3>

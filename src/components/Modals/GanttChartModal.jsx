@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 function GanttChartModal({
   showGanttChart,
   onClose,
@@ -6,10 +8,25 @@ function GanttChartModal({
   setGanttPeriod,
   formatDateOnly
 }) {
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   if (!showGanttChart) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content gantt-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>📊 간트차트 - 투두 현황</h2>

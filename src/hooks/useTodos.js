@@ -678,6 +678,70 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     }
   }
 
+  // 타임라인에서 투두 추가 (더블클릭)
+  const handleAddTodoFromTimeline = async (hour, inputText) => {
+    if (!inputText || inputText.trim() === '') return
+
+    try {
+      // 일반 투두들의 최대 order_index 찾기
+      const normalTodos = todos.filter(t => !t.parent_id && t.section_type === 'normal')
+      const newOrderIndex = normalTodos.length > 0 ? Math.max(...normalTodos.map(t => t.order_index)) + 1 : 1
+
+      const dateStr = formatDateForDB(selectedDate)
+
+      // 해당 시간대에 이미 있는 투두들의 분 값 확인
+      const existingTodos = todos.filter(t => {
+        if (!t.scheduled_time) return false
+        if (t.scheduled_date !== dateStr) return false
+        const h = parseInt(t.scheduled_time.split(':')[0], 10)
+        return h === hour
+      })
+
+      // 다음 분 값 계산
+      let nextMinute = 0
+      if (existingTodos.length > 0) {
+        const maxMinute = Math.max(...existingTodos.map(t =>
+          parseInt(t.scheduled_time.split(':')[1], 10)
+        ))
+        nextMinute = maxMinute + 1
+      }
+
+      const scheduledTime = `${hour.toString().padStart(2, '0')}:${nextMinute.toString().padStart(2, '0')}`
+
+      // 타임라인 히스토리
+      const newHistoryEntry = {
+        scheduled_date: dateStr,
+        scheduled_time: scheduledTime,
+        assigned_at: new Date().toISOString()
+      }
+
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          text: inputText.trim(),
+          completed: false,
+          order_index: newOrderIndex,
+          date: dateStr,
+          visible_dates: [dateStr],
+          hidden_dates: [],
+          section_type: 'normal',
+          scheduled_time: scheduledTime,
+          scheduled_date: dateStr,
+          timeline_history: [newHistoryEntry],
+          user_id: session?.user?.id
+        }])
+        .select()
+
+      if (error) throw error
+
+      setTodos([...todos, data[0]])
+      return data[0]
+    } catch (error) {
+      console.error('타임라인에서 투두 추가 오류:', error.message)
+      return null
+    }
+  }
+
   // 일반 투두 추가
   const handleAddNormalTodo = async () => {
     if (normalInputValue.trim() === '' || isAdding) return
@@ -1042,5 +1106,6 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
     handleRemoveFromTimeline,
     handleMoveUpInTimeline,
     handleMoveDownInTimeline,
+    handleAddTodoFromTimeline,
   }
 }

@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 function EncouragementModal({
   showEncouragementModal,
   onClose,
@@ -12,10 +14,25 @@ function EncouragementModal({
   onUpdateEncouragementMessage,
   onDeleteEncouragementMessage
 }) {
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   if (!showEncouragementModal) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content encouragement-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>💬 격려 문구 관리</h2>

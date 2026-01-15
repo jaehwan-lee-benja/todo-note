@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { formatDateForDB } from '../../utils/dateUtils'
 
 // 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
@@ -12,10 +13,25 @@ function RoutineHistoryModal({
   selectedRoutine,
   routineHistoryData,
 }) {
+  const mouseDownOnOverlay = useRef(false)
+
+  const handleOverlayMouseDown = (e) => {
+    if (e.target === e.currentTarget) {
+      mouseDownOnOverlay.current = true
+    }
+  }
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      onClose()
+    }
+    mouseDownOnOverlay.current = false
+  }
+
   if (!showRoutineHistory || !selectedRoutine) return null
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
       <div className="modal-content routine-history-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>📊 {selectedRoutine.text} 히스토리</h2>

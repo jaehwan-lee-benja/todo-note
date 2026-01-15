@@ -202,6 +202,7 @@ function App() {
     handleRemoveFromTimeline,
     handleMoveUpInTimeline,
     handleMoveDownInTimeline,
+    handleAddTodoFromTimeline,
   } = useTodos(session, supabase, selectedDate, todos, setTodos, routines, setRoutines, selectedTodoForModal, setSelectedTodoForModal)
 
   const handleFocusTodo = (todoId) => {
@@ -1122,6 +1123,7 @@ function App() {
                 onRemoveFromTimeline={handleRemoveFromTimeline}
                 onMoveUpInTimeline={handleMoveUpInTimeline}
                 onMoveDownInTimeline={handleMoveDownInTimeline}
+                onAddTodo={handleAddTodoFromTimeline}
               />
             </div>
           </div>
