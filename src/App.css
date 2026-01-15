@@ -472,6 +472,11 @@ h1 {
   box-sizing: border-box;
 }
 
+/* PC에서는 header-row가 레이아웃에 영향 없음 */
+.header-row {
+  display: contents;
+}
+
 /* Quick 입력창 */
 .quick-input-wrapper {
   flex: 1;
@@ -2709,7 +2714,8 @@ h1 {
   }
 
   .settings-bar {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.5rem;
     margin-bottom: 1rem;
     padding-bottom: 1rem;
@@ -2718,40 +2724,51 @@ h1 {
     position: relative;
   }
 
-  .hamburger-menu {
-    order: 1;
+  /* 모바일 헤더 3줄 구조 */
+  .header-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 0.5rem;
   }
 
-  .date-nav-section {
-    order: 2;
+  .header-row-1 {
+    position: relative;
+  }
+
+  .header-row-1 .hamburger-menu {
+    flex-shrink: 0;
+  }
+
+  .header-row-1 .date-nav-section {
     flex: 1;
-    min-width: 0;
     height: 32px;
     gap: 0.4rem;
     position: static;
     justify-content: flex-end;
   }
 
-  .date-nav-section .date-display-wrapper {
+  .header-row-1 .date-nav-section .date-display-wrapper {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
   }
 
-  .date-nav-section .date-nav-button {
-    position: relative;
-  }
-
-  .encouragement-section {
-    order: 3;
-    width: 100%;
+  .header-row-2 .encouragement-section {
+    flex: 1;
     min-width: 0;
-    justify-content: center;
+    justify-content: flex-start;
     height: 32px;
   }
 
-  .quick-input-wrapper {
-    order: 4;
+  .header-row-2 .header-memo-button {
+    height: 32px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  .header-row-3 .quick-input-wrapper {
     width: 100%;
     max-width: 100%;
   }
@@ -5628,9 +5645,9 @@ h1 {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     padding-top: 2rem;
-    padding-bottom: 80px; /* 네비게이션 점 영역 확보 */
-    padding-left: 40px; /* 첫 섹션 왼쪽 여백 - 옆 섹션 보이게 */
-    padding-right: 40px; /* 마지막 섹션 오른쪽 여백 - 옆 섹션 보이게 */
+    padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)); /* 하단 여백 + 노치 기기 대응 */
+    padding-left: 40px;
+    padding-right: 40px;
     gap: 0.5rem;
   }
 
@@ -5640,8 +5657,8 @@ h1 {
     min-width: calc(100vw - 56px);
     max-width: calc(100vw - 56px);
     flex-shrink: 0;
-    /* 섹션 높이를 고정: 화면 높이 - 헤더 - 네비게이션 점 영역 */
-    max-height: calc(90vh - 120px - 80px);
+    /* 섹션 높이를 70%로 축소: 아래 공간 확보 */
+    max-height: calc(70vh - 120px);
     overflow-y: auto;
     overflow-x: hidden;
     display: flex;

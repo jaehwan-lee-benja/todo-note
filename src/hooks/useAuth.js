@@ -27,11 +27,26 @@ export const useAuth = () => {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 로그인 핸들러
+  // Google 로그인 핸들러
   const handleGoogleLogin = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/todo-note/'
+        }
+      })
+      if (error) throw error
+    } catch (error) {
+      alert('로그인 오류: ' + error.message)
+    }
+  }
+
+  // Apple 로그인 핸들러
+  const handleAppleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
         options: {
           redirectTo: window.location.origin + '/todo-note/'
         }
@@ -56,6 +71,7 @@ export const useAuth = () => {
     session,
     authLoading,
     handleGoogleLogin,
+    handleAppleLogin,
     handleLogout
   }
 }

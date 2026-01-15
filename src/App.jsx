@@ -26,7 +26,7 @@ import SectionHeader from './components/Common/SectionHeader'
 import TimelineView from './components/Timeline/TimelineView'
 import SortableTodoItem from './components/Todo/SortableTodoItem'
 import AppModals from './components/App/AppModals'
-import GoogleAuthButton from './components/Auth/GoogleAuthButton'
+import AuthScreen from './components/Auth/AuthScreen'
 import { useSectionOrder } from './hooks/useSectionOrder'
 import { useMemo as useMemoHook } from './hooks/useMemo'
 import { useRoutines } from './hooks/useRoutines'
@@ -43,7 +43,7 @@ import './App.css'
 
 function App() {
   // 인증 상태
-  const { session, authLoading, handleGoogleLogin, handleLogout } = useAuth()
+  const { session, authLoading, handleGoogleLogin, handleAppleLogin, handleLogout } = useAuth()
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [showSidebar, setShowSidebar] = useState(false)
@@ -346,6 +346,15 @@ function App() {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0) // 모바일 섹션 인덱스
   const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
   const timelineSidebarRef = useRef(null) // 타임라인 사이드바 ref (지금으로 이동 기능)
+  const timelineMobileRef = useRef(null) // 모바일 타임라인 ref
+
+  // 화면 크기 감지 (PC vs 모바일)
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 769)
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 769)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // 숨긴 섹션 관리
   const [hiddenSections, setHiddenSections] = useState([])
@@ -1047,7 +1056,7 @@ function App() {
   }, [isDraggingAny])
 
   // Google 로그인 인증 화면
-  const authScreen = GoogleAuthButton({ authLoading, session, handleGoogleLogin })
+  const authScreen = AuthScreen({ authLoading, session, handleGoogleLogin, handleAppleLogin })
   if (authScreen) return authScreen
 
   return (
@@ -1173,7 +1182,7 @@ function App() {
                   >
                       {sectionOrder
                         .filter(sectionId => !hiddenSections.includes(sectionId)) // 숨긴 섹션 제외
-                        .filter(sectionId => !(viewMode === 'horizontal' && sectionId === 'timeline')) // PC에서 타임라인은 사이드바로 분리
+                        .filter(sectionId => !(isDesktop && viewMode === 'horizontal' && sectionId === 'timeline')) // PC에서만 타임라인은 사이드바로 분리
                         .map((sectionId, sectionIndex) => {
                         // 섹션 순서 변경을 위한 정보 계산
                         const filteredSectionOrder = sectionOrder.filter(id => !hiddenSections.includes(id))
@@ -1209,9 +1218,19 @@ function App() {
                                 sectionId="timeline"
                                 onIconChange={changeSectionIcon}
                                 settingsMenuItems={baseSettingsMenuItems}
+                                customActions={
+                                  <button
+                                    className="section-action-button scroll-to-now-button"
+                                    onClick={() => timelineMobileRef.current?.scrollToNow()}
+                                    title="지금으로 이동"
+                                  >
+                                    ◉
+                                  </button>
+                                }
                               />
                               <div className="timeline-content">
                                 <TimelineView
+                                  ref={timelineMobileRef}
                                   startHour={0}
                                   endHour={24}
                                   scheduledTodos={todos.filter(t => t.scheduled_time && !t.parent_id && t.scheduled_date === formatDateForDB(selectedDate))}
@@ -1219,6 +1238,7 @@ function App() {
                                   onRemoveFromTimeline={handleRemoveFromTimeline}
                                   onMoveUpInTimeline={handleMoveUpInTimeline}
                                   onMoveDownInTimeline={handleMoveDownInTimeline}
+                                  onAddTodo={handleAddTodoFromTimeline}
                                 />
                               </div>
                             </div>
@@ -1594,7 +1614,14 @@ function App() {
           viewMode={viewMode}
           currentSectionIndex={currentSectionIndex}
           sectionsContainerRef={sectionsContainerRef}
-          visibleSectionCount={sectionOrder.filter(id => !hiddenSections.includes(id)).length}
+          visibleSectionCount={
+            // 실제 존재하는 섹션만 카운트
+            sectionOrder
+              .filter(id => !hiddenSections.includes(id))
+              .filter(id => ['timeline', 'routine', 'normal'].includes(id) || customSections.some(s => s.id === id))
+              .filter(id => !(isDesktop && viewMode === 'horizontal' && id === 'timeline'))
+              .length
+          }
         />
         </div>
         </DndContext>
