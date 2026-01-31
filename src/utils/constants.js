@@ -49,6 +49,30 @@ export const DELETE_TYPE = {
   ALL: 'all'                    // 모든 할일 (완전 삭제)
 }
 
+// 반복 타입
+export const REPEAT_TYPE = {
+  NONE: 'none',           // 반복 없음 (일반 투두)
+  DAILY: 'daily',         // 매일
+  WEEKDAYS: 'weekdays',   // 평일만 (월-금)
+  WEEKENDS: 'weekends',   // 주말만 (토-일)
+  WEEKLY: 'weekly',       // 특정 요일 선택
+}
+
+// 반복 타입 라벨
+export const REPEAT_TYPE_LABELS = {
+  [REPEAT_TYPE.NONE]: '반복 없음',
+  [REPEAT_TYPE.DAILY]: '매일',
+  [REPEAT_TYPE.WEEKDAYS]: '평일',
+  [REPEAT_TYPE.WEEKENDS]: '주말',
+  [REPEAT_TYPE.WEEKLY]: '요일 선택',
+}
+
+// 기본 섹션 정보
+export const DEFAULT_SECTIONS = [
+  { name: '타임라인', icon: '⏰', is_system: true, is_default: false },
+  { name: '일반', icon: '✅', is_system: true, is_default: true },
+]
+
 // 기타 상수
 export const AUTO_SAVE_DELAY = 1000 // ms
 export const DEFAULT_HOUR = '09'

@@ -46,6 +46,11 @@ function TodoActionsModal({
 
   const currentRoutine = todo.routine_id ? routines.find(r => r.id === todo.routine_id) : null
 
+  // 새 시스템: repeat_days 우선, 하위 호환으로 routines 테이블도 확인
+  const hasRepeatDays = todo.repeat_days && todo.repeat_days.length > 0
+  const displayDays = hasRepeatDays ? todo.repeat_days : (currentRoutine?.days || [])
+
+
   // 요일 번호를 키로 변환
   const getDayKey = (dayNumber) => {
     const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -60,6 +65,17 @@ function TodoActionsModal({
         : [...prev, dayKey]
     )
   }
+
+  // 모달 열릴 때 루틴 편집 상태 초기화
+  useEffect(() => {
+    if (isOpen) {
+      // 루틴이 설정되어 있으면 VIEW 모드로, 없으면 EDIT 모드로
+      const hasExistingRoutine = (todo.repeat_days && todo.repeat_days.length > 0) || currentRoutine
+      setIsEditingRoutine(!hasExistingRoutine)
+      setRoutineDays(hasExistingRoutine ? (todo.repeat_days || currentRoutine?.days || []) : [])
+      setRoutineTimeSlot(currentRoutine?.time_slot || '')
+    }
+  }, [isOpen, todo.id])
 
   // 히스토리 자동 로드
   useEffect(() => {
@@ -307,18 +323,18 @@ function TodoActionsModal({
               <div className="actions-detail-content">
                 <h4>&#x1F504; 루틴 설정</h4>
                 <div className="routine-setup-inline">
-                  {currentRoutine && !isEditingRoutine ? (
+                  {(hasRepeatDays || currentRoutine) && !isEditingRoutine ? (
                     <>
                       <div className="routine-current-info">
-                        <div className="routine-info-title">설정된 루틴:</div>
+                        <div className="routine-info-title">설정된 반복:</div>
                         <div className="routine-days-display">
-                          {DAYS.filter(day => currentRoutine.days.includes(day.key)).map(day => (
+                          {DAYS.filter(day => displayDays.includes(day.key)).map(day => (
                             <span key={day.key} className="routine-day-badge">
                               {day.label}
                             </span>
                           ))}
                         </div>
-                        {currentRoutine.time_slot && (
+                        {currentRoutine?.time_slot && (
                           <div className="routine-time-slot" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
                             &#x23F0; {currentRoutine.time_slot}
                           </div>
@@ -328,8 +344,8 @@ function TodoActionsModal({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            setRoutineDays(currentRoutine.days)
-                            setRoutineTimeSlot(currentRoutine.time_slot || '')
+                            setRoutineDays(displayDays)
+                            setRoutineTimeSlot(currentRoutine?.time_slot || '')
                             setIsEditingRoutine(true)
                           }}
                           className="routine-confirm-button"
@@ -351,7 +367,7 @@ function TodoActionsModal({
                   ) : (
                     <>
                       <div className="routine-setup-title">
-                        {isEditingRoutine && currentRoutine ? '루틴 수정:' : '반복할 요일 선택:'}
+                        {isEditingRoutine && (hasRepeatDays || currentRoutine) ? '루틴 수정:' : '반복할 요일 선택:'}
                       </div>
                       <DaySelector
                         selectedDays={routineDays}
@@ -371,11 +387,8 @@ function TodoActionsModal({
                         <button
                           onClick={async (e) => {
                             e.stopPropagation()
-                            if (isEditingRoutine && currentRoutine) {
-                              await onCreateRoutine(todo.id, todo.text, routineDays, currentRoutine.id, false, routineTimeSlot)
-                            } else {
-                              await onCreateRoutine(todo.id, todo.text, routineDays, null, false, routineTimeSlot)
-                            }
+                            // 새 시스템에서는 routineId 필요 없음 (repeat_days 직접 저장)
+                            await onCreateRoutine(todo.id, todo.text, routineDays, currentRoutine?.id || null, false, routineTimeSlot)
                             setIsEditingRoutine(false)
                             onClose()
                           }}

@@ -3657,20 +3657,23 @@ h1 {
   flex-shrink: 0;
 }
 
-.pending-routine-badge {
+.repeat-icon-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.15rem 0.35rem;
-  font-size: 0.65rem;
-  background: rgba(255, 152, 0, 0.15);
-  color: #ffb74d;
-  border-radius: 6px;
-  font-weight: 600;
-  border: 1px solid rgba(255, 152, 0, 0.25);
+  padding: 0.1rem;
+  font-size: 0.7rem;
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  border-radius: 4px;
   white-space: nowrap;
   line-height: 1;
   flex-shrink: 0;
+}
+
+/* 레거시: 미정 배지 (하위 호환용, 추후 제거) */
+.pending-routine-badge {
+  display: none; /* 숨김 처리 */
 }
 
 /* Routine History Modal */

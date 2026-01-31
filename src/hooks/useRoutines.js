@@ -109,93 +109,50 @@ export const useRoutines = ({
     }
   }
 
-  // 투두에서 루틴 생성/수정/제거
+  // 투두에서 반복 설정/수정/제거 (새 시스템: repeat_days 사용)
   const handleCreateRoutineFromTodo = async (todoId, text, days, routineId = null, remove = false, timeSlot = '', startDate = null) => {
     try {
       if (remove) {
-        // 루틴 제거 - routine_id를 null로
+        // 반복 제거 - repeat_days를 빈 배열로
         const { error: updateError } = await supabase
           .from('todos')
-          .update({ routine_id: null })
+          .update({
+            repeat_days: [],
+            routine_id: null, // 하위 호환
+            is_pending_routine: false,
+          })
           .eq('id', todoId)
 
         if (updateError) throw updateError
 
         setTodos(prevTodos =>
           prevTodos.map(todo =>
-            todo.id === todoId ? { ...todo, routine_id: null } : todo
+            todo.id === todoId ? { ...todo, repeat_days: [], routine_id: null, is_pending_routine: false } : todo
           )
         )
 
         return
       }
 
-      if (routineId) {
-        // 기존 루틴 수정
-        const { error } = await supabase
-          .from('routines')
-          .update({ days, time_slot: timeSlot })
-          .eq('id', routineId)
-
-        if (error) throw error
-
-        // 투두의 is_pending_routine 플래그 업데이트
-        // days가 있으면 정식 루틴, 없으면 미정 루틴
-        const { error: updateError } = await supabase
-          .from('todos')
-          .update({ is_pending_routine: days.length === 0 })
-          .eq('id', todoId)
-
-        if (updateError) throw updateError
-
-        // 로컬 루틴 목록 업데이트
-        setRoutines(prevRoutines =>
-          prevRoutines.map(r => r.id === routineId ? { ...r, days, time_slot: timeSlot } : r)
-        )
-
-        // 로컬 투두 목록 업데이트
-        setTodos(prevTodos =>
-          prevTodos.map(t => t.id === todoId ? { ...t, is_pending_routine: days.length === 0 } : t)
-        )
-      } else {
-        // 새 루틴 생성 - start_date 추가
-        const routineData = {
-          text,
-          days,
-          time_slot: timeSlot,
-          start_date: startDate || formatDateForDB(selectedDate), // 시작 날짜 설정
-          user_id: session?.user?.id
-        }
-
-        const { data, error } = await supabase
-          .from('routines')
-          .insert([routineData])
-          .select()
-
-        if (error) throw error
-
-
-        // 해당 투두에 루틴 ID 연결 및 미정 루틴 플래그 설정
-        // days가 있으면 정식 루틴(false), 없으면 미정 루틴(true)
-        const { error: updateError } = await supabase
-          .from('todos')
-          .update({ routine_id: data[0].id, is_pending_routine: days.length === 0 })
-          .eq('id', todoId)
-
-        if (updateError) throw updateError
-
-        // 로컬 상태 업데이트
-        setTodos(prevTodos =>
-          prevTodos.map(todo =>
-            todo.id === todoId ? { ...todo, routine_id: data[0].id, is_pending_routine: days.length === 0 } : todo
-          )
-        )
-
-        // 새 루틴을 routines 배열에 추가 (항상)
-        setRoutines(prevRoutines => [data[0], ...prevRoutines])
+      // 반복 설정/수정 - repeat_days에 저장
+      const updateData = {
+        repeat_days: days,
+        repeat_start_date: startDate || formatDateForDB(selectedDate),
       }
+
+      const { error: updateError } = await supabase
+        .from('todos')
+        .update(updateData)
+        .eq('id', todoId)
+
+      if (updateError) throw updateError
+
+      // 로컬 투두 목록 업데이트
+      setTodos(prevTodos =>
+        prevTodos.map(t => t.id === todoId ? { ...t, ...updateData } : t)
+      )
     } catch (error) {
-      console.error('루틴 처리 오류:', error.message)
+      console.error('반복 설정 오류:', error.message)
     }
   }
 

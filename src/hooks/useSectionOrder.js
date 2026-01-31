@@ -10,8 +10,8 @@ import { settingsService, SETTING_KEYS, DEFAULT_SECTION_ICONS, SECTION_EMOJI_OPT
  * - 순서 수정 모드 토글
  * - 섹션 아이콘 관리
  */
-// 기본 섹션 목록 (새 섹션 추가 시 여기에 추가)
-const DEFAULT_SECTIONS = ['timeline', 'routine', 'normal']
+// 기본 섹션 목록 (routine 섹션 제거됨 - 이제 반복은 투두 속성으로 관리)
+const DEFAULT_SECTIONS = ['timeline', 'normal']
 
 export function useSectionOrder(session) {
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS)

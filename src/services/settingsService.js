@@ -134,8 +134,8 @@ export const SETTING_KEYS = {
 // 기본 섹션 아이콘
 export const DEFAULT_SECTION_ICONS = {
   timeline: '⏰',
-  routine: '📌',
   normal: '✅',
+  // routine 아이콘 제거됨 - 이제 반복은 투두 속성으로 관리
 }
 
 // 선택 가능한 이모지 목록

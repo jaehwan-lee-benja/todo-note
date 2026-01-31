@@ -28,6 +28,8 @@ import SortableTodoItem from './components/Todo/SortableTodoItem'
 import AppModals from './components/App/AppModals'
 import AuthScreen from './components/Auth/AuthScreen'
 import { useSectionOrder } from './hooks/useSectionOrder'
+import { useSections } from './hooks/useSections'
+import { useRepeatTodos } from './hooks/useRepeatTodos'
 import { useMemo as useMemoHook } from './hooks/useMemo'
 import { useRoutines } from './hooks/useRoutines'
 import { useTodos } from './hooks/useTodos'
@@ -73,6 +75,10 @@ function App() {
 
   // 공유 UI State (여러 훅에서 사용)
   const [selectedTodoForModal, setSelectedTodoForModal] = useState(null)
+
+  // 루틴 제거 Undo 상태
+  const [routineRemoveUndo, setRoutineRemoveUndo] = useState(null)
+  const [showRoutineRemoveToast, setShowRoutineRemoveToast] = useState(false)
 
   // 투두 히스토리 훅
   const {
@@ -217,6 +223,47 @@ function App() {
     handleUndoDelete()
   }
 
+  // 루틴 제거 성공 핸들러 (Undo 토스트 표시)
+  const handleRoutineRemoveSuccess = async (todoId, todoText, previousDays) => {
+    // Undo 정보 저장
+    setRoutineRemoveUndo({ todoId, todoText, previousDays })
+    setShowRoutineRemoveToast(true)
+
+    // 5초 후 자동 숨김
+    setTimeout(() => {
+      setShowRoutineRemoveToast(false)
+      setRoutineRemoveUndo(null)
+    }, 5000)
+  }
+
+  // 루틴 제거 실행취소 핸들러
+  const handleUndoRoutineRemove = async () => {
+    if (!routineRemoveUndo) return
+
+    try {
+      const { todoId, previousDays } = routineRemoveUndo
+
+      // repeat_days 복원
+      const { error } = await supabase
+        .from('todos')
+        .update({ repeat_days: previousDays })
+        .eq('id', todoId)
+
+      if (error) throw error
+
+      // 로컬 상태 업데이트
+      setTodos(prev => prev.map(t =>
+        t.id === todoId ? { ...t, repeat_days: previousDays } : t
+      ))
+
+      // 토스트 숨김
+      setShowRoutineRemoveToast(false)
+      setRoutineRemoveUndo(null)
+    } catch (error) {
+      console.error('루틴 제거 실행취소 오류:', error.message)
+    }
+  }
+
   const {
     showGanttChart,
     ganttData,
@@ -333,7 +380,7 @@ function App() {
   const [customSectionAdding, setCustomSectionAdding] = useState(false)
   const [customSectionInputs, setCustomSectionInputs] = useState({})
 
-  // 섹션 순서 관리
+  // 섹션 순서 관리 (기존 - 하위 호환)
   const sectionOrderHook = useSectionOrder(session)
   const {
     sectionOrder, setSectionOrder, sectionIcons,
@@ -342,6 +389,23 @@ function App() {
     handleSectionDragEnd, handleSectionsContainerDoubleClick,
     changeSectionIcon, getSectionIcon,
   } = sectionOrderHook
+
+  // 새로운 섹션 관리 (sections 테이블 기반)
+  const sectionsHook = useSections(session)
+  const {
+    sections,
+    fetchSections,
+    getDefaultSection,
+  } = sectionsHook
+
+  // 반복 투두 관리
+  const repeatTodosHook = useRepeatTodos(session)
+  const {
+    shouldShowOnDate,
+    isCompletedOnDate,
+    isRepeatTodo,
+    getForDateLabel,
+  } = repeatTodosHook
   const sectionsContainerRef = useRef(null) // 가로 스크롤 컨테이너 ref
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0) // 모바일 섹션 인덱스
   const contentScrollableRef = useRef(null) // 세로 스크롤 컨테이너 ref
@@ -650,6 +714,7 @@ function App() {
     fetchMemoContent()
     fetchRoutines()
     fetchSectionOrder()
+    fetchSections() // 새로운 sections 테이블 조회
     fetchSectionTitles()
     fetchCustomSections()
     fetchHiddenSections()
@@ -938,8 +1003,8 @@ function App() {
         // 전날 미완료 항목을 다음 날로 이동
         await moveIncompleteTodosToNextDay(yesterday, tomorrow)
 
-        // 루틴 작업 생성
-        await createRoutineTodos()
+        // 루틴 작업 생성 - 제거됨 (이제 repeat_type으로 관리)
+        // await createRoutineTodos()
 
         // 날짜 업데이트
         setSelectedDate(new Date())
@@ -1155,20 +1220,13 @@ function App() {
                 </div>
               ) : (() => {
                 // 섹션별로 필터링 후 order_index로 정렬 (section_type 기반)
-                const routineTodos = todos
-                  .filter(t => !t.parent_id && t.section_type === 'routine')
-                  .sort((a, b) => a.order_index - b.order_index)
-                const pendingRoutineTodos = todos
-                  .filter(t => !t.parent_id && t.section_type === 'pending_routine')
-                  .sort((a, b) => a.order_index - b.order_index)
+                // 루틴 섹션 제거됨 - 반복 투두는 이제 normal 섹션에서 repeat_type으로 구분
                 const normalTodos = todos
-                  .filter(t => !t.parent_id && t.section_type === 'normal')
+                  .filter(t => !t.parent_id && (t.section_type === 'normal' || t.section_type === 'routine' || t.section_type === 'pending_routine' || !t.section_type))
                   .sort((a, b) => a.order_index - b.order_index)
 
                 // 모든 투두 섹션의 투두 ID를 하나의 배열로 모으기 (섹션 간 드래그 앤 드롭 지원)
                 const allTodoIds = [
-                  ...routineTodos.map(t => t.id),
-                  ...pendingRoutineTodos.map(t => t.id),
                   ...normalTodos.map(t => t.id),
                   ...customSections.flatMap(section =>
                     todos.filter(t => !t.parent_id && t.section_type === 'custom' && t.section_id === section.id).map(t => t.id)
@@ -1241,122 +1299,6 @@ function App() {
                                   onAddTodo={handleAddTodoFromTimeline}
                                 />
                               </div>
-                            </div>
-                          )
-                        } else if (sectionId === 'routine') {
-                          return (
-                            <div key="routine">
-                              <TodoSection
-                                title="루틴"
-                                icon={getSectionIcon('routine')}
-                                sectionId="routine"
-                                onIconChange={changeSectionIcon}
-                                className="routine-section section-block"
-                                inputValue={routineInputValue}
-                                setInputValue={setRoutineInputValue}
-                                onAddTodo={handleAddRoutineTodo}
-                                isAdding={isAdding}
-                                placeholder="루틴 할 일 추가..."
-                                settingsMenuItems={baseSettingsMenuItems}
-                              >
-                    {/* 확정 루틴 */}
-                    {routineTodos.length > 0 && (
-                      <SortableContext
-                        items={routineTodos.map(todo => todo.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        {routineTodos.map((todo, index) => {
-                          const subtodos = todos.filter(t => t.parent_id === todo.id)
-                          return (
-                            <SortableTodoItem
-                              key={todo.id}
-                              todo={todo}
-                              index={index}
-                              onToggle={handleToggleTodo}
-                              onDelete={handleDeleteTodo}
-                              onEdit={handleEditTodo}
-                              formatDate={formatDate}
-                              formatDateOnly={formatDateOnly}
-                              isFocused={focusedTodoId === todo.id}
-                              onFocus={handleFocusTodo}
-                              onAddSubTodo={handleAddSubTodo}
-                              subtodos={subtodos}
-                              level={0}
-                              onCreateRoutine={handleCreateRoutineFromTodo}
-                              routines={routines}
-                              onShowRoutineHistory={fetchRoutineHistory}
-                              onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
-                              onOpenHistoryModal={handleOpenTodoHistoryModal}
-                              currentPageDate={formatDateForDB(selectedDate)}
-                              onRemoveFromUI={handleRemoveTodoFromUI}
-                              showSuccessMessage={showSuccessMessage}
-                              activeId={activeTodoId}
-                              overId={overId}
-                              onMoveUp={(id) => handleMoveUp(id, 'routine', null)}
-                              onMoveDown={(id) => handleMoveDown(id, 'routine', null)}
-                              onMoveToTop={(id) => handleMoveToTop(id, 'routine', null)}
-                              onMoveToBottom={(id) => handleMoveToBottom(id, 'routine', null)}
-                              isFirst={index === 0}
-                              isLast={index === routineTodos.length - 1}
-                            />
-                          )
-                        })}
-                      </SortableContext>
-                    )}
-
-                    {/* 구분선 (확정 루틴과 미정 루틴 사이) */}
-                    {routineTodos.length > 0 && pendingRoutineTodos.length > 0 && (
-                      <div style={{ margin: '1rem 0', padding: '0 1rem' }}>
-                        <div className="separator-line"></div>
-                      </div>
-                    )}
-
-                    {/* 미정 루틴 */}
-                    {pendingRoutineTodos.length > 0 && (
-                      <SortableContext
-                        items={pendingRoutineTodos.map(todo => todo.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        {pendingRoutineTodos.map((todo, index) => {
-                          const subtodos = todos.filter(t => t.parent_id === todo.id)
-                          return (
-                            <SortableTodoItem
-                              key={todo.id}
-                              todo={todo}
-                              index={index}
-                              onToggle={handleToggleTodo}
-                              onDelete={handleDeleteTodo}
-                              onEdit={handleEditTodo}
-                              formatDate={formatDate}
-                              formatDateOnly={formatDateOnly}
-                              isFocused={focusedTodoId === todo.id}
-                              onFocus={handleFocusTodo}
-                              onAddSubTodo={handleAddSubTodo}
-                              subtodos={subtodos}
-                              level={0}
-                              onCreateRoutine={handleCreateRoutineFromTodo}
-                              routines={routines}
-                              onShowRoutineHistory={fetchRoutineHistory}
-                              onOpenRoutineSetupModal={handleOpenTodoRoutineSetupModal}
-                              onOpenHistoryModal={handleOpenTodoHistoryModal}
-                              currentPageDate={formatDateForDB(selectedDate)}
-                              isPendingRoutine={true}
-                              onRemoveFromUI={handleRemoveTodoFromUI}
-                              showSuccessMessage={showSuccessMessage}
-                              activeId={activeTodoId}
-                              overId={overId}
-                              onMoveUp={(id) => handleMoveUp(id, 'pending_routine', null)}
-                              onMoveDown={(id) => handleMoveDown(id, 'pending_routine', null)}
-                              onMoveToTop={(id) => handleMoveToTop(id, 'pending_routine', null)}
-                              onMoveToBottom={(id) => handleMoveToBottom(id, 'pending_routine', null)}
-                              isFirst={index === 0}
-                              isLast={index === pendingRoutineTodos.length - 1}
-                            />
-                          )
-                        })}
-                      </SortableContext>
-                    )}
-                              </TodoSection>
                             </div>
                           )
                         } else if (sectionId === 'normal') {
@@ -1673,6 +1615,9 @@ function App() {
           setIsEditingRoutineInModal={setIsEditingRoutineInModal}
           handleCreateRoutineFromTodo={handleCreateRoutineFromTodo}
           handleCloseTodoRoutineSetupModal={handleCloseTodoRoutineSetupModal}
+          onRoutineRemoveSuccess={handleRoutineRemoveSuccess}
+          showRoutineRemoveToast={showRoutineRemoveToast}
+          handleUndoRoutineRemove={handleUndoRoutineRemove}
 
           // Routine Modal
           showRoutineModal={showRoutineModal}

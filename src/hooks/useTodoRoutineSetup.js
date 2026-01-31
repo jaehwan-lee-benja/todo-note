@@ -24,9 +24,16 @@ export const useTodoRoutineSetup = ({
   const handleOpenTodoRoutineSetupModal = (todo) => {
     setSelectedTodoForModal(todo)
 
-    // 기존 루틴이 있으면 요일과 시간대 설정
+    // 새 시스템: repeat_days에서 읽기
+    const hasRepeatDays = todo.repeat_days && todo.repeat_days.length > 0
+    // 하위 호환: 기존 routines 테이블에서도 확인
     const currentRoutine = routines.find(r => r.id === todo.routine_id)
-    if (currentRoutine) {
+
+    if (hasRepeatDays) {
+      setRoutineDaysForModal(todo.repeat_days)
+      setRoutineTimeSlotForModal('')
+      setIsEditingRoutineInModal(false)
+    } else if (currentRoutine) {
       setRoutineDaysForModal(currentRoutine.days || [])
       setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
       setIsEditingRoutineInModal(false)

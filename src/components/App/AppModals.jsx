@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import { DAYS } from '../../utils/constants'
 import Toast from '../Common/Toast'
 import DaySelector from '../Common/DaySelector'
@@ -154,10 +154,17 @@ function TodoRoutineSetupModalContent({
   setRoutineDaysForModal,
   setIsEditingRoutineInModal,
   handleCreateRoutineFromTodo,
-  onClose
+  onClose,
+  onRemoveSuccess
 }) {
   const mouseDownOnOverlay = useRef(false)
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
+
+  // 새 시스템: repeat_days 우선, 하위 호환으로 routines 테이블도 확인
+  const hasRepeatDays = todo.repeat_days && todo.repeat_days.length > 0
   const currentRoutine = routines.find(r => r.id === todo.routine_id)
+  // 표시용 요일 배열
+  const displayDays = hasRepeatDays ? todo.repeat_days : (currentRoutine?.days || [])
 
   const handleOverlayMouseDown = (e) => {
     if (e.target === e.currentTarget) {
@@ -181,45 +188,74 @@ function TodoRoutineSetupModalContent({
         </div>
         <div className="modal-body">
           <div className="routine-setup-inline">
-            {currentRoutine && !isEditingRoutineInModal ? (
+            {(hasRepeatDays || currentRoutine) && !isEditingRoutineInModal ? (
               <>
                 <div className="routine-current-info">
-                  <div className="routine-info-title">설정된 루틴:</div>
+                  <div className="routine-info-title">설정된 반복:</div>
                   <div className="routine-days-display">
-                    {DAYS.filter(day => currentRoutine.days.includes(day.key)).map(day => (
+                    {DAYS.filter(day => displayDays.includes(day.key)).map(day => (
                       <span key={day.key} className="routine-day-badge">
                         {day.label}
                       </span>
                     ))}
                   </div>
-                  {currentRoutine.time_slot && (
-                    <div className="routine-time-slot" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                      &#x23F0; {currentRoutine.time_slot}
-                    </div>
-                  )}
                 </div>
                 <div className="routine-setup-actions">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setRoutineDaysForModal(currentRoutine.days)
-                      setRoutineTimeSlotForModal(currentRoutine.time_slot || '')
-                      setIsEditingRoutineInModal(true)
-                    }}
-                    className="routine-confirm-button"
-                  >
-                    수정
-                  </button>
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      await handleCreateRoutineFromTodo(todo.id, todo.text, [], null, true)
-                      onClose()
-                    }}
-                    className="routine-remove-button"
-                  >
-                    제거
-                  </button>
+                  {showRemoveConfirm ? (
+                    <>
+                      <span style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.7)', marginRight: '0.5rem' }}>
+                        반복 설정을 제거할까요?
+                      </span>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          // 제거 전 요일 저장 (undo용)
+                          const previousDays = [...displayDays]
+                          await handleCreateRoutineFromTodo(todo.id, todo.text, [], null, true)
+                          onClose()
+                          // Undo 콜백 호출
+                          if (onRemoveSuccess) {
+                            onRemoveSuccess(todo.id, todo.text, previousDays)
+                          }
+                        }}
+                        className="routine-remove-button"
+                      >
+                        확인
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowRemoveConfirm(false)
+                        }}
+                        className="routine-cancel-button"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setRoutineDaysForModal(displayDays)
+                          setRoutineTimeSlotForModal('')
+                          setIsEditingRoutineInModal(true)
+                        }}
+                        className="routine-confirm-button"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowRemoveConfirm(true)
+                        }}
+                        className="routine-remove-button"
+                      >
+                        제거
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             ) : (
@@ -325,6 +361,9 @@ function AppModals({
   setIsEditingRoutineInModal,
   handleCreateRoutineFromTodo,
   handleCloseTodoRoutineSetupModal,
+  onRoutineRemoveSuccess,
+  showRoutineRemoveToast,
+  handleUndoRoutineRemove,
 
   // Routine Modal
   showRoutineModal,
@@ -414,6 +453,13 @@ function AppModals({
         />
       )}
 
+      {showRoutineRemoveToast && (
+        <Toast
+          message="반복 설정이 제거되었습니다"
+          onUndo={handleUndoRoutineRemove}
+        />
+      )}
+
       {/* Delete Confirm Modal (Todo) */}
       {showDeleteConfirmModal && todoToDelete && (
         <DeleteConfirmModal
@@ -463,6 +509,7 @@ function AppModals({
           setIsEditingRoutineInModal={setIsEditingRoutineInModal}
           handleCreateRoutineFromTodo={handleCreateRoutineFromTodo}
           onClose={handleCloseTodoRoutineSetupModal}
+          onRemoveSuccess={onRoutineRemoveSuccess}
         />
       )}
 

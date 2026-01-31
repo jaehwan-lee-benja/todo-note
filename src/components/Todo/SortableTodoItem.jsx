@@ -47,6 +47,12 @@ function SortableTodoItem({
   // 현재 투두의 루틴 정보 찾기
   const currentRoutine = todo.routine_id ? routines.find(r => r.id === todo.routine_id) : null
 
+  // 반복 투두인지 확인 및 완료 상태 계산
+  const isRepeatTodo = todo.repeat_days && todo.repeat_days.length > 0
+  const isCompleted = isRepeatTodo
+    ? (todo.completed_dates || []).includes(currentPageDate)
+    : todo.completed
+
   const {
     attributes,
     listeners,
@@ -146,11 +152,11 @@ function SortableTodoItem({
       )}
       <div className="todo-item-wrapper">
         <div
-          className={`todo-item ${todo.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''} ${todo.scheduled_time && todo.scheduled_date === currentPageDate ? 'has-timeline' : ''}`}
+          className={`todo-item ${isCompleted ? 'completed' : ''} ${isExpanded ? 'expanded' : ''} ${isDragging ? 'drag-mode' : ''} ${todo.scheduled_time && todo.scheduled_date === currentPageDate ? 'has-timeline' : ''}`}
         >
           <input
             type="checkbox"
-            checked={todo.completed}
+            checked={isCompleted}
             onChange={() => onToggle(todo.id)}
             className="todo-checkbox"
           />
@@ -186,11 +192,16 @@ function SortableTodoItem({
             )}
           </div>
           {(() => {
-            const hasCompletedDateBadge = todo.completed && todo.completed_at &&
+            // 반복 투두가 아닌 경우에만 완료일 배지 표시
+            const hasCompletedDateBadge = !isRepeatTodo && isCompleted && todo.completed_at &&
               new Date(todo.completed_at).toISOString().split('T')[0] !== todo.date
+            // 기존 루틴 시스템 (하위 호환)
             const hasRoutineBadge = todo.routine_id && currentRoutine
-            const hasPendingRoutineBadge = isPendingRoutine || todo.is_pending_routine
-            return (subtodos.length > 0 || hasCompletedDateBadge || hasRoutineBadge || hasPendingRoutineBadge) && (
+            // 새로운 반복 시스템 (repeat_days 배열 기반)
+            const hasRepeatBadge = isRepeatTodo
+            const showForDate = hasRoutineBadge || hasRepeatBadge
+
+            return (subtodos.length > 0 || hasCompletedDateBadge || showForDate) && (
               <div className="todo-badges">
                 {hasCompletedDateBadge && (() => {
                   const completedDate = new Date(todo.completed_at).toISOString().split('T')[0]
@@ -201,23 +212,37 @@ function SortableTodoItem({
                     </span>
                   )
                 })()}
-                {hasRoutineBadge && (() => {
+                {showForDate && (() => {
                   const displayDate = currentPageDate || todo.date
+                  // 생성일(repeat_start_date)인 경우 "루틴설정함" 표시
+                  const isCreationDate = isRepeatTodo && todo.repeat_start_date === displayDate
+
+                  if (isCreationDate) {
+                    return (
+                      <span className="routine-date-badge" title="오늘 루틴 설정됨">
+                        루틴설정함
+                      </span>
+                    )
+                  }
+
                   const todoDate = new Date(displayDate + 'T00:00:00')
                   const month = todoDate.getMonth() + 1
                   const date = todoDate.getDate()
                   const dayNames = ['일', '월', '화', '수', '목', '금', '토']
                   const dayName = dayNames[todoDate.getDay()]
                   const dateDisplay = `${month}/${date}(${dayName})`
+                  const title = hasRoutineBadge
+                    ? `${currentRoutine.text} 루틴`
+                    : `반복 투두`
                   return (
-                    <span className="routine-date-badge" title={`${currentRoutine.text} 루틴`}>
+                    <span className="routine-date-badge" title={title}>
                       for {dateDisplay}
                     </span>
                   )
                 })()}
-                {hasPendingRoutineBadge && (
-                  <span className="pending-routine-badge" title="루틴 설정이 필요합니다">
-                    미정
+                {hasRepeatBadge && (
+                  <span className="repeat-icon-badge" title="반복 투두">
+                    &#x1F501;
                   </span>
                 )}
                 {subtodos.length > 0 && (

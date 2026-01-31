@@ -474,8 +474,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
       setLoading(true)
       const dateStr = formatDateForDB(selectedDate)
 
-      // 해당 날짜의 요일에 맞는 루틴 투두 자동 생성
-      await createRoutineTodosForDate(dateStr)
+      // 루틴 투두 자동 생성 - 제거됨 (이제 repeat_type으로 관리)
+      // await createRoutineTodosForDate(dateStr)
 
       // 하이브리드 조회: 새 방식(visible_dates) + 구 방식(date) 모두 지원
       // order_index 전역 정렬 제거 (섹션별로 정렬됨)
@@ -518,7 +518,27 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
           return false // 숨김 처리된 투두는 표시하지 않음
         }
 
-        // 루틴 투두의 경우 해당 요일에 맞는지 확인
+        // === 새 시스템: repeat_days 배열 기반 반복 투두 ===
+        if (todo.repeat_days && todo.repeat_days.length > 0) {
+          // repeat_start_date 이전이면 표시 안함
+          if (todo.repeat_start_date && dateStr < todo.repeat_start_date) {
+            return false
+          }
+          // repeat_end_date 이후면 표시 안함
+          if (todo.repeat_end_date && dateStr > todo.repeat_end_date) {
+            return false
+          }
+
+          // 생성일(repeat_start_date)에는 항상 표시
+          if (todo.repeat_start_date && dateStr === todo.repeat_start_date) {
+            return true
+          }
+
+          // 그 외에는 repeat_days 배열에 해당 요일이 있는지 확인
+          return todo.repeat_days.includes(dayKey)
+        }
+
+        // === 기존 시스템: routine_id 기반 (하위 호환) ===
         if (todo.routine_id) {
           const routine = routinesMap[todo.routine_id]
           if (routine) {
@@ -528,6 +548,8 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
               return false // 해당 요일이 아니면 표시하지 않음
             }
           }
+          // routine_id가 있으면 visible_dates나 date와 무관하게 해당 요일에 표시
+          return true
         }
 
         // 새 방식: visible_dates 체크
@@ -782,28 +804,62 @@ export const useTodos = (session, supabase, selectedDate, todos, setTodos, routi
   }
 
   // 투두 완료 토글
-  const handleToggleTodo = async (id) => {
+  const handleToggleTodo = async (id, dateStr = null) => {
     const todo = todos.find(t => t.id === id)
     if (!todo) return
 
+    // 현재 날짜 (반복 투두용)
+    const currentDateStr = dateStr || formatDateForDB(selectedDate)
+
     try {
-      const newCompleted = !todo.completed
-      const completedAt = newCompleted ? new Date().toISOString() : null
+      // 반복 투두인 경우 (repeat_days가 있는 경우)
+      const isRepeatTodo = todo.repeat_days && todo.repeat_days.length > 0
 
-      // JSON 방식: 1개 투두만 업데이트 (간단!)
-      const { error } = await supabase
-        .from('todos')
-        .update({
-          completed: newCompleted,
-          completed_at: completedAt
-        })
-        .eq('id', id)
+      if (isRepeatTodo) {
+        // 반복 투두: completed_dates 배열로 날짜별 완료 관리
+        const completedDates = todo.completed_dates || []
+        const isCurrentlyCompleted = completedDates.includes(currentDateStr)
 
-      if (error) throw error
+        let newCompletedDates
+        if (isCurrentlyCompleted) {
+          // 완료 해제: 배열에서 제거
+          newCompletedDates = completedDates.filter(d => d !== currentDateStr)
+        } else {
+          // 완료: 배열에 추가
+          newCompletedDates = [...completedDates, currentDateStr].sort()
+        }
 
-      setTodos(todos.map(t =>
-        t.id === id ? { ...t, completed: newCompleted, completed_at: completedAt } : t
-      ))
+        const { error } = await supabase
+          .from('todos')
+          .update({
+            completed_dates: newCompletedDates,
+          })
+          .eq('id', id)
+
+        if (error) throw error
+
+        setTodos(todos.map(t =>
+          t.id === id ? { ...t, completed_dates: newCompletedDates } : t
+        ))
+      } else {
+        // 일반 투두: 기존 completed 불리언 사용
+        const newCompleted = !todo.completed
+        const completedAt = newCompleted ? new Date().toISOString() : null
+
+        const { error } = await supabase
+          .from('todos')
+          .update({
+            completed: newCompleted,
+            completed_at: completedAt
+          })
+          .eq('id', id)
+
+        if (error) throw error
+
+        setTodos(todos.map(t =>
+          t.id === id ? { ...t, completed: newCompleted, completed_at: completedAt } : t
+        ))
+      }
     } catch (error) {
       console.error('할 일 토글 오류:', error.message)
     }
