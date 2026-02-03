@@ -49,6 +49,10 @@ function App() {
 
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [showSidebar, setShowSidebar] = useState(false)
+  const [timelineCollapsed, setTimelineCollapsed] = useState(() => {
+    const saved = localStorage.getItem('timelineCollapsed')
+    return saved === 'true'
+  })
   const recentlyEditedIds = useRef(new Set())
 
   // DnD sensors 설정 (드래그 핸들 방식)
@@ -419,6 +423,11 @@ function App() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // 타임라인 접힘 상태 저장
+  useEffect(() => {
+    localStorage.setItem('timelineCollapsed', timelineCollapsed)
+  }, [timelineCollapsed])
 
   // 숨긴 섹션 관리
   const [hiddenSections, setHiddenSections] = useState([])
@@ -1154,6 +1163,8 @@ function App() {
           setSelectedDate={setSelectedDate}
           onQuickAdd={handleQuickAdd}
           onOpenMemo={() => setShowMemoModal(true)}
+          timelineCollapsed={timelineCollapsed}
+          setTimelineCollapsed={setTimelineCollapsed}
         />
 
         <DndContext
@@ -1171,7 +1182,7 @@ function App() {
         >
         {/* PC 버전: 타임라인 사이드바 (섹션과 별도로 왼쪽 고정) */}
         {viewMode === 'horizontal' && !hiddenSections.includes('timeline') && (
-          <div className="timeline-sidebar">
+          <div className={`timeline-sidebar ${timelineCollapsed ? 'collapsed' : ''}`}>
             <SectionHeader
               title="타임라인"
               icon={getSectionIcon('timeline')}
@@ -1207,7 +1218,7 @@ function App() {
           {/* 섹션 간 드래그 앤 드롭을 위한 전역 SortableContext는 내부에서 allTodoIds로 생성 */}
           <div
             ref={sectionsContainerRef}
-            className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'}`}
+            className={`sections-container ${viewMode === 'horizontal' ? 'horizontal-layout' : 'vertical-layout'} ${timelineCollapsed ? 'timeline-hidden' : ''}`}
           >
             <div className="todo-list">
               {loading ? (
@@ -1269,7 +1280,7 @@ function App() {
 
                         if (sectionId === 'timeline') {
                           return (
-                            <div key="timeline" className="timeline-section section-block">
+                            <div key="timeline" className={`timeline-section section-block ${timelineCollapsed ? 'collapsed' : ''}`}>
                               <SectionHeader
                                 title="타임라인"
                                 icon={getSectionIcon('timeline')}

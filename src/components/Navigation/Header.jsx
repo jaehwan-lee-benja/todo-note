@@ -15,7 +15,9 @@ function Header({
   currentEncouragementMessage,
   onEncouragementClick,
   onQuickAdd,
-  onOpenMemo
+  onOpenMemo,
+  timelineCollapsed,
+  setTimelineCollapsed
 }) {
   const [quickInput, setQuickInput] = useState('')
   const [isQuickAdding, setIsQuickAdding] = useState(false)
@@ -23,21 +25,26 @@ function Header({
   const handleQuickAdd = async (e) => {
     if (e.key === 'Enter' && !e.shiftKey && quickInput.trim()) {
       e.preventDefault()
-      setIsQuickAdding(true)
-      try {
-        await onQuickAdd(quickInput.trim())
-        setQuickInput('')
-      } catch (error) {
-        console.error('Quick add error:', error)
-      } finally {
-        setIsQuickAdding(false)
-      }
+      await submitQuickAdd()
+    }
+  }
+
+  const submitQuickAdd = async () => {
+    if (!quickInput.trim() || isQuickAdding) return
+    setIsQuickAdding(true)
+    try {
+      await onQuickAdd(quickInput.trim())
+      setQuickInput('')
+    } catch (error) {
+      console.error('Quick add error:', error)
+    } finally {
+      setIsQuickAdding(false)
     }
   }
   return (
     <div className="header-fixed">
       <div className="settings-bar">
-        {/* 첫째줄: 햄버거 + 날짜 */}
+        {/* 첫째줄: 햄버거 + 날짜 + 타임라인 토글 */}
         <div className="header-row header-row-1">
           <button
             className="hamburger-menu"
@@ -56,6 +63,16 @@ function Header({
             onPrevDay={onPrevDay}
             onNextDay={onNextDay}
           />
+          <button
+            className={`timeline-toggle-button ${timelineCollapsed ? 'collapsed' : ''}`}
+            onClick={() => setTimelineCollapsed(!timelineCollapsed)}
+            title={timelineCollapsed ? '타임라인 펼치기' : '타임라인 접기'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+              <polyline points="12,6 12,12 16,14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </div>
 
         {/* 둘째줄: 격려 문구 + 생각 메모 */}
@@ -100,10 +117,18 @@ function Header({
               value={quickInput}
               onChange={(e) => setQuickInput(e.target.value)}
               onKeyDown={handleQuickAdd}
-              placeholder="⚡ Quick 투두 입력 (Enter로 추가)"
+              placeholder="⚡ Quick 투두 입력"
               className="quick-input"
               disabled={isQuickAdding}
             />
+            <button
+              className="quick-input-button"
+              onClick={submitQuickAdd}
+              disabled={isQuickAdding || !quickInput.trim()}
+              title="투두 추가"
+            >
+              {isQuickAdding ? '...' : '↵'}
+            </button>
           </div>
         </div>
       </div>

@@ -289,6 +289,45 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
   pointer-events: none;
 }
 
+/* 타임라인 토글 버튼 */
+.timeline-toggle-button {
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.timeline-toggle-button svg {
+  display: block;
+}
+
+.timeline-toggle-button:hover {
+  color: #646cff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.timeline-toggle-button:active {
+  transform: scale(0.95);
+}
+
+.timeline-toggle-button.collapsed {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.timeline-toggle-button.collapsed:hover {
+  color: #646cff;
+}
+
 /* 헤더 메모 버튼 */
 .header-memo-button {
   background: transparent;
@@ -482,10 +521,12 @@ h1 {
   flex: 1;
   max-width: 400px;
   min-width: 200px;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .quick-input {
-  width: 100%;
+  flex: 1;
   padding: 0.5rem 0.75rem;
   font-size: 0.9rem;
   background: rgba(100, 108, 255, 0.1);
@@ -496,6 +537,28 @@ h1 {
   outline: none;
   box-sizing: border-box;
   transition: all 0.2s ease;
+}
+
+.quick-input-button {
+  padding: 0.5rem 0.75rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background: rgba(100, 108, 255, 0.8);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 36px;
+}
+
+.quick-input-button:hover:not(:disabled) {
+  background: rgba(100, 108, 255, 1);
+}
+
+.quick-input-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .quick-input::placeholder {
@@ -4061,6 +4124,12 @@ h1 {
 /* 타임라인 섹션 (모바일용 - 일반 섹션으로 표시) */
 .timeline-section {
   background: #242424;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.timeline-section.collapsed {
+  display: none;
 }
 
 /* 타임라인 사이드바 (PC용 - 왼쪽 고정) */
@@ -4083,6 +4152,7 @@ h1 {
     border: 1px solid rgba(255, 255, 255, 0.08);
     z-index: 100;
     box-sizing: border-box;
+    transition: width 0.3s ease, padding 0.3s ease;
   }
 
   .timeline-sidebar .timeline-content {
@@ -4099,6 +4169,17 @@ h1 {
   /* 타임라인 사이드바 공간 확보 */
   .sections-container.horizontal-layout {
     padding-left: calc(384px + 24px + 24px);
+    transition: padding-left 0.3s ease;
+  }
+
+  /* 타임라인 접힘 상태 */
+  .timeline-sidebar.collapsed {
+    display: none;
+  }
+
+  /* 타임라인 숨김 시 sections-container 좌측 패딩 제거 */
+  .sections-container.horizontal-layout.timeline-hidden {
+    padding-left: 24px;
   }
 }
 
