@@ -291,41 +291,45 @@ body.is-scrolling::-webkit-scrollbar-thumb:hover {
 
 /* 타임라인 토글 버튼 */
 .timeline-toggle-button {
-  background: none;
+  background: transparent;
   border: none;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.7);
-  padding: 0;
-  width: 36px;
-  height: 36px;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
   flex-shrink: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   transition: all 0.2s ease;
   margin-left: auto;
+  white-space: nowrap;
+  line-height: 1;
+  width: 70px;
 }
 
 .timeline-toggle-button svg {
   display: block;
+  flex-shrink: 0;
 }
 
 .timeline-toggle-button:hover {
-  color: #646cff;
+  color: white;
   background: rgba(255, 255, 255, 0.08);
 }
 
 .timeline-toggle-button:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
 }
 
 .timeline-toggle-button.collapsed {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .timeline-toggle-button.collapsed:hover {
-  color: #646cff;
+  color: white;
 }
 
 /* 헤더 메모 버튼 */
@@ -2815,6 +2819,14 @@ h1 {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
+  }
+
+  .header-row-1 .timeline-toggle-button {
+    height: 32px;
+    padding: 0.4rem 0;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    width: 62px;
   }
 
   .header-row-2 .encouragement-section {
