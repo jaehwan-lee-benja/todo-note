@@ -394,6 +394,45 @@ function App() {
     changeSectionIcon, getSectionIcon,
   } = sectionOrderHook
 
+  // 투두를 다른 섹션으로 이동
+  const handleMoveTodoToSection = async (todoId, targetSectionType, targetSectionId) => {
+    const todo = todos.find(t => t.id === todoId)
+    if (!todo) return
+
+    const targetTodos = todos.filter(t => {
+      if (t.parent_id) return false
+      if (t.section_type !== targetSectionType) return false
+      if (targetSectionType === 'custom' && t.section_id !== targetSectionId) return false
+      return true
+    })
+    const maxOrderIndex = targetTodos.length > 0 ? Math.max(...targetTodos.map(t => t.order_index)) : 0
+
+    const updateData = {
+      section_type: targetSectionType,
+      section_id: targetSectionId || null,
+      order_index: maxOrderIndex + 1,
+      routine_id: null,
+    }
+
+    setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updateData } : t))
+    await supabase.from('todos').update(updateData).eq('id', todoId)
+  }
+
+  // 섹션 목록 (timeline 제외)
+  const availableSections = sectionOrder
+    .filter(id => id !== 'timeline')
+    .map(id => {
+      if (id === 'normal') {
+        return { id: 'normal', sectionType: 'normal', sectionId: null, name: sectionTitles.normal || '할 일', icon: getSectionIcon('normal') }
+      }
+      const custom = customSections.find(s => s.id === id)
+      if (custom) {
+        return { id: custom.id, sectionType: 'custom', sectionId: custom.id, name: custom.name, icon: custom.icon }
+      }
+      return null
+    })
+    .filter(Boolean)
+
   // 새로운 섹션 관리 (sections 테이블 기반)
   const sectionsHook = useSections(session)
   const {
@@ -1400,6 +1439,8 @@ function App() {
                       onMoveToBottom={(id) => handleMoveToBottom(id, 'normal', null)}
                       isFirst={index === 0}
                       isLast={index === normalTodos.length - 1}
+                      sections={availableSections}
+                      onMoveToSection={handleMoveTodoToSection}
                     />
                   )
                               })}
@@ -1512,6 +1553,8 @@ function App() {
                                           onMoveToBottom={(id) => handleMoveToBottom(id, 'custom', sectionId)}
                                           isFirst={index === 0}
                                           isLast={index === customSectionTodos.length - 1}
+                                          sections={availableSections}
+                                          onMoveToSection={handleMoveTodoToSection}
                                         />
                                       )
                                     })}

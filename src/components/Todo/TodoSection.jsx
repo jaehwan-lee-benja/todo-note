@@ -46,7 +46,9 @@ function TodoSection({
           추가
         </button>
       </div>
-      {children}
+      <div className="section-body">
+        {children}
+      </div>
     </div>
   )
 }

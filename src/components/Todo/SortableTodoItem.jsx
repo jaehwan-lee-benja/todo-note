@@ -33,7 +33,9 @@ function SortableTodoItem({
   onMoveToTop,
   onMoveToBottom,
   isFirst,
-  isLast
+  isLast,
+  sections = [],
+  onMoveToSection,
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showMoveMenu, setShowMoveMenu] = useState(false)
@@ -142,6 +144,10 @@ function SortableTodoItem({
             onMoveToBottom={onMoveToBottom}
             onDelete={onDelete}
             onClose={() => setShowMoveMenu(false)}
+            sections={sections}
+            currentSectionType={todo.section_type}
+            currentSectionId={todo.section_id}
+            onMoveToSection={onMoveToSection}
           />
         )}
       </div>

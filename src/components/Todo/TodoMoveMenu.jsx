@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 /**
  * 투두 이동 메뉴 컴포넌트
@@ -13,12 +13,24 @@ function TodoMoveMenu({
   onMoveToTop,
   onMoveToBottom,
   onDelete,
-  onClose
+  onClose,
+  sections = [],
+  currentSectionType,
+  currentSectionId,
+  onMoveToSection,
 }) {
+  const [showSectionList, setShowSectionList] = useState(false)
+
   const handleAction = (action) => {
     action()
     onClose()
   }
+
+  const otherSections = sections.filter(s => {
+    if (currentSectionType === 'normal' && s.sectionType === 'normal') return false
+    if (currentSectionType === 'custom' && s.sectionType === 'custom' && s.sectionId === currentSectionId) return false
+    return true
+  })
 
   return (
     <div className="move-menu">
@@ -65,6 +77,40 @@ function TodoMoveMenu({
             <span className="move-menu-icon">&#x23EC;</span> 맨 아래로
           </button>
         </>
+      )}
+      {otherSections.length > 0 && (
+        <div className="move-menu-section-wrapper">
+          <button
+            className={`move-menu-item${showSectionList ? ' active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowSectionList(!showSectionList)
+            }}
+          >
+            <span className="move-menu-icon">&#x1F4C2;</span> 섹션 이동
+            <span className="move-menu-arrow">&#x276F;</span>
+          </button>
+          {showSectionList && (
+            <div className="move-menu-section-popup">
+              {otherSections.map(section => (
+                <button
+                  key={section.id}
+                  className="move-menu-section-item"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (onMoveToSection) {
+                      onMoveToSection(todoId, section.sectionType, section.sectionId)
+                    }
+                    onClose()
+                  }}
+                >
+                  <span className="move-menu-section-icon">{section.icon}</span>
+                  {section.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       <button
         className="move-menu-item delete"
