@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { DAYS } from '../../utils/constants'
+import { useModalOverlay } from '../../hooks/useModalOverlay'
 import Toast from '../Common/Toast'
+import ModalWrapper from '../Common/ModalWrapper'
 import DaySelector from '../Common/DaySelector'
 import AppleTimePicker from '../Common/AppleTimePicker'
 import DeleteConfirmModal from '../Modals/DeleteConfirmModal'
@@ -24,33 +26,14 @@ function TodoHistoryModalContent({
   formatDateOnly,
   onClose
 }) {
-  const mouseDownOnOverlay = useRef(false)
   const visibleDates = todo.visible_dates && todo.visible_dates.length > 0 ? todo.visible_dates : [todo.date]
   const originalDate = visibleDates[0]
   const carryOverPath = visibleDates.map(date => ({ id: `${todo.id}-${date}`, date }))
   const historyRecords = todoHistory[todo.id] || []
 
-  const handleOverlayMouseDown = (e) => {
-    if (e.target === e.currentTarget) {
-      mouseDownOnOverlay.current = true
-    }
-  }
-
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      onClose()
-    }
-    mouseDownOnOverlay.current = false
-  }
-
   return (
-    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>&#x1F4CA; 투두 히스토리</h2>
-          <button onClick={onClose} className="modal-close-button">&#x2715;</button>
-        </div>
-        <div className="modal-body">
+    <ModalWrapper isOpen={true} onClose={onClose} title="&#x1F4CA; 투두 히스토리">
+      <div className="modal-body">
           <div className="todo-history">
             <div className="history-item">
               <span className="history-label">생성일:</span>
@@ -135,8 +118,7 @@ function TodoHistoryModalContent({
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalWrapper>
   )
 }
 
@@ -157,7 +139,6 @@ function TodoRoutineSetupModalContent({
   onClose,
   onRemoveSuccess
 }) {
-  const mouseDownOnOverlay = useRef(false)
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
 
   // 새 시스템: repeat_days 우선, 하위 호환으로 routines 테이블도 확인
@@ -166,27 +147,9 @@ function TodoRoutineSetupModalContent({
   // 표시용 요일 배열
   const displayDays = hasRepeatDays ? todo.repeat_days : (currentRoutine?.days || [])
 
-  const handleOverlayMouseDown = (e) => {
-    if (e.target === e.currentTarget) {
-      mouseDownOnOverlay.current = true
-    }
-  }
-
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      onClose()
-    }
-    mouseDownOnOverlay.current = false
-  }
-
   return (
-    <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>&#x1F504; 루틴 설정</h2>
-          <button onClick={onClose} className="modal-close-button">&#x2715;</button>
-        </div>
-        <div className="modal-body">
+    <ModalWrapper isOpen={true} onClose={onClose} title="&#x1F504; 루틴 설정">
+      <div className="modal-body">
           <div className="routine-setup-inline">
             {(hasRepeatDays || currentRoutine) && !isEditingRoutineInModal ? (
               <>
@@ -306,8 +269,7 @@ function TodoRoutineSetupModalContent({
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalWrapper>
   )
 }
 

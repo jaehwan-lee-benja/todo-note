@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { useModalOverlay } from '../../hooks/useModalOverlay'
 
-// 메모 모달 컴포넌트
 function MemoModal({
   show,
   onClose,
@@ -10,9 +10,8 @@ function MemoModal({
   placeholder = '자유롭게 메모하세요...'
 }) {
   const textareaRef = useRef(null)
-  const mouseDownOnOverlay = useRef(false)
+  const { handleOverlayMouseDown, handleOverlayClick } = useModalOverlay(onClose)
 
-  // textarea 높이 자동 조정
   useEffect(() => {
     if (textareaRef.current && show) {
       textareaRef.current.style.height = 'auto'
@@ -20,14 +19,12 @@ function MemoModal({
     }
   }, [content, show])
 
-  // 모달 열릴 때 포커스
   useEffect(() => {
     if (show && textareaRef.current) {
       textareaRef.current.focus()
     }
   }, [show])
 
-  // ESC 키로 닫기
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && show) {
@@ -40,19 +37,6 @@ function MemoModal({
 
   if (!show) return null
 
-  const handleOverlayMouseDown = (e) => {
-    if (e.target === e.currentTarget) {
-      mouseDownOnOverlay.current = true
-    }
-  }
-
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      onClose()
-    }
-    mouseDownOnOverlay.current = false
-  }
-
   return (
     <div
       className="memo-modal-overlay"
@@ -64,7 +48,7 @@ function MemoModal({
           <h3>📋 생각 메모</h3>
           <div className="memo-modal-actions">
             {isSaving && <span className="memo-saving-indicator">저장 중...</span>}
-            <button className="memo-modal-close" onClick={onClose}>✕</button>
+            <button className="memo-modal-close" onClick={onClose}>&#x2715;</button>
           </div>
         </div>
         <textarea

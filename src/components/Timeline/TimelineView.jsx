@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { useDroppable } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useClickOutside } from '../../hooks/useClickOutside'
 
 /**
  * 타임라인 내 정렬 가능한 투두 아이템
@@ -46,16 +47,7 @@ function TimelineTodoItem({
   // 최하위 시간대의 마지막 투두면 아래로 버튼 숨김
   const canMoveDown = !(index === totalCount - 1 && hour >= endHour)
 
-  // 외부 클릭 시 메뉴 닫기
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (showMoveMenu && !e.target.closest('.timeline-todo-handle-wrapper')) {
-        setShowMoveMenu(false)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [showMoveMenu])
+  useClickOutside(showMoveMenu, '.timeline-todo-handle-wrapper', () => setShowMoveMenu(false))
 
   return (
     <div

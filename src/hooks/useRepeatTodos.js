@@ -1,16 +1,7 @@
 import { useCallback } from 'react'
 import { supabase } from '../supabaseClient'
-import { REPEAT_TYPE, DAYS } from '../utils/constants'
-
-/**
- * 반복 투두 관리 커스텀 훅
- * - 반복 투두 날짜별 표시 여부 판단
- * - 반복 투두 완료 처리 (날짜별)
- * - 반복 투두 생성/수정
- */
-
-// 요일 키 배열 (일요일=0 시작)
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+import { REPEAT_TYPE, DAYS, DAY_KEYS } from '../utils/constants'
+import { isHiddenOnDate, isCarryoverStopped, toggleCompletedDate } from '../utils/todoFilters'
 
 export function useRepeatTodos(session) {
 
@@ -38,15 +29,8 @@ export function useRepeatTodos(session) {
       if (targetDate > endDate) return false
     }
 
-    // hidden_dates에 포함되면 표시 안함
-    if (todo.hidden_dates?.includes(dateStr)) {
-      return false
-    }
-
-    // stop_carryover_from 이후면 표시 안함
-    if (todo.stop_carryover_from && dateStr >= todo.stop_carryover_from) {
-      return false
-    }
+    if (isHiddenOnDate(todo, dateStr)) return false
+    if (isCarryoverStopped(todo, dateStr)) return false
 
     // 반복 타입별 표시 여부 결정
     switch (todo.repeat_type) {
@@ -98,17 +82,9 @@ export function useRepeatTodos(session) {
 
       if (fetchError) throw fetchError
 
-      let newCompletedDates = todo.completed_dates || []
-
-      if (currentlyCompleted) {
-        // 완료 해제: 배열에서 제거
-        newCompletedDates = newCompletedDates.filter(d => d !== dateStr)
-      } else {
-        // 완료: 배열에 추가
-        if (!newCompletedDates.includes(dateStr)) {
-          newCompletedDates = [...newCompletedDates, dateStr].sort()
-        }
-      }
+      const newCompletedDates = currentlyCompleted
+        ? (todo.completed_dates || []).filter(d => d !== dateStr)
+        : toggleCompletedDate(todo.completed_dates, dateStr)
 
       const { error: updateError } = await supabase
         .from('todos')

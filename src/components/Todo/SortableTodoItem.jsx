@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
+import { useClickOutside } from '../../hooks/useClickOutside'
 import TodoMoveMenu from './TodoMoveMenu'
 import TodoActionsModal from './TodoActionsModal'
 
@@ -100,16 +101,7 @@ function SortableTodoItem({
     }
   }
 
-  // 이동 메뉴 외부 클릭 시 닫기
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (showMoveMenu && !e.target.closest('.drag-handle-wrapper')) {
-        setShowMoveMenu(false)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [showMoveMenu])
+  useClickOutside(showMoveMenu, '.drag-handle-wrapper', () => setShowMoveMenu(false))
 
   return (
     <div

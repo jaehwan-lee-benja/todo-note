@@ -1,12 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatDateForDB } from '../utils/dateUtils'
 import { useDeleteLogic } from './useDeleteLogic'
-
-// 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
-const getDayKey = (dayNumber) => {
-  const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-  return keys[dayNumber]
-}
+import { filterMatchingRoutines, findExistingRoutineTodo, addRoutineTodoForDate } from '../utils/routineUtils'
 
 export const useRoutines = ({
   session,
@@ -220,17 +215,10 @@ export const useRoutines = ({
 
   // 특정 날짜의 루틴 작업 자동 생성
   const createRoutineTodosForDate = async (dateStr) => {
-    // 이미 생성 중이면 중복 실행 방지
-    if (routineCreationInProgress.current.has(dateStr)) {
-      return
-    }
+    if (routineCreationInProgress.current.has(dateStr)) return
 
     try {
-      // 생성 시작 플래그 설정
       routineCreationInProgress.current.add(dateStr)
-
-      const targetDate = new Date(dateStr)
-      const dayKey = getDayKey(targetDate.getDay())
 
       const { data: allRoutines, error: routineError } = await supabase
         .from('routines')
@@ -239,116 +227,19 @@ export const useRoutines = ({
 
       if (routineError) throw routineError
 
-      const matchingRoutines = allRoutines.filter(routine => {
-        const days = routine.days || []
-        // days가 비어있으면 매일 반복 (미정 루틴), 아니면 해당 요일만
-        const hasMatchingDay = days.length === 0 || days.includes(dayKey)
-
-        // start_date가 있는 경우, 현재 날짜가 시작일 이후인지 확인
-        if (routine.start_date) {
-          const startDate = new Date(routine.start_date)
-          const isAfterStartDate = targetDate >= startDate
-          return hasMatchingDay && isAfterStartDate
-        }
-
-        // start_date가 없는 경우 (기존 루틴), 요일만 체크
-        return hasMatchingDay
-      })
-
+      const matchingRoutines = filterMatchingRoutines(allRoutines, dateStr)
       if (matchingRoutines.length === 0) return
 
       for (const routine of matchingRoutines) {
-        const todoText = routine.text
-
-        // JSON 방식: 해당 루틴의 기존 투두 찾기 (중복 방지를 위해 배열로 받기)
-        const { data: existingTodos, error: checkError } = await supabase
-          .from('todos')
-          .select('*')
-          .eq('routine_id', routine.id)
-          .eq('deleted', false)
-
-        if (checkError) throw checkError
-
-        // 중복이 있으면 첫 번째 것만 사용하고 나머지는 삭제
-        if (existingTodos && existingTodos.length > 1) {
-          console.warn(`루틴 ${routine.id}에 중복 투두 발견 (${existingTodos.length}개). 첫 번째만 유지하고 나머지 삭제.`)
-          for (let i = 1; i < existingTodos.length; i++) {
-            await supabase
-              .from('todos')
-              .update({ deleted: true, deleted_date: new Date().toISOString() })
-              .eq('id', existingTodos[i].id)
-          }
-        }
-
-        const existingTodo = existingTodos && existingTodos.length > 0 ? existingTodos[0] : null
-
-        if (existingTodo) {
-          // 기존 투두가 있으면 visible_dates에 날짜 추가
-          const currentDates = existingTodo.visible_dates || []
-
-          // days가 있으면 확정 루틴, 없으면 미정 루틴
-          const isPendingRoutine = !routine.days || routine.days.length === 0
-
-          // If already included, just check/update is_pending_routine and section_type
-          const expectedSectionType = isPendingRoutine ? 'pending_routine' : 'routine'
-          if (currentDates.includes(dateStr)) {
-            // is_pending_routine 또는 section_type이 맞지 않으면 업데이트
-            if (existingTodo.is_pending_routine !== isPendingRoutine ||
-                existingTodo.section_type !== expectedSectionType) {
-              await supabase
-                .from('todos')
-                .update({
-                  is_pending_routine: isPendingRoutine,
-                  section_type: expectedSectionType
-                })
-                .eq('id', existingTodo.id)
-            }
-            continue
-          }
-
-          // visible_dates에 날짜 추가 (정렬된 상태 유지)
-          const updatedDates = [...currentDates, dateStr].sort()
-
-          const { error: updateError } = await supabase
-            .from('todos')
-            .update({
-              visible_dates: updatedDates,
-              is_pending_routine: isPendingRoutine,
-              section_type: isPendingRoutine ? 'pending_routine' : 'routine'
-            })
-            .eq('id', existingTodo.id)
-
-          if (updateError) {
-            console.error('루틴 투두 날짜 추가 오류:', updateError.message)
-          }
-        } else {
-          // 첫 루틴 투두 생성
-          // days가 있으면 확정 루틴, 없으면 미정 루틴
-          const isPendingRoutine = !routine.days || routine.days.length === 0
-          const { error: insertError } = await supabase
-            .from('todos')
-            .insert([{
-              text: todoText,
-              completed: false,
-              date: dateStr, // created_date 역할
-              visible_dates: [dateStr], // JSON 방식
-              hidden_dates: [],
-              order_index: 0, // 루틴은 제일 위에
-              routine_id: routine.id,
-              is_pending_routine: isPendingRoutine,
-              section_type: isPendingRoutine ? 'pending_routine' : 'routine',
-              user_id: session?.user?.id
-            }])
-
-          if (insertError) {
-            console.error('루틴 투두 생성 오류:', insertError.message)
-          }
-        }
+        const existingTodo = await findExistingRoutineTodo(supabase, routine.id)
+        await addRoutineTodoForDate({
+          supabase, routine, existingTodo, dateStr,
+          userId: session?.user?.id
+        })
       }
     } catch (error) {
       console.error('루틴 작업 생성 오류:', error.message)
     } finally {
-      // 생성 완료 후 플래그 해제 (1초 후 - 다른 실행도 완료될 시간)
       setTimeout(() => {
         routineCreationInProgress.current.delete(dateStr)
       }, 1000)

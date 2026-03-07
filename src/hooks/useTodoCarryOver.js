@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { formatDateForDB } from '../utils/dateUtils'
+import { isHiddenOnDate, isCarryoverStopped } from '../utils/todoFilters'
 
 /**
  * 투두 이월 관리 훅
@@ -41,11 +42,7 @@ export const useTodoCarryOver = ({
 
       // 오늘 이전 날짜의 미완료 투두 중, 오늘 날짜가 visible_dates에 없는 것만 필터링
       const todosToCarryOver = allTodos.filter(todo => {
-        // hidden_dates에 오늘 날짜가 있으면 제외 (숨김 처리된 경우)
-        const hiddenDates = todo.hidden_dates || []
-        if (hiddenDates.includes(todayStr)) {
-          return false
-        }
+        if (isHiddenOnDate(todo, todayStr)) return false
 
         // 새 방식: visible_dates 사용
         if (todo.visible_dates && Array.isArray(todo.visible_dates) && todo.visible_dates.length > 0) {
@@ -176,10 +173,7 @@ export const useTodoCarryOver = ({
 
           // 아직 이월되지 않은 항목만 필터링
           const todosNeedCarryOver = incompleteTodos.filter(todo => {
-            // stop_carryover_from 체크 (옵션 2: 이번 및 향후 할일 삭제)
-            if (todo.stop_carryover_from && fromDateStr >= todo.stop_carryover_from) {
-              return false // 이월 중단된 투두
-            }
+            if (isCarryoverStopped(todo, fromDateStr)) return false
             const originalId = todo.original_todo_id || todo.id
             return !alreadyCarriedOverIds.has(originalId)
           })

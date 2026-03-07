@@ -1,3 +1,9 @@
+// 요일 키 배열 (일요일=0 시작, Date.getDay() 매핑)
+export const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+// 숫자 요일을 키로 변환 (일요일=0, 월요일=1, ...)
+export const getDayKey = (dayNumber) => DAY_KEYS[dayNumber]
+
 // 요일 정보
 export const DAYS = [
   { key: 'mon', label: '월' },

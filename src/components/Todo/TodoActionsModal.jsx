@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { supabase } from '../../supabaseClient'
-import { DAYS } from '../../utils/constants'
+import { DAYS, getDayKey } from '../../utils/constants'
 import { formatDateForDB } from '../../utils/dateUtils'
+import { useModalOverlay } from '../../hooks/useModalOverlay'
 import AppleTimePicker from '../Common/AppleTimePicker'
 import DaySelector from '../Common/DaySelector'
 import DeleteOptions from '../Common/DeleteOptions'
@@ -50,12 +51,6 @@ function TodoActionsModal({
   const hasRepeatDays = todo.repeat_days && todo.repeat_days.length > 0
   const displayDays = hasRepeatDays ? todo.repeat_days : (currentRoutine?.days || [])
 
-
-  // 요일 번호를 키로 변환
-  const getDayKey = (dayNumber) => {
-    const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-    return keys[dayNumber]
-  }
 
   // 루틴 요일 토글
   const handleToggleRoutineDay = (dayKey) => {
@@ -146,20 +141,7 @@ function TodoActionsModal({
     )
   }
 
-  const mouseDownOnOverlay = useRef(false)
-
-  const handleOverlayMouseDown = (e) => {
-    if (e.target === e.currentTarget) {
-      mouseDownOnOverlay.current = true
-    }
-  }
-
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      onClose()
-    }
-    mouseDownOnOverlay.current = false
-  }
+  const { handleOverlayMouseDown, handleOverlayClick } = useModalOverlay(onClose)
 
   if (!isOpen) return null
 
